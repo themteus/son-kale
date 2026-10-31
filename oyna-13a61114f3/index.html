@@ -727,6 +727,11 @@ button { touch-action: manipulation; }
   .cevir-simge { animation: none; transform: rotate(-90deg); }
 }
 
+/* Moral göstergesi (üst şerit, tıklanınca moral paneli açılır) */
+.k-moral { cursor: pointer; }
+.k-moral i { background: #d8b04a; border-radius: 50% 50% 50% 0; }
+.k-moral.dusuk b { color: #e06a5a; }
+.k-moral.yuksek b { color: #8fd07a; }
 
 html, body { background: var(--gece); }
 </style>
@@ -920,7 +925,7 @@ const DIFFICULTIES = {
   // winDay: bu günü atlatınca yardım ordusu gelir, kuşatma kazanılır
   kolay:  { name: 'Kolay',  hp: 0.7,  speed: 0.9,  spawn: 1.3,  gold: 1.25, winDay: 30, startBows: 4 },
   normal: { name: 'Normal', hp: 1,    speed: 1,    spawn: 1,    gold: 1,    winDay: 40, startBows: 5 },
-  kabus:  { name: 'Kabus',  hp: 1.15, speed: 1.1,  spawn: 0.8,  gold: 0.9,  winDay: 40, startBows: 8 }, // startBows: başlangıçta ambarda yay (ilk günler askersiz geçmesin)
+  kabus:  { name: 'Kabus',  hp: 1.1,  speed: 1,    spawn: 1,    gold: 0.9,  winDay: 40, startBows: 8 }, // startBows: başlangıçta ambarda yay (ilk günler askersiz geçmesin)
 };
 
 // -------------------------------------------------------------
@@ -1266,6 +1271,36 @@ const BOSS = {
   boneArmor: 0.3,   // Kemik Lordu: gövde isabeti hasarın %30'unu verir
   plagueEvery: 8,   // Kara Veba kaç saniyede bir yarasa çağırır
   plagueBats: 5,
+};
+
+// -------------------------------------------------------------
+//  MORAL (morale.js): halkın gönlü 0-100
+//  Gedik, açlık ve ölen asker düşürür; atlatılan gün, patron zaferi,
+//  dolu ambar, kilise ve handaki ziyafet yükseltir.
+//  Düşük moral: üretim yavaşlar, askerler geç dinlenir, kaçanlar olur.
+//  Yüksek moral: üretim hızlanır, askerler çabuk dinlenir.
+// -------------------------------------------------------------
+const MORALE = {
+  start: 60,
+  daily: 2,           // Atlatılan her gün
+  breach: -12,        // Yıkılan her sur
+  starve: -10,        // Açlıktan ölen olursa
+  soldierDeath: -1,   // Ölen her asker (günde en fazla -8)
+  boss: 12,           // Düşen patron
+  fullStore: 2,       // Ambarda 3 günlük yiyecek varsa
+  emptyStore: -4,     // Ambarda yiyecek yoksa
+  low: 30, high: 70,  // Bu sınırların altı düşük, üstü yüksek moral
+  lowProd: 0.85, highProd: 1.1, // Üretim çarpanı
+  lowRest: 0.75, highRest: 1.2, // Askerlerin dinlenme çarpanı
+  desertBelow: 20,    // Bunun altında her gece 1-3 kişi kaçar
+  // Kilise: her seviye günde +3 moral ve kötü haberlerin etkisini %15 azaltır
+  church: [{ odun: 40, tas: 40, altin: 120 }, { odun: 60, tas: 80, altin: 300 }, { tas: 120, demir: 10, altin: 700 }],
+  churchDaily: 3,
+  churchSoften: 0.15,
+  // Han: kurulunca günde +1 moral; ziyafet (günde bir kez) altın ve yiyecekle moral verir
+  han: { odun: 50, tas: 20, altin: 150 },
+  hanDaily: 1,
+  feast: { gold: 80, goldPerDay: 6, yiyecek: 30, morale: 15 },
 };
 
 // -------------------------------------------------------------
@@ -3595,7 +3630,7 @@ class Archer {
       const H = CONFIG.helper;
       const o = game.order || {};
       if (this.stamina === undefined) this.stamina = H.stamina;
-      this.stamina = Math.min(H.stamina, this.stamina + H.regen * (o.rest > 0 ? ORDERS.restRegen : 1) * dt);
+      this.stamina = Math.min(H.stamina, this.stamina + H.regen * (o.rest > 0 ? ORDERS.restRegen : 1) * Morale.rest(game.econ) * dt); // Moral dinlenmeyi etkiler
       this.tired = this.stamina < H.stamina * H.tiredAt;
       if (o.rest > 0) return; // "Dinlenin!" emri: ateş yok
       // Oyuncunun gösterdiği hedef önce (orders.js)
@@ -5692,6 +5727,11 @@ class Economy {
     this.event = null;    // Bekleyen olay (events.js → EVENTS sırası)
     this.lastEvent = null;
     this.eventNote = null; // Seçilen olayın sonucu (raporda yazar)
+    this.morale = MORALE.start; // Halkın morali (morale.js)
+    this.moraleWhy = [];
+    this.church = 0;      // Kilise seviyesi
+    this.han = false;     // Han kuruldu mu
+    this.feastDay = -1;   // Son ziyafetin günü
   }
 
   // ---------- Kişiler ----------
@@ -5800,7 +5840,7 @@ class Economy {
 
   // Seviyeye göre işçi verimi (1. seviye = 1)
   eff(key) {
-    return 1 + (this.buildings[key].level - 1) * ECONOMY.levelBonus;
+    return (1 + (this.buildings[key].level - 1) * ECONOMY.levelBonus) * Morale.prod(this);
   }
 
   // ---------- Kalite (oyuncunun ve askerlerin okları) ----------
@@ -7456,6 +7496,105 @@ const Orders = {
     ctx.lineTo(z.x, y);
     ctx.closePath();
     ctx.fill();
+  },
+};
+
+</script>
+  <script>
+// =============================================================
+//  MORAL (morale.js)
+//  Halkın gönlü 0-100 arası bir sayı: econ.morale.
+//  Gün sonunda olanlara göre değişir (game.js → onWaveCleared).
+//  Etkileri: üretim (economy.js → eff), askerlerin dinlenmesi
+//  (archer.js), düşükken kaçanlar. Kilise ve han moral verir.
+//  Ayarlar: config.js → MORALE
+// =============================================================
+
+const Morale = {
+  // Moralin üretim çarpanı
+  prod(econ) {
+    const m = econ.morale ?? MORALE.start;
+    return m < MORALE.low ? MORALE.lowProd : m > MORALE.high ? MORALE.highProd : 1;
+  },
+
+  // Askerlerin dinlenme çarpanı
+  rest(econ) {
+    const m = econ.morale ?? MORALE.start;
+    return m < MORALE.low ? MORALE.lowRest : m > MORALE.high ? MORALE.highRest : 1;
+  },
+
+  label(m) {
+    return m < MORALE.desertBelow ? 'İsyan eşiğinde' : m < MORALE.low ? 'Düşük' : m > MORALE.high ? 'Yüksek' : 'Orta';
+  },
+
+  // Gün sonu: sebepleriyle birlikte moral değişimi
+  endDay(game, report, soldiersLost) {
+    const econ = game.econ;
+    const M = MORALE;
+    const soften = 1 - econ.church * M.churchSoften; // Kilise kötü haberleri yumuşatır
+    const why = [];
+    const add = (n, text) => { if (n) why.push({ n: Math.round(n), text }); };
+    add(M.daily, 'gün atlatıldı');
+    const breaches = (report.breaches || []).length;
+    add(breaches * M.breach * soften, `${breaches} sur yıkıldı`);
+    if (report.deaths > 0) add(M.starve * soften, 'açlık');
+    if (soldiersLost) add(Math.max(-8, soldiersLost * M.soldierDeath) * soften, `${soldiersLost} asker öldü`);
+    const bosses = (game.bossKills || 0) - (game.moraleBosses || 0);
+    game.moraleBosses = game.bossKills || 0;
+    if (bosses > 0) add(bosses * M.boss, 'patron düştü');
+    if (econ.res.yiyecek >= econ.people * 3) add(M.fullStore, 'ambar dolu');
+    else if (econ.res.yiyecek <= 0) add(M.emptyStore * soften, 'ambar boş');
+    if (econ.church) add(econ.church * M.churchDaily, 'kilise');
+    if (econ.han) add(M.hanDaily, 'han');
+    const before = econ.morale;
+    econ.morale = clamp(econ.morale + why.reduce((s, w) => s + w.n, 0), 0, 100);
+    econ.moraleWhy = why;
+    // Moral çok düşükse bazıları gece kaleden kaçar
+    let fled = 0;
+    if (econ.morale < M.desertBelow) {
+      fled = Math.min(1 + Math.floor(Math.random() * 3), Math.max(0, econ.idle(game)) + 1);
+      econ.people -= fled;
+      report.notes.push(`Moral çok düşük: ${fled} kişi gece kaleden kaçtı. Kilise kur ya da handa ziyafet ver.`);
+    }
+    return { before, after: econ.morale, fled, why };
+  },
+
+  // ---- Kilise ve Han (moral panelinden) ----
+  churchCost(econ) {
+    return MORALE.church[econ.church] || null;
+  },
+
+  buildChurch(game) {
+    const econ = game.econ;
+    const cost = this.churchCost(econ);
+    if (!cost || !econ.pay(cost, game)) return false;
+    econ.church++;
+    return true;
+  },
+
+  buildHan(game) {
+    const econ = game.econ;
+    if (econ.han || !econ.pay(MORALE.han, game)) return false;
+    econ.han = true;
+    return true;
+  },
+
+  feastCost(game) {
+    const F = MORALE.feast;
+    return { altin: F.gold + game.waves.wave * F.goldPerDay, yiyecek: F.yiyecek };
+  },
+
+  canFeast(game) {
+    const econ = game.econ;
+    return econ.han && econ.feastDay !== game.waves.wave && econ.canAfford(this.feastCost(game), game);
+  },
+
+  feast(game) {
+    const econ = game.econ;
+    if (!this.canFeast(game) || !econ.pay(this.feastCost(game), game)) return false;
+    econ.feastDay = game.waves.wave;
+    econ.morale = Math.min(100, econ.morale + MORALE.feast.morale);
+    return true;
   },
 };
 
@@ -9733,6 +9872,7 @@ const Save = {
         res: e.res, people: e.people, buildings: e.buildings, lastUsed: e.lastUsed,
         lastRecovered: e.lastRecovered, report: e.report, market: e.market,
         away: e.away, extraHousing: e.extraHousing, knights: e.knights, event: e.event, lastEvent: e.lastEvent,
+        morale: e.morale, church: e.church, han: e.han, feastDay: e.feastDay,
       },
       fronts: game.fronts.list.map((f) => ({ key: f.key, wallLevel: f.wallLevel, towerLevel: f.towerLevel, soldiers: f.soldiers, hp: f.hp, oil: f.oil, catapult: f.catapult, commander: f.commander || null })),
       battleKey: game.fronts.battleKey,
@@ -9926,6 +10066,7 @@ const UI = {
         <span class="kaynak k-nufus"><i></i><em>Nüfus</em> <b>${econ.people}/${econ.housing}</b><small>${idle > 0 ? `<span class="eksi">${idle} boşta</span>` : ''}</small></span>
         <span class="kaynak k-asker"><i></i><em>Okçu</em> <b>${1 + econ.soldiers(game)}</b></span>
         <span class="kaynak k-altin"><i></i><em>Altın</em> <b>${game.gold}</b></span>
+        <span class="kaynak k-moral ${econ.morale < MORALE.low ? 'dusuk' : econ.morale > MORALE.high ? 'yuksek' : ''}" data-moral="1" title="Halkın morali: tıkla, kilise ve han"><i></i><em>Moral</em> <b>${Math.round(econ.morale)}</b></span>
         ${chips}
       </div>`;
 
@@ -9950,7 +10091,10 @@ const UI = {
     if (sel) {
       let html = '';
       let ax = 0;
-      if (sel.startsWith('kesif:')) {
+      if (sel === 'moral') {
+        ax = 900;
+        html = this.moralePanel(game);
+      } else if (sel.startsWith('kesif:')) {
         const u = UNEXPLORED.find((p) => p.name === sel.slice(6));
         ax = u.x;
         html = this.placePanel(game, game.exp.keyByName(u.name));
@@ -9982,6 +10126,7 @@ const UI = {
     el.querySelectorAll('[data-act]').forEach((b) => { b.onclick = () => this.act(game, b.dataset); });
     el.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => { sc.selected = null; this.showBase(game); }; });
     el.querySelectorAll('[data-report]').forEach((b) => { b.onclick = () => { sc.reportOpen = false; this.showBase(game); }; });
+    el.querySelector('[data-moral]').onclick = () => { sc.selected = sc.selected === 'moral' ? null : 'moral'; Sound.play('click'); this.showBase(game); };
     el.querySelector('[data-shop]').onclick = () => this.showShop(game);
     el.querySelector('[data-market]').onclick = () => this.showMarket(game);
     document.getElementById('btnDalga').onclick = () => game.startNextWave();
@@ -10026,12 +10171,57 @@ const UI = {
       rep.bonus ? `Dalga bonusu: +${rep.bonus} altın` : '',
       ...(rep.expeditions || []).filter((n) => !n.bad).map((n) => n.text),
       ...(rep.commanders || []).filter((n) => !n.bad).map((n) => n.text),
+      this.moraleLine(rep),
     ].filter(Boolean);
     lost.push(...(rep.expeditions || []).filter((n) => n.bad).map((n) => n.text));
     lost.push(...(rep.commanders || []).filter((n) => n.bad).map((n) => n.text));
     return `<b class="baslik">${game.waves.wave}. gün bitti</b>
       ${lines.map((l) => `<span>${l}</span>`).join('')}
       ${[...lost, ...rep.notes].map((n) => `<span class="eksi">${n}</span>`).join('')}${foodNote}`;
+  },
+
+  // Rapordaki moral satırı: ne kadar değişti, neden
+  moraleLine(rep) {
+    const m = rep.morale;
+    if (!m) return '';
+    const d = Math.round(m.after - m.before);
+    const why = (m.why || []).map((w) => `${w.n > 0 ? '+' : ''}${w.n} ${w.text}`).join(', ');
+    return `Moral ${Math.round(m.after)} (${d >= 0 ? '+' : ''}${d}): ${why}`;
+  },
+
+  // ---- Moral paneli: kilise, han, ziyafet (morale.js) ----
+  moralePanel(game) {
+    const econ = game.econ;
+    const M = MORALE;
+    const m = Math.round(econ.morale);
+    const prod = Math.round((Morale.prod(econ) - 1) * 100);
+    const rest = Math.round((Morale.rest(econ) - 1) * 100);
+    const effect = prod || rest
+      ? `Üretim ${prod > 0 ? '+' : ''}%${prod}, askerlerin dinlenmesi ${rest > 0 ? '+' : ''}%${rest}.`
+      : 'Moral orta: üretim ve dinlenme normal.';
+    const why = (econ.moraleWhy || []).map((w) => `${w.n > 0 ? '+' : ''}${w.n} ${w.text}`).join(', ');
+    const cc = Morale.churchCost(econ);
+    const church = cc
+      ? `<button class="gelistir" data-act="church" ${econ.canAfford(cc, game) ? '' : 'disabled'}>${econ.church ? `Kiliseyi büyüt (Sv${econ.church + 1})` : 'Kilise kur'}: ${this.costText(cc)}</button>`
+      : '<span class="y-seviye">Kilise en üst seviye</span>';
+    const fc = Morale.feastCost(game);
+    const han = !econ.han
+      ? `<button class="gelistir" data-act="han" ${econ.canAfford(M.han, game) ? '' : 'disabled'}>Han kur: ${this.costText(M.han)}</button>`
+      : econ.feastDay === game.waves.wave
+        ? '<span class="y-seviye">Bugün ziyafet verildi.</span>'
+        : `<button class="gelistir" data-act="feast" ${Morale.canFeast(game) ? '' : 'disabled'}>Handa ziyafet (+${M.feast.morale} moral): ${this.costText(fc)}</button>`;
+    return `
+      <span class="y-ust"><span class="y-ad">Halkın morali</span><span class="y-seviye">${m}/100 · ${Morale.label(m)}</span></span>
+      <span class="y-aciklama">Moral ${M.low}'un altına düşerse üretim ve dinlenme yavaşlar, ${M.desertBelow}'nin altında halk gece kaçar. ${M.high}'in üstünde herkes daha çok çalışır.</span>
+      <span class="uretim">${effect}</span>
+      ${why ? `<span class="y-seviye">Dün: ${why}</span>` : ''}
+      <span class="y-seviye">Moral verir: atlatılan gün, düşen patron, dolu ambar. Düşürür: yıkılan sur, açlık, ölen asker.</span>
+      <span class="y-ad">Kilise${econ.church ? ` Sv${econ.church}` : ''}</span>
+      <span class="y-aciklama">Her seviye günde +${M.churchDaily} moral verir, kötü haberlerin etkisini %${Math.round(M.churchSoften * 100)} azaltır.</span>
+      ${church}
+      <span class="y-ad">Han</span>
+      <span class="y-aciklama">Günde +${M.hanDaily} moral. Günde bir kez ziyafet verilebilir.</span>
+      ${han}`;
   },
 
   // Gün sonu olayı: iki seçenekli kart (events.js)
@@ -10129,6 +10319,9 @@ const UI = {
       case 'tower': ok = fr.upgradeTower(d.key, game); break;
       case 'rush': ok = fr.rushRepair(d.key, game); break;
       case 'hire': ok = game.commanders.hire(game, d.key, d.kind); break;
+      case 'church': ok = Morale.buildChurch(game); break;
+      case 'han': ok = Morale.buildHan(game); break;
+      case 'feast': ok = Morale.feast(game); break;
       case 'dismiss': ok = game.commanders.dismiss(game, d.key); break;
       case 'def': ok = Defenses.build(game, d.key, d.def); break;
       case 'event': ok = Events.choose(game, Number(d.n)); break;
@@ -10150,7 +10343,7 @@ const UI = {
         break;
       }
     }
-    if (ok) Sound.play(d.act === 'rush' || d.act === 'hire' || d.act === 'build' || d.act === 'wall' || d.act === 'tower' || d.act === 'def' || d.act === 'raid' || d.act === 'claim' ? 'buy' : 'click');
+    if (ok) Sound.play(d.act === 'rush' || d.act === 'hire' || d.act === 'build' || d.act === 'wall' || d.act === 'tower' || d.act === 'def' || d.act === 'raid' || d.act === 'claim' || d.act === 'church' || d.act === 'han' || d.act === 'feast' ? 'buy' : 'click');
     this.showBase(game);
   },
 
@@ -11618,6 +11811,7 @@ class Game {
     report.commanders = this.commanders.endDay(this); // Seviye atlayanlar, ölenler
     report.lost = lost;
     report.bonus = bonus;
+    report.morale = Morale.endDay(this, report, lostTotal); // Halkın morali
     // Şövalye birliğinin günlük ücreti
     if (this.econ.knights) {
       if (this.gold >= DEFENSES.knights.upkeep) this.gold -= DEFENSES.knights.upkeep;
