@@ -2,7 +2,6 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Son Kale</title>
   <meta name="theme-color" content="#171a24">
@@ -747,8 +746,8 @@ html, body { background: var(--gece); }
   <main class="sayfa">
     <header>
       <h1>Son Kale</h1>
-      <p class="fare">Fareyle nişan al, basılı tutup yayı ger, bırakınca ok uçar (uzun germek yorar) · <b>1-2-3</b> ok türü · <b>Q</b> Ok Yağmuru · askerlere <b>sağ tık/E</b> hedef, <b>F</b> yaylım, <b>R</b> dinlen · <b>Esc</b> duraklat · <b>M</b> ses · dalga arası iç kale ve cephe haritası</p>
-      <p class="dokun">Basılı tut: yay gerilir, bırak: ok uçar · kısa dokunuş: tam gerip atar</p>
+      <p class="fare">Fareyle vurmak istediğin yere bak, basılı tutup yayı ger, halka küçülünce bırak (uzun germek yorar) · <b>1-2-3</b> ok türü · <b>Q</b> Ok Yağmuru · askerlere <b>sağ tık/E</b> hedef, <b>F</b> yaylım, <b>R</b> dinlen · <b>Esc</b> duraklat · <b>M</b> ses · dalga arası iç kale ve cephe haritası</p>
+      <p class="dokun">Vurmak istediğin yere bas: yay gerilir, bırak: ok uçar · kısa dokunuş: tam gerip atar</p>
     </header>
 
     <div class="oyun-cercevesi">
@@ -842,6 +841,14 @@ const CONFIG = {
     tireTime: 2.5,       // ...sonra bu sürede kol iyice yorulur
     tireSpread: 0.08,    // Yorgun kolun eklediği en fazla sapma
     speedVar: 0.04,      // Ok hızındaki rastgele fark (%4)
+    // İÇGÜDÜSEL ATIŞ: oyuncu hedefe bakar (fare/parmak), okçu kavisi kendisi
+    // ayarlar; ama tam gerili yay hızına göre. Az gerersen ok kısa düşer.
+    turnSpeed: 3.5,      // Kolun nişana dönme hızı (radyan/sn)
+    settleTime: 0.35,    // Tam gerildikten sonra nişanın oturma süresi (sn)
+    settleSpread: 0.03,  // Oturmadan bırakılırsa eklenen sapma
+    swaySpread: 0.07,    // Gererken nişanı çok oynatınca eklenen en fazla sapma
+    swayCalm: 2.5,       // Sallanmanın sönme hızı (saniyede)
+    focusRing: true,     // Gererken nişan noktasında odak halkası (false = kapalı)
   },
 
   // DAYANIKLILIK (stamina): yayı germek ve gerili tutmak okçuyu yorar.
@@ -3617,6 +3624,8 @@ class Archer {
     this.held = 0;            // Tam gerili kaç saniyedir tutuluyor
     this.autoRelease = false; // Kısa dokunuş: tam gerilince kendiliğinden at
     this.tremble = 0;         // Yorgun kolun titremesi (çizimde nişan oynar)
+    this.fullT = 0;           // Tam gerili olalı kaç saniye (nişan oturuyor)
+    this.sway = 0;            // Gererken nişanı oynatınca artan sallantı (0-1)
   }
 
   // Yayın döndüğü nokta (omuz)
@@ -3646,10 +3655,16 @@ class Archer {
     const stats = this.getStats(game);
 
     if (this.isPlayer) {
-      // Fareye doğru nişan al (çok geriye dönmesin diye sınırlıyoruz)
-      const dx = game.input.mouseX - this.pivotX;
-      const dy = game.input.mouseY - this.pivotY;
-      this.angle = clamp(Math.atan2(dy, dx), -1.45, 1.2);
+      // İçgüdüsel atış: farenin / parmağın gösterdiği noktaya bakılır,
+      // okçu oraya varacak kavisi tam gerili yayın hızına göre kendisi bulur.
+      // Kol hedefe birden değil, belli bir hızla döner.
+      const B = CONFIG.bow;
+      const want = clamp(this.solveAngle(game.input.mouseX, game.input.mouseY, stats.speed), -1.45, 1.2);
+      const step = clamp(want - this.angle, -B.turnSpeed * dt, B.turnSpeed * dt);
+      this.angle += step;
+      // Gererken nişanı oynatmak yayı sallar; durunca yavaşça sakinleşir
+      if (this.drawing) this.sway = Math.min(1, this.sway + Math.abs(step) * 3);
+      this.sway = Math.max(0, this.sway - B.swayCalm * this.sway * dt);
       this.updateBow(dt, game, stats);
     } else {
       // Asker dayanıklılığı: her atış yorar, beklerken dinlenir
@@ -3704,6 +3719,7 @@ class Archer {
         this.drawing = true;
         this.pull = 0;
         this.held = 0;
+        this.fullT = 0;
         this.autoRelease = false;
       }
       return;
@@ -3721,7 +3737,7 @@ class Archer {
     } else {
       game.stamina = Math.max(0, game.stamina - S.holdCost * dt);
     }
-    if (this.pull >= maxPull) this.held += dt;
+    if (this.pull >= maxPull) { this.held += dt; this.fullT += dt; }
     // Tükenmişken kısa dokunuş tam gerilmeyi beklemesin
     if (this.autoRelease && this.pull >= maxPull) return this.release(game, stats, speedUp);
 
@@ -3745,15 +3761,38 @@ class Archer {
     this.tremble = 0;
   }
 
+  // Şu an bırakılsa okun ne kadar sapacağı (radyan, ortalama).
+  // Az gerili yay, oturmamış nişan, oynatılan kol ve yorgunluk artırır.
+  spreadNow() {
+    const B = CONFIG.bow;
+    const p = this.pull;
+    const settle = p >= 1 ? Math.max(0, 1 - this.fullT / B.settleTime) : 1;
+    return B.spread + B.weakSpread * (1 - p) * (1 - p) + B.tireSpread * this.tremble
+      + B.settleSpread * settle + B.swaySpread * this.sway
+      + (this.tired ? CONFIG.stamina.tiredSpread : 0);
+  }
+
+  // Gererken nişan noktasında halka: küçüldükçe atış isabetli olur.
+  // Okun yolunu göstermez, yalnızca elin ne kadar sabit olduğunu.
+  drawFocusRing(ctx, game) {
+    if (!CONFIG.bow.focusRing || !this.drawing) return;
+    const x = game.input.mouseX, y = game.input.mouseY;
+    const dist = Math.hypot(x - this.pivotX, y - this.pivotY);
+    const sp = this.spreadNow();
+    const r = clamp(dist * sp * 1.3, 5, 70);
+    const calm = sp <= CONFIG.bow.spread * 1.15; // Nişan oturdu: halka parlar
+    ctx.strokeStyle = calm ? 'rgba(255, 236, 170, 0.7)' : 'rgba(243, 231, 196, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(Math.round(x), Math.round(y), Math.round(r), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   // Oku bırak: güç, hasar ve sapma yayın ne kadar gerildiğine bağlı
   release(game, stats, speedUp) {
     const B = CONFIG.bow;
     const p = this.pull;
-    const tire = this.tremble;
-    // Sapma: az gerilmiş yay ve yorgun kol daha çok şaşırır
-    const sigma = B.spread + B.weakSpread * (1 - p) * (1 - p) + B.tireSpread * tire
-      + (this.tired ? CONFIG.stamina.tiredSpread : 0);
-    const aimError = gaussRandom() * sigma;
+    const aimError = gaussRandom() * this.spreadNow();
     const power = (B.minPower + (1 - B.minPower) * p) * (1 + gaussRandom() * B.speedVar);
     let dmgMult = 0.4 + (B.fullDamage - 0.4) * p * p;
     // Keskin atış: üst üste kafa vuruşunun ödülü
@@ -3765,6 +3804,7 @@ class Archer {
 
     this.drawing = false;
     this.held = 0;
+    this.fullT = 0;
     this.tremble = 0;
     this.autoRelease = false;
     const angle = this.angle;
@@ -3829,17 +3869,22 @@ class Archer {
   // Zombi yürüyorsa okun yolda geçireceği süre kadar önüne nişan alır.
   // lead: önüne nişan alma çarpanı (askerler yanılır, 1 = tam)
   aimAt(zombie, speed, lead = 1) {
-    const g = CONFIG.gravity;
     let tx = zombie.x;
     const ty = zombie.aimY; // Zombinin vurulacak noktası (her tür kendisi söyler)
     const flightTime = Math.max(0, (tx - this.pivotX) / (speed * 0.9));
     if (zombie.state === 'walk') tx -= zombie.speed * flightTime * lead;
     // Askerler rüzgârı hesaba katar (oyuncu kendisi ayarlar)
     tx -= 0.5 * Arrow.wind * flightTime * flightTime;
+    return this.solveAngle(tx, ty, speed);
+  }
 
+  // (tx, ty) noktasına bu hızla varan alçak kavisin açısı
+  solveAngle(tx, ty, speed) {
+    const g = CONFIG.gravity;
     const dx = tx - this.pivotX;
     const dy = this.pivotY - ty; // Yukarı pozitif
-    if (dx < 5) return 1.0;      // Hedef tam dibimizde, aşağı ateş et
+    // Hedef dibimizde ya da arkada: doğrudan oraya bak
+    if (dx < 5) return Math.atan2(-dy, Math.max(dx, 1));
 
     const v2 = speed * speed;
     const disc = v2 * v2 - g * (g * dx * dx + 2 * dy * v2);
@@ -10059,8 +10104,8 @@ const UI = {
            Her ok sayılı; demirci uç döver, yaycı ok ve yay yapar, duvarcı surları onarır.
            Yay oldukça köylüleri okçu asker yapıp haritadan surlara diz.</p>
         <ul class="kontroller fare">
-          <li><b>Fare</b> ile nişan al</li>
-          <li><b>Basılı tut</b>, sürekli ok at</li>
+          <li><b>Fare</b> ile vurmak istediğin yere bak: okçu kavisi kendisi ayarlar</li>
+          <li><b>Basılı tut</b> yayı ger, halka küçülünce <b>bırak</b></li>
           <li><b>Kafaya</b> isabet: 2 kat hasar, +1 altın</li>
           <li><b>Q</b> Ok Yağmuru (dükkândan açılır)</li>
           <li>Askerler: <b>sağ tık / E</b> hedef, <b>F</b> yaylım, <b>R</b> dinlen</li>
@@ -10069,8 +10114,8 @@ const UI = {
           <li><b>Boşluk</b> dalgayı başlat</li>
         </ul>
         <ul class="kontroller dokun">
-          <li><b>Dokun</b>: o yere bir ok at</li>
-          <li><b>Basılı tut ve kaydır</b>: sürekli ok at</li>
+          <li><b>Dokun</b>: yay tam gerilir, ok o yere atılır</li>
+          <li><b>Basılı tut</b>: yayı ger, kaydırıp nişanı düzelt, <b>bırak</b>: at</li>
           <li><b>Kafaya</b> isabet: 2 kat hasar, +1 altın</li>
           <li>Sol alttaki düğme: <b>Ok Yağmuru</b></li>
           <li>Sağ alttaki düğme: <b>duraklat</b>, ses</li>
@@ -12053,6 +12098,7 @@ class Game {
     this.scenery.drawEmbers(ctx, this.time, this.night);
     this.scenery.drawStorm(ctx);
     this.effects.drawTexts(ctx);
+    if (this.state === 'playing') this.player.drawFocusRing(ctx, this);
 
     ctx.restore();
     this.scenery.drawVignette(ctx);
