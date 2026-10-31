@@ -733,6 +733,13 @@ button { touch-action: manipulation; }
 .k-moral.dusuk b { color: #e06a5a; }
 .k-moral.yuksek b { color: #8fd07a; }
 
+/* Araştırma paneli (research.js) */
+.arastirma-liste { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+.arastirma-satir { display: flex; flex-direction: column; gap: 2px; padding: 5px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); }
+.arastirma-satir small { opacity: 0.75; }
+.arastirma-satir.bitti { opacity: 0.6; }
+.arastirma-satir .gelistir { margin-top: 3px; }
+
 html, body { background: var(--gece); }
 </style>
 </head>
@@ -1283,22 +1290,23 @@ const BOSS = {
 const MORALE = {
   start: 60,
   daily: 2,           // Atlatılan her gün
-  breach: -12,        // Yıkılan her sur
+  breach: -8,         // Yıkılan her sur
   starve: -10,        // Açlıktan ölen olursa
   soldierDeath: -1,   // Ölen her asker (günde en fazla -8)
   boss: 12,           // Düşen patron
   fullStore: 2,       // Ambarda 3 günlük yiyecek varsa
   emptyStore: -4,     // Ambarda yiyecek yoksa
   low: 30, high: 70,  // Bu sınırların altı düşük, üstü yüksek moral
-  lowProd: 0.85, highProd: 1.1, // Üretim çarpanı
+  maxDrop: 15,        // Bir günde en fazla bu kadar düşer
+  lowProd: 0.9, highProd: 1.1,  // Üretim çarpanı
   lowRest: 0.75, highRest: 1.2, // Askerlerin dinlenme çarpanı
   desertBelow: 20,    // Bunun altında her gece 1-3 kişi kaçar
   // Kilise: her seviye günde +3 moral ve kötü haberlerin etkisini %15 azaltır
-  church: [{ odun: 40, tas: 40, altin: 120 }, { odun: 60, tas: 80, altin: 300 }, { tas: 120, demir: 10, altin: 700 }],
+  church: [{ tas: 20, altin: 180 }, { tas: 50, altin: 400 }, { tas: 80, demir: 10, altin: 800 }],
   churchDaily: 3,
   churchSoften: 0.15,
   // Han: kurulunca günde +1 moral; ziyafet (günde bir kez) altın ve yiyecekle moral verir
-  han: { odun: 50, tas: 20, altin: 150 },
+  han: { odun: 20, altin: 200 },
   hanDaily: 1,
   feast: { gold: 80, goldPerDay: 6, yiyecek: 30, morale: 15 },
 };
@@ -1495,6 +1503,24 @@ const EXPEDITION = {
   attackChance: 0.35,    // Ele geçirilen yerin her gün basılma olasılığı
   palisade: 120,         // Çitin savunma gücü (dalgayla büyür)
   garrisonPower: 15,     // Her yerleşimci kaç atışlık savunma yapar (ok hasarıyla çarpılır)
+};
+
+// -------------------------------------------------------------
+//  ARAŞTIRMA (research.js): biriken altının gideceği yer.
+//  Aynı anda tek araştırma yapılır, her gün sonunda bir gün ilerler.
+//  need: önce bitmesi gereken araştırma. Ödeme başlarken alınır.
+// -------------------------------------------------------------
+const RESEARCH = {
+  celik:   { name: 'Çelik Uç',          days: 2, cost: { altin: 500, demir: 20 },  desc: 'Bütün okların hasarı +%12 (sen ve askerler).' },
+  toplama: { name: 'Ok Toplayıcılar',   days: 2, cost: { altin: 400 },             desc: 'Savaştan sonra toplanan ok +%35.' },
+  sulama:  { name: 'Sulama Kanalları',  days: 2, cost: { altin: 450, odun: 40 },   desc: 'Çiftlikler +%20 yiyecek üretir.' },
+  talim:   { name: 'Talim Meydanı',     days: 3, cost: { altin: 900 },             need: 'celik',   desc: 'Yanındaki askerler %30 daha az yorulur.' },
+  usta:    { name: 'Usta Duvarcılar',   days: 3, cost: { altin: 900, tas: 60 },    need: 'sulama',  desc: 'Duvarcılar +%30 onarır.' },
+  harp:    { name: 'Harp Okulu',        days: 3, cost: { altin: 1200 },            need: 'talim',   desc: 'Komutanlar %50 daha hızlı tecrübe kazanır.' },
+  uzunyay: { name: 'Uzun Yay',          days: 3, cost: { altin: 1500, odun: 80 },  need: 'celik',   desc: 'Okların hızı +%10, dayanıklılığın +20.' },
+  agir:    { name: 'Ağır Mancınık',     days: 4, cost: { altin: 1800, tas: 100 },  need: 'usta',    desc: 'Mancınık %60 daha sert vurur, kazan yağı +%40.' },
+  kale:    { name: 'Kale Suru',         days: 4, cost: { altin: 2500, tas: 150 },  need: 'usta',    desc: 'Bütün surların canı +%25.' },
+  sam:     { name: 'Şam Çeliği',        days: 5, cost: { altin: 3500, demir: 60 }, need: 'uzunyay', desc: 'Bütün okların hasarı bir kez daha +%15.' },
 };
 
 </script>
@@ -3646,7 +3672,7 @@ class Archer {
         if (this.cooldownTimer <= 0) {
           const aim = this.angle;
           this.angle += gaussRandom() * (H.aimSpread * crowd + (this.tired ? H.tiredSpread : 0));
-          if (this.shoot(game, stats)) this.stamina = Math.max(0, this.stamina - H.shotCost * (o.volley > 0 ? ORDERS.volleyCost : 1));
+          if (this.shoot(game, stats)) this.stamina = Math.max(0, this.stamina - H.shotCost * Research.helperCost() * (o.volley > 0 ? ORDERS.volleyCost : 1));
           this.angle = aim;
           this.lead = undefined;
         }
@@ -5840,7 +5866,7 @@ class Economy {
 
   // Seviyeye göre işçi verimi (1. seviye = 1)
   eff(key) {
-    return (1 + (this.buildings[key].level - 1) * ECONOMY.levelBonus) * Morale.prod(this);
+    return (1 + (this.buildings[key].level - 1) * ECONOMY.levelBonus) * Morale.prod(this) * Research.prodMult(key);
   }
 
   // ---------- Kalite (oyuncunun ve askerlerin okları) ----------
@@ -5964,7 +5990,7 @@ class Economy {
 
     // 6) Savaş alanından ok toplama: ıskalananlar sağlam, saplananların çoğu kırık
     const hits = Math.min(this.arrowsHit, this.arrowsUsed);
-    const recovered = Math.floor((this.arrowsUsed - hits) * ECONOMY.missRecover + hits * ECONOMY.hitRecover);
+    const recovered = Math.floor(((this.arrowsUsed - hits) * ECONOMY.missRecover + hits * ECONOMY.hitRecover) * Research.recoverMult());
     gain('ok', recovered);
 
     const report = { made, used, notes, repairs, deaths, newcomers, recovered, eaten, need, arrowsUsed: this.arrowsUsed };
@@ -6154,7 +6180,7 @@ class Front {
   }
 
   get name() { return this.def.name; }
-  get maxHp() { return FRONT_CONFIG.wallHp[this.wallLevel - 1]; }
+  get maxHp() { return Math.round(FRONT_CONFIG.wallHp[this.wallLevel - 1] * Research.wallMult()); }
   get slots() { return FRONT_CONFIG.towerSlots[this.towerLevel - 1]; }
   get towerBonus() { return FRONT_CONFIG.towerBonus[this.towerLevel - 1]; }
   get wallCost() { return FRONT_CONFIG.wallUpgrade[this.wallLevel - 1] || null; }
@@ -6875,7 +6901,7 @@ const Defenses = {
       game.oilTimer = (game.oilTimer || 0) - dt;
       for (const z of game.zombies) {
         if (z.dead || (z.state !== 'attack' && z.state !== 'climb')) continue;
-        this.hurt(game, z, DEFENSES.oil.dps * pd * (game.engMult || 1) * dt); // Mühendis güçlendirir
+        this.hurt(game, z, DEFENSES.oil.dps * pd * (game.engMult || 1) * Research.oilMult() * dt); // Mühendis güçlendirir
         if (game.oilTimer <= 0) {
           game.effects.burst(z.x - 6, z.top + 6, '#e8a33a', 10, 90);
           game.effects.burst(z.x - 6, z.top + 6, '#5a3a1a', 5, 60);
@@ -6919,7 +6945,7 @@ const Defenses = {
   impact(game, x, pd) {
     const C = DEFENSES.catapult;
     for (const z of game.zombies) {
-      if (!z.dead && !z.type.flying && Math.abs(z.x - x) < C.radius) this.hurt(game, z, C.damage * pd * (game.engMult || 1));
+      if (!z.dead && !z.type.flying && Math.abs(z.x - x) < C.radius) this.hurt(game, z, C.damage * pd * (game.engMult || 1) * Research.catapultMult());
     }
     game.effects.dust(x, CONFIG.groundY, 16);
     game.effects.burst(x, CONFIG.groundY - 8, '#7a6a58', 18, 260);
@@ -7177,7 +7203,7 @@ class Commanders {
   }
 
   addXp(f, n = 1) {
-    if (f && f.commander) f.commander.xp += n;
+    if (f && f.commander) f.commander.xp += n * Research.xpMult();
   }
 
   // Patron düştü: oyuncunun cephesindeki komutan çok tecrübe kazanır
@@ -7547,7 +7573,7 @@ const Morale = {
     if (econ.church) add(econ.church * M.churchDaily, 'kilise');
     if (econ.han) add(M.hanDaily, 'han');
     const before = econ.morale;
-    econ.morale = clamp(econ.morale + why.reduce((s, w) => s + w.n, 0), 0, 100);
+    econ.morale = clamp(econ.morale + Math.max(-M.maxDrop, why.reduce((s, w) => s + w.n, 0)), 0, 100);
     econ.moraleWhy = why;
     // Moral çok düşükse bazıları gece kaleden kaçar
     let fled = 0;
@@ -7595,6 +7621,81 @@ const Morale = {
     econ.feastDay = game.waves.wave;
     econ.morale = Math.min(100, econ.morale + MORALE.feast.morale);
     return true;
+  },
+};
+
+</script>
+  <script>
+// =============================================================
+//  ARAŞTIRMA (research.js)
+//  Altın (ve biraz malzeme) verilir, birkaç gün sonra kalıcı bir
+//  gelişme açılır. Durum game.research'te: { done: {id: true}, active, left }
+//  Research.s her zaman şu anki oyunun durumunu gösterir (game.reset).
+//  Ayarlar: config.js → RESEARCH
+// =============================================================
+
+const Research = {
+  s: { done: {}, active: null, left: 0 },
+
+  fresh() {
+    this.s = { done: {}, active: null, left: 0 };
+    return this.s;
+  },
+
+  has(id) {
+    return !!this.s.done[id];
+  },
+
+  // Etkiler (başka dosyalar buradan sorar)
+  damageMult() { return (this.has('celik') ? 1.12 : 1) * (this.has('sam') ? 1.15 : 1); },
+  speedMult() { return this.has('uzunyay') ? 1.1 : 1; },
+  recoverMult() { return this.has('toplama') ? 1.35 : 1; },
+  prodMult(key) {
+    if (key === 'ciftlik' && this.has('sulama')) return 1.2;
+    if (key === 'duvarci' && this.has('usta')) return 1.3;
+    return 1;
+  },
+  helperCost() { return this.has('talim') ? 0.7 : 1; },
+  xpMult() { return this.has('harp') ? 1.5 : 1; },
+  catapultMult() { return this.has('agir') ? 1.6 : 1; },
+  oilMult() { return this.has('agir') ? 1.4 : 1; },
+  wallMult() { return this.has('kale') ? 1.25 : 1; },
+
+  // Şimdi başlatılabilir mi
+  canStart(game, id) {
+    const R = RESEARCH[id];
+    return R && !this.s.active && !this.has(id) && (!R.need || this.has(R.need)) && game.econ.canAfford(R.cost, game);
+  },
+
+  start(game, id) {
+    if (!this.canStart(game, id) || !game.econ.pay(RESEARCH[id].cost, game)) return false;
+    this.s.active = id;
+    this.s.left = RESEARCH[id].days;
+    return true;
+  },
+
+  // Gün sonu: bir gün ilerler, biterse etkisi açılır
+  endDay(game, report) {
+    const s = this.s;
+    if (!s.active) return;
+    s.left--;
+    if (s.left > 0) return;
+    const id = s.active;
+    s.done[id] = true;
+    s.active = null;
+    if (id === 'uzunyay') {
+      game.stats.staminaMax += 20;
+      game.stamina = game.stats.staminaMax;
+    }
+    if (id === 'kale') {
+      for (const f of game.fronts.list) f.hp = Math.min(f.maxHp, f.hp * 1.25);
+    }
+    report.notes.unshift(`Araştırma bitti: ${RESEARCH[id].name}. ${RESEARCH[id].desc}`);
+  },
+
+  // Sıradaki araştırılabilecekler (bot ve ipucu için)
+  available(game) {
+    return Object.keys(RESEARCH).filter((id) => !this.has(id) && (!RESEARCH[id].need || this.has(RESEARCH[id].need)));
   },
 };
 
@@ -10079,6 +10180,7 @@ const UI = {
           <button data-view="harita" class="${sc.view === 'harita' ? 'secili' : ''}">Harita${warn}</button>
           <button data-shop="1">Dükkân</button>
           <button data-market="1">Pazar</button>
+          <button data-research="1" class="${sc.selected === 'arastirma' ? 'secili' : ''}">Araştırma${Research.s.active ? ` <small>${Research.s.left}g</small>` : ''}</button>
         </div>
         <span class="ipucu">${sc.view === 'kale' ? 'Binayı seç: işçi ver, geliştir' : 'Suru seç: asker koy, savaşacağın yeri seç'}</span>
         <button class="ikinci-dugme" data-act="auto">Otomatik<span class="uzun"> dağıt</span></button>
@@ -10094,6 +10196,9 @@ const UI = {
       if (sel === 'moral') {
         ax = 900;
         html = this.moralePanel(game);
+      } else if (sel === 'arastirma') {
+        ax = 900;
+        html = this.researchPanel(game);
       } else if (sel.startsWith('kesif:')) {
         const u = UNEXPLORED.find((p) => p.name === sel.slice(6));
         ax = u.x;
@@ -10126,6 +10231,7 @@ const UI = {
     el.querySelectorAll('[data-act]').forEach((b) => { b.onclick = () => this.act(game, b.dataset); });
     el.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => { sc.selected = null; this.showBase(game); }; });
     el.querySelectorAll('[data-report]').forEach((b) => { b.onclick = () => { sc.reportOpen = false; this.showBase(game); }; });
+    el.querySelector('[data-research]').onclick = () => { sc.selected = sc.selected === 'arastirma' ? null : 'arastirma'; Sound.play('click'); this.showBase(game); };
     el.querySelector('[data-moral]').onclick = () => { sc.selected = sc.selected === 'moral' ? null : 'moral'; Sound.play('click'); this.showBase(game); };
     el.querySelector('[data-shop]').onclick = () => this.showShop(game);
     el.querySelector('[data-market]').onclick = () => this.showMarket(game);
@@ -10187,6 +10293,24 @@ const UI = {
     const d = Math.round(m.after - m.before);
     const why = (m.why || []).map((w) => `${w.n > 0 ? '+' : ''}${w.n} ${w.text}`).join(', ');
     return `Moral ${Math.round(m.after)} (${d >= 0 ? '+' : ''}${d}): ${why}`;
+  },
+
+  // ---- Araştırma paneli (research.js) ----
+  researchPanel(game) {
+    const s = Research.s;
+    const rows = Object.entries(RESEARCH).map(([id, R]) => {
+      let right;
+      if (Research.has(id)) right = '<span class="kalite">Bitti</span>';
+      else if (s.active === id) right = `<span class="kalite">${s.left} gün kaldı</span>`;
+      else if (R.need && !Research.has(R.need)) right = `<span class="y-seviye">Önce: ${RESEARCH[R.need].name}</span>`;
+      else right = `<button class="gelistir" data-act="research" data-key="${id}" ${Research.canStart(game, id) ? '' : 'disabled'}>${R.days} gün · ${this.costText(R.cost)}</button>`;
+      return `<span class="arastirma-satir${Research.has(id) ? ' bitti' : ''}"><b>${R.name}</b> <small>${R.desc}</small>${right}</span>`;
+    }).join('');
+    const now = s.active ? `Şu an: <b>${RESEARCH[s.active].name}</b>, ${s.left} gün sonra biter.` : 'Aynı anda bir araştırma yapılır. Her gün sonunda bir gün ilerler.';
+    return `
+      <span class="y-ust"><span class="y-ad">Araştırma</span><span class="y-seviye">${Object.keys(s.done).length}/${Object.keys(RESEARCH).length}</span></span>
+      <span class="y-aciklama">${now}</span>
+      <div class="arastirma-liste">${rows}</div>`;
   },
 
   // ---- Moral paneli: kilise, han, ziyafet (morale.js) ----
@@ -10320,6 +10444,7 @@ const UI = {
       case 'rush': ok = fr.rushRepair(d.key, game); break;
       case 'hire': ok = game.commanders.hire(game, d.key, d.kind); break;
       case 'church': ok = Morale.buildChurch(game); break;
+      case 'research': ok = Research.start(game, d.key); break;
       case 'han': ok = Morale.buildHan(game); break;
       case 'feast': ok = Morale.feast(game); break;
       case 'dismiss': ok = game.commanders.dismiss(game, d.key); break;
@@ -10343,7 +10468,7 @@ const UI = {
         break;
       }
     }
-    if (ok) Sound.play(d.act === 'rush' || d.act === 'hire' || d.act === 'build' || d.act === 'wall' || d.act === 'tower' || d.act === 'def' || d.act === 'raid' || d.act === 'claim' || d.act === 'church' || d.act === 'han' || d.act === 'feast' ? 'buy' : 'click');
+    if (ok) Sound.play(d.act === 'rush' || d.act === 'hire' || d.act === 'build' || d.act === 'wall' || d.act === 'tower' || d.act === 'def' || d.act === 'raid' || d.act === 'claim' || d.act === 'church' || d.act === 'han' || d.act === 'feast' || d.act === 'research' ? 'buy' : 'click');
     this.showBase(game);
   },
 
@@ -10511,7 +10636,7 @@ const UI = {
       const effect = c.kind === 'duvar' ? `sur %${pct} az hasar alır, günde +${K.repair * c.level} onarım`
         : c.kind === 'okcu' ? `askerler %${pct} güçlü` : `savunmalar %${pct} güçlü`;
       return `<span class="kalite">Komutan: ${cm.title(c)} · Sv${c.level}</span>
-        <span class="y-seviye">${effect}${next !== null ? ` · tecrübe ${c.xp}/${next}` : ' · en üst seviye'}</span>
+        <span class="y-seviye">${effect}${next !== null ? ` · tecrübe ${Math.floor(c.xp)}/${next}` : ' · en üst seviye'}</span>
         <button class="ikinci-dugme kucuk-dugme" data-act="dismiss" data-key="${f.key}">Görevden al</button>`;
     }
     const cost = cm.cost();
@@ -11255,6 +11380,7 @@ class Game {
       staminaRegen: CONFIG.stamina.regen,
     };
     this.stamina = CONFIG.stamina.max; // Okçunun şu anki dayanıklılığı
+    this.research = Research.fresh(); // Araştırmalar (research.js)
     this.headStreak = 0;     // Üst üste kafa vuruşu (keskin atış için)
     this.sharpReady = false; // Sıradaki ok keskin atış mı
     this.rainCooldown = 0;
@@ -11298,12 +11424,12 @@ class Game {
   // Oyuncunun ok hasarı: temel + demircinin uç kalitesi, yay ve Kale Ustası çarpanı
   playerDamage() {
     const e = this.econ;
-    return (this.stats.damage + e.arrowTier.damage) * e.bowTier.damage * this.stats.damageMult;
+    return (this.stats.damage + e.arrowTier.damage) * e.bowTier.damage * this.stats.damageMult * Research.damageMult();
   }
 
   // Okun çıkış hızı: yayın kalitesine göre
   arrowSpeed() {
-    return this.stats.speed + this.econ.bowTier.speed;
+    return (this.stats.speed + this.econ.bowTier.speed) * Research.speedMult();
   }
 
   // Savaşılan cephenin surunu kale nesnesine aktarır, askerleri yerleştirir
@@ -11327,7 +11453,7 @@ class Game {
 
   // Kayda giren yeni sistemler (save.js → extra)
   saveExtra() {
-    return { aidUsed: this.aidUsed, lowDays: this.lowDays, hired: this.commanders.hired, lord: this.lordId, bossKills: this.bossKills, fameWaves: this.fameWaves, fameBosses: this.fameBosses };
+    return { aidUsed: this.aidUsed, lowDays: this.lowDays, hired: this.commanders.hired, lord: this.lordId, bossKills: this.bossKills, fameWaves: this.fameWaves, fameBosses: this.fameBosses, research: this.research };
   }
 
   loadExtra(d) {
@@ -11338,6 +11464,7 @@ class Game {
     this.bossKills = d.bossKills || 0;
     this.fameWaves = d.fameWaves || 0;
     this.fameBosses = d.fameBosses || 0;
+    if (d.research) Object.assign(this.research, d.research);
   }
 
   // Oyuncunun olmadığı cephede bir zombi öldü
@@ -11812,6 +11939,7 @@ class Game {
     report.lost = lost;
     report.bonus = bonus;
     report.morale = Morale.endDay(this, report, lostTotal); // Halkın morali
+    Research.endDay(this, report); // Süren araştırma bir gün ilerler
     // Şövalye birliğinin günlük ücreti
     if (this.econ.knights) {
       if (this.gold >= DEFENSES.knights.upkeep) this.gold -= DEFENSES.knights.upkeep;
