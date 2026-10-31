@@ -735,7 +735,7 @@ html, body { background: var(--gece); }
   <main class="sayfa">
     <header>
       <h1>Son Kale</h1>
-      <p class="fare">Fareyle nişan al, basılı tutup yayı ger, bırakınca ok uçar (uzun germek yorar) · <b>1-2-3</b> ok türü · <b>Q</b> Ok Yağmuru · <b>Esc</b> duraklat · <b>M</b> ses · dalga arası iç kale ve cephe haritası</p>
+      <p class="fare">Fareyle nişan al, basılı tutup yayı ger, bırakınca ok uçar (uzun germek yorar) · <b>1-2-3</b> ok türü · <b>Q</b> Ok Yağmuru · askerlere <b>sağ tık/E</b> hedef, <b>F</b> yaylım, <b>R</b> dinlen · <b>Esc</b> duraklat · <b>M</b> ses · dalga arası iç kale ve cephe haritası</p>
       <p class="dokun">Basılı tut: yay gerilir, bırak: ok uçar · kısa dokunuş: tam gerip atar</p>
     </header>
 
@@ -918,9 +918,9 @@ const CONFIG = {
 // -------------------------------------------------------------
 const DIFFICULTIES = {
   // winDay: bu günü atlatınca yardım ordusu gelir, kuşatma kazanılır
-  kolay:  { name: 'Kolay',  hp: 0.7,  speed: 0.9,  spawn: 1.3,  gold: 1.25, winDay: 30 },
-  normal: { name: 'Normal', hp: 1,    speed: 1,    spawn: 1,    gold: 1,    winDay: 40 },
-  kabus:  { name: 'Kabus',  hp: 1.3,  speed: 1.1,  spawn: 0.8,  gold: 0.9,  winDay: 40, startBows: 4 }, // startBows: başlangıçta ambarda yay
+  kolay:  { name: 'Kolay',  hp: 0.7,  speed: 0.9,  spawn: 1.3,  gold: 1.25, winDay: 30, startBows: 4 },
+  normal: { name: 'Normal', hp: 1,    speed: 1,    spawn: 1,    gold: 1,    winDay: 40, startBows: 5 },
+  kabus:  { name: 'Kabus',  hp: 1.15, speed: 1.1,  spawn: 0.8,  gold: 0.9,  winDay: 40, startBows: 8 }, // startBows: başlangıçta ambarda yay (ilk günler askersiz geçmesin)
 };
 
 // -------------------------------------------------------------
@@ -1011,7 +1011,7 @@ const ZOMBIE_TYPES = {
     shirt: '#3d4a5a',
     heavy: true,        // Geri itilmez, adımları yeri sarsar, ağır ok ona fazla vurur
   },
-  // --- 10. dalgadan sonra gelen yeni türler ---
+  // --- 12. dalgadan sonra gelen yeni türler ---
   bomber: {
     name: 'Patlayan',
     hp: 40,
@@ -1099,6 +1099,15 @@ const ECONOMY = {
   missRecover: 0.8,   // Iskalanan okların toplanan oranı
   hitRecover: 0.3,    // İsabet eden okların toplanan oranı
   minPeople: 5,       // Halk bu sayının altına düşerse kale düşer (oyun biter)
+  lowPeople: 15,      // Halk bu kadar gün (lowDays) bunun altında kalırsa kale tükenir
+  lowDays: 3,
+  // Kralın yardım kervanı: oyunda bir kez, halk aidBelow altına inince gelir
+  aidBelow: 30,       // ...ya da iki sur birden yıkıkken
+  aid: { people: 12, odun: 120, tas: 80, ok: 150, yiyecek: 60 },
+  aidWall: 0.4,       // Kralın ustaları yıkık surları en az %40'a çıkarır
+  // Altınla acil onarım: sur panelinden, günde sur başına bir kez
+  rushGold: 1.5,      // 1 can kaç altın
+  rushMax: 0.5,       // En fazla surun yarısı
   levelBonus: 0.2,    // Bina her seviyede işçi başı üretimi %20 artırır
 };
 
@@ -1250,12 +1259,30 @@ const BOSS = {
   ],
   raiseEvery: 7,    // Mezar Kralı kaç saniyede bir ölü kaldırır
   raiseCount: 2,
+  raiseMax: 4,      // En fazla kaç kez kaldırır
   poisonEvery: 5,   // Bataklık Devi kaç saniyede bir tükürür
   poisonDamage: 25, // Sura hasar
   poisonStamina: 30, // Okçudan götürdüğü dayanıklılık
   boneArmor: 0.3,   // Kemik Lordu: gövde isabeti hasarın %30'unu verir
   plagueEvery: 8,   // Kara Veba kaç saniyede bir yarasa çağırır
   plagueBats: 5,
+};
+
+// -------------------------------------------------------------
+//  ASKERLERE EMİR (orders.js): yalnız oyuncunun savaştığı cephede
+//    E / sağ tık : hedef göster (askerler o zombiye yoğunlaşır)
+//    F : yaylım ateşi (kısa süre çok hızlı atarlar, çabuk yorulurlar)
+//    R : dinlen (ateşi keserler, hızla dinlenirler)
+// -------------------------------------------------------------
+const ORDERS = {
+  focusRadius: 90,    // İşaretin yakaladığı en uzak zombi (piksel)
+  volleyTime: 5,      // Yaylım ateşinin süresi (sn)
+  volleyRate: 0.45,   // Yaylımda atış bekleme çarpanı (küçük = hızlı)
+  volleyCost: 1.5,    // Yaylımda atış başına yorgunluk çarpanı
+  volleyCooldown: 25, // Tekrar kullanmak için bekleme (sn)
+  restTime: 4,        // Dinlenme süresi (sn)
+  restRegen: 4,       // Dinlenirken dolma çarpanı
+  restCooldown: 12,
 };
 
 // -------------------------------------------------------------
@@ -2771,6 +2798,13 @@ class Input {
 
     canvas.addEventListener('pointerdown', (e) => {
       this.touch = e.pointerType !== 'mouse';
+      // Sağ tık: askerlere hedef göster (game.js → onRight)
+      if (e.button === 2) {
+        this.updatePosition(e);
+        if (this.onRight) this.onRight(this.mouseX, this.mouseY);
+        e.preventDefault();
+        return;
+      }
       this.prevX = this.mouseX;
       this.prevY = this.mouseY;
       this.updatePosition(e);
@@ -3537,7 +3571,8 @@ class Archer {
     return {
       damage: game.playerDamage() * CONFIG.helper.damageRatio * (game.helperMult || 1), // Okçu Ustası
       // Yorgun asker yavaş atar (helper.tiredSlow)
-      cooldown: s.cooldown * CONFIG.helper.cooldownRatio / (game.helperBoost || 1) * (this.tired ? CONFIG.helper.tiredSlow : 1),
+      cooldown: s.cooldown * CONFIG.helper.cooldownRatio / (game.helperBoost || 1) * (this.tired ? CONFIG.helper.tiredSlow : 1)
+        * (game.order && game.order.volley > 0 ? ORDERS.volleyRate : 1), // Yaylım ateşi (orders.js)
       speed: game.arrowSpeed(),
       count: 1,
     };
@@ -3558,18 +3593,25 @@ class Archer {
     } else {
       // Asker dayanıklılığı: her atış yorar, beklerken dinlenir
       const H = CONFIG.helper;
+      const o = game.order || {};
       if (this.stamina === undefined) this.stamina = H.stamina;
-      this.stamina = Math.min(H.stamina, this.stamina + H.regen * dt);
+      this.stamina = Math.min(H.stamina, this.stamina + H.regen * (o.rest > 0 ? ORDERS.restRegen : 1) * dt);
       this.tired = this.stamina < H.stamina * H.tiredAt;
-      const target = this.findTarget(game);
+      if (o.rest > 0) return; // "Dinlenin!" emri: ateş yok
+      // Oyuncunun gösterdiği hedef önce (orders.js)
+      const target = Orders.target(game) || this.findTarget(game);
       if (target) {
         // Önüne nişan alırken yanılır, yorgunken daha çok sapar
-        if (this.cooldownTimer <= 0 || this.lead === undefined) this.lead = 1 + gaussRandom() * H.leadError;
+        // Kalabalık surda askerler birbirine engel olur: az askerken isabetli,
+        // sur doldukça daha çok şaşırırlar (crowd 0,3 → 1)
+        const n = game.fronts.battleFront.soldiers;
+        const crowd = 0.3 + 0.7 * clamp((n - 2) / 5, 0, 1);
+        if (this.cooldownTimer <= 0 || this.lead === undefined) this.lead = 1 + gaussRandom() * H.leadError * crowd;
         this.angle = this.aimAt(target, stats.speed, this.lead);
         if (this.cooldownTimer <= 0) {
           const aim = this.angle;
-          this.angle += gaussRandom() * (H.aimSpread + (this.tired ? H.tiredSpread : 0));
-          if (this.shoot(game, stats)) this.stamina = Math.max(0, this.stamina - H.shotCost);
+          this.angle += gaussRandom() * (H.aimSpread * crowd + (this.tired ? H.tiredSpread : 0));
+          if (this.shoot(game, stats)) this.stamina = Math.max(0, this.stamina - H.shotCost * (o.volley > 0 ? ORDERS.volleyCost : 1));
           this.angle = aim;
           this.lead = undefined;
         }
@@ -4616,7 +4658,8 @@ class Boss extends Zombie {
     this.powerTimer -= dt;
     if (this.powerTimer > 0) return;
     const s = this.height / 64;
-    if (this.power === 'raise') {
+    if (this.power === 'raise' && (this.raised || 0) < BOSS.raiseMax) {
+      this.raised = (this.raised || 0) + 1;
       // Mezar Kralı: arkasındaki topraktan ölüler kalkar
       for (let i = 0; i < B.raiseCount; i++) {
         const z = game.waves.spawn('normal');
@@ -4628,6 +4671,8 @@ class Boss extends Zombie {
       game.effects.text(this.x, this.top - 24, 'ÖLÜLER KALKIYOR!', '#c9a0ff');
       Sound.play('bossRoar', 0.5);
       this.powerTimer = B.raiseEvery;
+    } else if (this.power === 'raise') {
+      this.powerTimer = 999; // Mezar Kralının gücü tükendi
     } else if (this.power === 'poison') {
       // Bataklık Devi: kuleye zehir tükürür
       const tx = CONFIG.castle.frontX - 10;
@@ -6001,6 +6046,15 @@ class Economy {
     const damaged = game.fronts.list.reduce((n, f) => n + f.maxHp - f.hp, 0);
     fill('duvarci', Math.ceil(damaged / BUILDINGS.duvarci.repair));
 
+    // KRİZ: bir sur yıkık ya da yıkılmak üzere. Onarım ve barikat odun ile taş
+    // ister: önce oduncuya ve taş ocağına işçi ver (yoksa odun biter, surlar düşer)
+    this.crisis = game.fronts.list.some((f) => f.hp < f.maxHp * 0.3);
+    if (this.crisis) {
+      const masons = this.buildings.duvarci.workers;
+      fill('oduncu', Math.max(3, masons));
+      fill('tasocagi', Math.max(2, Math.ceil(masons * 0.75)));
+    }
+
     // Kalanlar: ok zincirini dengeli kur (maden → demirci → yaycı).
     // Her seferinde günlük dengesi en kötü olan malzemenin binasına bir kişi.
     // Stoktaki malzeme birkaç güne yayılmış gibi sayılır.
@@ -6241,7 +6295,8 @@ class FrontManager {
   // Dalga numarasına göre kaç cepheye saldırı olacağını ve
   // zombilerin cephelere nasıl bölüneceğini belirler.
   makePlan(wave) {
-    const count = wave <= 2 ? 1 : wave <= 5 ? 2 : wave <= 10 ? 3 : 4;
+    // Dördüncü cephe 13. dalgada açılır: ilk patron (10) tek başına gelsin
+    const count = wave <= 2 ? 1 : wave <= 5 ? 2 : wave <= 12 ? 3 : 4;
     const keys = Object.keys(FRONTS);
     // İlk dalga hep kapıdan gelir
     let chosen = wave === 1 ? ['dogu'] : shuffle(keys).slice(0, count);
@@ -6450,6 +6505,25 @@ class FrontManager {
     const before = f.maxHp;
     f.wallLevel++;
     f.hp += f.maxHp - before; // Yeni taşlar sağlam gelir
+    return true;
+  }
+
+  // Altınla acil onarım: ne kadar can ve kaç altın (günde sur başına bir kez)
+  rushInfo(key, game) {
+    const f = this.byKey[key];
+    if (f.rushedDay === game.waves.wave) return null;
+    const hp = Math.min(f.maxHp - f.hp, Math.round(f.maxHp * ECONOMY.rushMax));
+    if (hp < 5) return null;
+    return { hp, gold: Math.ceil(hp * ECONOMY.rushGold) };
+  }
+
+  rushRepair(key, game) {
+    const r = this.rushInfo(key, game);
+    if (!r || game.gold < r.gold) return false;
+    const f = this.byKey[key];
+    game.gold -= r.gold;
+    f.hp += r.hp;
+    f.rushedDay = game.waves.wave;
     return true;
   }
 
@@ -6748,6 +6822,13 @@ const Defenses = {
   update(game, dt) {
     const f = game.fronts.battleFront;
     const pd = game.playerDamage();
+
+    // Surdakiler duvarın dibine gelenlerin üstüne taş atar (diğer cephelerdeki
+    // FrontBattle ile aynı: FRONT_CONFIG.wallDefense × kule seviyesi)
+    const stones = FRONT_CONFIG.wallDefense * f.towerLevel * (game.engMult || 1);
+    for (const z of game.zombies) {
+      if (!z.dead && (z.state === 'attack' || z.state === 'climb')) this.hurt(game, z, stones * dt);
+    }
 
     // Kaynar yağ: duvara dayanan ve tırmanan zombiler yanar
     if (f.oil) {
@@ -7204,6 +7285,177 @@ const Fame = {
     if (!r) return '';
     const opened = r.opened.length ? ` · Yeni lord açıldı: <b>${r.opened.map((l) => l.name).join(', ')}</b>` : '';
     return `<p class="kalite">+${r.gain} ün kazandın (toplam ${r.total})${opened}</p>`;
+  },
+};
+
+</script>
+  <script>
+// =============================================================
+//  ASKERLERE EMİR (orders.js)
+//  Oyuncunun savaştığı cephedeki askerler yine kendi atar, ama
+//  oyuncu onları yönlendirir: hedef gösterir, yaylım ateşi açtırır
+//  ya da dinlendirir. Diğer cephelerdeki askerler kendi savaşır.
+//  Ayarlar: config.js → ORDERS. Durum: game.order
+// =============================================================
+
+const Orders = {
+  // Her dalga başında sıfırlanır
+  reset(game) {
+    game.order = { focus: null, volley: 0, rest: 0, volleyCd: 0, restCd: 0, picking: false };
+  },
+
+  update(game, dt) {
+    const o = game.order;
+    if (!o) return;
+    for (const k of ['volley', 'rest', 'volleyCd', 'restCd']) o[k] = Math.max(0, o[k] - dt);
+    if (o.focus && (o.focus.dead || !game.zombies.includes(o.focus))) o.focus = null;
+  },
+
+  // İşaretli hedef (yoksa null): askerler önce bunu vurur
+  target(game) {
+    const o = game.order;
+    return o && o.focus && o.focus.x <= CONFIG.width - 10 ? o.focus : null;
+  },
+
+  // Tıklanan / imlecin gösterdiği yere en yakın zombiyi işaretle
+  focusAt(game, x, y) {
+    let best = null, bestD = ORDERS.focusRadius;
+    for (const z of game.zombies) {
+      if (z.dead || z.x > CONFIG.width - 10) continue;
+      const d = Math.hypot(z.x - x, (z.aimY ?? z.y) - y);
+      if (d < bestD) { best = z; bestD = d; }
+    }
+    if (!best) return false;
+    game.order.focus = best;
+    game.effects.text(best.x, best.top - 20, 'HEDEF!', '#ff7a5c');
+    Sound.play('click');
+    return true;
+  },
+
+  volley(game) {
+    const o = game.order;
+    if (!o || o.volleyCd > 0 || !game.helpers.length) return false;
+    o.volley = ORDERS.volleyTime;
+    o.volleyCd = ORDERS.volleyCooldown;
+    o.rest = 0;
+    game.effects.text(CONFIG.player.x + 60, CONFIG.player.footY - 70, 'YAYLIM ATEŞİ!', '#ffd76a');
+    Sound.play('horn');
+    return true;
+  },
+
+  rest(game) {
+    const o = game.order;
+    if (!o || o.restCd > 0 || !game.helpers.length) return false;
+    o.rest = ORDERS.restTime;
+    o.restCd = ORDERS.restCooldown;
+    o.volley = 0;
+    game.effects.text(CONFIG.player.x + 60, CONFIG.player.footY - 70, 'DİNLENİN!', '#cfe3ef');
+    Sound.play('click');
+    return true;
+  },
+
+  // Ekrandaki emir düğmeleri (özel okların sağında). Asker yoksa görünmez.
+  buttons() {
+    const x0 = 82 + Object.keys(ARROW_TYPES).length * 40 + 16;
+    return [
+      { id: 'focus', key: 'E', name: 'Hedef', x: x0, y: CONFIG.height - 58, w: 34, h: 34 },
+      { id: 'volley', key: 'F', name: 'Yaylım', x: x0 + 40, y: CONFIG.height - 58, w: 34, h: 34 },
+      { id: 'rest', key: 'R', name: 'Dinlen', x: x0 + 80, y: CONFIG.height - 58, w: 34, h: 34 },
+    ];
+  },
+
+  buttonAt(px, py, pad) {
+    const s = UI.hudS || 1;
+    for (const b of this.buttons()) {
+      const x = b.x * s, y = CONFIG.height - (CONFIG.height - b.y) * s;
+      if (px >= x - pad && px <= x + b.w * s + pad && py >= y - pad && py <= y + b.h * s + pad) return b.id;
+    }
+    return null;
+  },
+
+  // Düğmeye basıldı. Hedef düğmesi: sonraki dokunuş hedefi seçer.
+  press(game, id) {
+    if (id === 'focus') {
+      game.order.picking = !game.order.picking;
+      if (game.order.picking) game.effects.text(CONFIG.player.x + 60, CONFIG.player.footY - 70, 'Hedefe dokun', '#ff7a5c');
+      return true;
+    }
+    return id === 'volley' ? this.volley(game) : this.rest(game);
+  },
+
+  drawButtons(ctx, game) {
+    const o = game.order;
+    if (!o || !game.helpers.length) return;
+    for (const b of this.buttons()) {
+      const cd = b.id === 'volley' ? o.volleyCd / ORDERS.volleyCooldown : b.id === 'rest' ? o.restCd / ORDERS.restCooldown : 0;
+      const on = (b.id === 'focus' && (o.picking || o.focus)) || (b.id === 'volley' && o.volley > 0) || (b.id === 'rest' && o.rest > 0);
+      ctx.fillStyle = on ? 'rgba(122, 74, 34, 0.95)' : 'rgba(15, 12, 10, 0.7)';
+      UI.roundRect(ctx, b.x, b.y, b.w, b.h, 6);
+      ctx.fill();
+      ctx.strokeStyle = on ? '#f2c14e' : 'rgba(243, 231, 196, 0.25)';
+      ctx.lineWidth = on ? 2 : 1;
+      ctx.stroke();
+      if (cd > 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(b.x + 1, b.y + 1, b.w - 2, (b.h - 2) * cd);
+      }
+      this.drawIcon(ctx, b);
+      ctx.fillStyle = '#f3e7c4';
+      ctx.font = '700 10px "Alegreya Sans", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      if (!game.input.touch) ctx.fillText(b.key, b.x + 4, b.y + 8);
+      ctx.font = '700 9px "Alegreya Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#c8bfa8';
+      ctx.fillText(b.name, b.x + b.w / 2, b.y + b.h + 8);
+    }
+  },
+
+  drawIcon(ctx, b) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 2;
+    ctx.strokeStyle = '#f3e7c4';
+    ctx.fillStyle = '#f3e7c4';
+    ctx.lineWidth = 2;
+    if (b.id === 'focus') {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+    } else if (b.id === 'volley') {
+      for (const dx of [-6, 0, 6]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + dx - 4, cy + 7);
+        ctx.lineTo(cx + dx + 4, cy - 7);
+        ctx.stroke();
+      }
+    } else {
+      ctx.font = '700 14px "Alegreya Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Zz', cx, cy);
+    }
+  },
+
+  // İşaretli zombinin üstünde kırmızı ok
+  drawMarker(ctx, game) {
+    const z = this.target(game);
+    if (!z) return;
+    const y = z.top - 16 + Math.sin(performance.now() / 150) * 3;
+    ctx.fillStyle = '#181425';
+    ctx.beginPath();
+    ctx.moveTo(z.x - 9, y - 10);
+    ctx.lineTo(z.x + 9, y - 10);
+    ctx.lineTo(z.x, y + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ff5a40';
+    ctx.beginPath();
+    ctx.moveTo(z.x - 6, y - 8);
+    ctx.lineTo(z.x + 6, y - 8);
+    ctx.lineTo(z.x, y);
+    ctx.closePath();
+    ctx.fill();
   },
 };
 
@@ -9277,8 +9529,8 @@ class WaveManager {
       ['archer', n >= 3 ? Math.min(0.16, 0.04 * (n - 2)) : 0],   // 3. dalgadan itibaren
       ['climber', n >= 7 ? Math.min(0.16, 0.04 * (n - 6)) : 0],  // 7. dalgadan itibaren
       ['shield', n >= 6 ? Math.min(0.16, 0.04 * (n - 5)) : 0],   // 6. dalgadan itibaren
-      ['bomber', n >= 10 ? Math.min(0.06, 0.015 * (n - 9)) : 0], // 10. dalgadan itibaren
-      ['healer', n >= 12 ? Math.min(0.05, 0.015 * (n - 11)) : 0], // 12. dalgadan itibaren
+      ['bomber', n >= 12 ? Math.min(0.06, 0.015 * (n - 11)) : 0], // 12. dalgadan itibaren
+      ['healer', n >= 14 ? Math.min(0.05, 0.015 * (n - 13)) : 0], // 14. dalgadan itibaren
       ['brute', n >= 16 ? Math.min(0.05, 0.015 * (n - 15)) : 0],  // 16. dalgadan itibaren
       ['fast', n >= 2 ? 0.25 : 0],                                // 2. dalgadan itibaren
     ];
@@ -9570,6 +9822,7 @@ const UI = {
           <li><b>Basılı tut</b>, sürekli ok at</li>
           <li><b>Kafaya</b> isabet: 2 kat hasar, +1 altın</li>
           <li><b>Q</b> Ok Yağmuru (dükkândan açılır)</li>
+          <li>Askerler: <b>sağ tık / E</b> hedef, <b>F</b> yaylım, <b>R</b> dinlen</li>
           <li><b>Esc</b> duraklat · <b>M</b> ses</li>
           <li>Kalede <b>binaya / sura tıkla</b> · <b>H</b> harita</li>
           <li><b>Boşluk</b> dalgayı başlat</li>
@@ -9822,6 +10075,10 @@ const UI = {
     const fr = game.fronts;
     // Patron ve dev uyarısı: çöküşler çoğunlukla bu dalgalarda başlar
     let big = '';
+    const broken = fr.list.filter((f) => f.hp < f.maxHp * 0.3);
+    if (broken.length) {
+      big += `<span class="eksi">${broken.map((f) => FRONTS[f.key].short).join(', ')} suru çok hasarlı. Odun ve taşa işçi ver (Otomatik dağıt bunu yapar), gerekirse sur panelinden altınla acil onarım yap.</span>`;
+    }
     if (fr.plan && fr.bossWave) {
       const king = BOSS.names[(fr.plan.wave / BOSS.every - 1) % BOSS.names.length];
       const hint = BOSS.hints[(fr.plan.wave / BOSS.every - 1) % BOSS.names.length];
@@ -9870,6 +10127,7 @@ const UI = {
         break;
       }
       case 'tower': ok = fr.upgradeTower(d.key, game); break;
+      case 'rush': ok = fr.rushRepair(d.key, game); break;
       case 'hire': ok = game.commanders.hire(game, d.key, d.kind); break;
       case 'dismiss': ok = game.commanders.dismiss(game, d.key); break;
       case 'def': ok = Defenses.build(game, d.key, d.def); break;
@@ -9892,7 +10150,7 @@ const UI = {
         break;
       }
     }
-    if (ok) Sound.play(d.act === 'hire' || d.act === 'build' || d.act === 'wall' || d.act === 'tower' || d.act === 'def' || d.act === 'raid' || d.act === 'claim' ? 'buy' : 'click');
+    if (ok) Sound.play(d.act === 'rush' || d.act === 'hire' || d.act === 'build' || d.act === 'wall' || d.act === 'tower' || d.act === 'def' || d.act === 'raid' || d.act === 'claim' ? 'buy' : 'click');
     this.showBase(game);
   },
 
@@ -10035,10 +10293,18 @@ const UI = {
       ${here ? '<span class="kalite">Sen burada savaşacaksın</span>'
         : `<button class="ikinci-dugme kucuk-dugme" data-act="fight" data-key="${key}">Burada savaş</button>`}
       ${this.commanderBlock(game, f)}
+      ${this.rushButton(game, key)}
       ${wc ? `<button class="gelistir" data-act="wall" data-key="${key}" ${econ.canAfford(wc, game) ? '' : 'disabled'}>Sur Sv${f.wallLevel + 1}: ${this.costText(wc)}</button>${this.fillButton(game, wc, 'wall', key)}` : '<span class="y-seviye">Sur en üst seviye</span>'}
       ${['oil', 'catapult'].map((d) => f[d] ? `<span class="kalite">${DEFENSES[d].name} kurulu</span>`
         : `<button class="gelistir" data-act="def" data-key="${key}" data-def="${d}" ${econ.canAfford(DEFENSES[d].cost, game) ? '' : 'disabled'} title="${DEFENSES[d].desc}">${DEFENSES[d].name}: ${this.costText(DEFENSES[d].cost)}</button>`).join('')}
       ${tc ? `<button class="gelistir" data-act="tower" data-key="${key}" ${econ.canAfford(tc, game) ? '' : 'disabled'}>Kule Sv${f.towerLevel + 1} (${FRONT_CONFIG.towerSlots[f.towerLevel]} asker yeri): ${this.costText(tc)}</button>${this.fillButton(game, tc, 'tower', key)}` : '<span class="y-seviye">Kule en üst seviye</span>'}`;
+  },
+
+  // Altınla acil onarım düğmesi (sur hasarlıysa)
+  rushButton(game, key) {
+    const r = game.fronts.rushInfo(key, game);
+    if (!r) return '';
+    return `<button class="gelistir" data-act="rush" data-key="${key}" ${game.gold >= r.gold ? '' : 'disabled'} title="Ustalar ve paralı işçiler bir gecede onarır. Her sura günde bir kez.">Altınla acil onarım: +${r.hp} can · ${r.gold} altın</button>`;
   },
 
   // Sur panelinde komutan: varsa bilgisi, yoksa atama düğmeleri
@@ -10186,7 +10452,7 @@ const UI = {
       <div class="panel">
         <p class="ust-baslik">Kale düştü · ${game.diff.name}</p>
         <h2>${game.waves.wave}. dalgada yenildin</h2>
-        <p>${game.econ.people < ECONOMY.minPeople ? 'Halk tükendi. Son yıkılan sur: ' + (game.fallenName || '-') + '.' : 'Zombiler surdaki gedikten kaleye girdi.'}</p>
+        <p>${game.exhausted ? `Kalede ${game.econ.people} kişi kaldı, surları tutacak kimse yok. Kuşatma kaybedildi.` : game.econ.people < ECONOMY.minPeople ? 'Halk tükendi. Son yıkılan sur: ' + (game.fallenName || '-') + '.' : 'Zombiler surdaki gedikten kaleye girdi.'}</p>
         <div class="dukkan-bilgi">
           <span>Öldürülen zombi: <b>${game.kills}</b></span>
           <span>En iyi dalga: <b>${game.bestWave}</b></span>
@@ -10267,6 +10533,7 @@ const UI = {
     // --- Ok Yağmuru düğmesi (sol alt; açıldıysa) ---
     if (game.stats.rainLevel > 0) this.scaled(ctx, s, 0, CONFIG.height, () => this.drawRainButton(ctx, game));
     this.scaled(ctx, s, 0, CONFIG.height, () => this.drawArrowButtons(ctx, game));
+    this.scaled(ctx, s, 0, CONFIG.height, () => Orders.drawButtons(ctx, game));
     ctx.textBaseline = 'alphabetic';
   },
 
@@ -10765,6 +11032,7 @@ class Game {
     window.addEventListener('keydown', (e) => this.onKey(e));
     // Ok Yağmuru simgesine tıklanırsa ok atmak yerine yeteneği kullan
     this.input.onPress = (x, y) => this.onPress(x, y);
+    this.input.onRight = (x, y) => { if (this.state === 'playing' && this.order) Orders.focusAt(this, x, y); };
     // Başka sekmeye geçince (ya da telefon kilitlenince) otomatik duraklat
     const autoPause = () => {
       if (this.state === 'playing') this.togglePause();
@@ -10823,6 +11091,9 @@ class Game {
     this.fameResult = null;
     this.lordId = 'koylu'; // Seçilen lord (fame.js)
     this.seenTypes = {};   // İlk kez görülen düşman uyarısı (waves.js)
+    this.aidUsed = false;  // Kralın yardım kervanı geldi mi
+    this.lowDays = 0;      // Halkın çok az kaldığı gün sayısı
+    this.exhausted = false;
     this.fronts = new FrontManager(this); // Kalenin dört cephesi
     this.fronts.makePlan(1);
     this.exp = new Expeditions();         // Keşif ve yağma seferleri
@@ -10863,11 +11134,13 @@ class Game {
 
   // Kayda giren yeni sistemler (save.js → extra)
   saveExtra() {
-    return { hired: this.commanders.hired, lord: this.lordId, bossKills: this.bossKills, fameWaves: this.fameWaves, fameBosses: this.fameBosses };
+    return { aidUsed: this.aidUsed, lowDays: this.lowDays, hired: this.commanders.hired, lord: this.lordId, bossKills: this.bossKills, fameWaves: this.fameWaves, fameBosses: this.fameBosses };
   }
 
   loadExtra(d) {
     this.commanders.hired = d.hired || 0;
+    this.aidUsed = !!d.aidUsed;
+    this.lowDays = d.lowDays || 0;
     this.lordId = d.lord || 'koylu';
     this.bossKills = d.bossKills || 0;
     this.fameWaves = d.fameWaves || 0;
@@ -10945,6 +11218,7 @@ class Game {
     this.wallsAtStart = {};
     for (const f of this.fronts.list) this.wallsAtStart[f.key] = f.hp;
     this.waves.startNext();
+    Orders.reset(this); // Askerlere emirler (orders.js)
     this.stamina = this.stats.staminaMax; // Gece dinlendi
     this.headStreak = 0;
     this.sharpReady = false;
@@ -11009,6 +11283,12 @@ class Game {
       if (this.state === 'paused') UI.showPause(this);
     } else if (k === 'q' && this.state === 'playing') {
       this.castRain();
+    } else if (this.state === 'playing' && k === 'e') {
+      Orders.focusAt(this, this.input.mouseX, this.input.mouseY);
+    } else if (this.state === 'playing' && k === 'f') {
+      Orders.volley(this);
+    } else if (this.state === 'playing' && k === 'r') {
+      Orders.rest(this);
     } else if (this.state === 'playing' && k >= '1' && k <= '3') {
       this.setArrowKind(Object.keys(ARROW_TYPES)[Number(k) - 1]);
     } else if (this.state === 'shop') {
@@ -11041,6 +11321,16 @@ class Game {
     // Özel ok düğmeleri (sol alt)
     const kind = UI.arrowButtonAt(x, y, this.input.touch ? 10 : 2);
     if (kind) { this.setArrowKind(kind); return true; }
+    // Askerlere emir düğmeleri ve hedef seçme (orders.js)
+    if (this.order && this.helpers.length) {
+      const id = Orders.buttonAt(x, y, this.input.touch ? 10 : 2);
+      if (id) { Orders.press(this, id); return true; }
+      if (this.order.picking) {
+        this.order.picking = false;
+        Orders.focusAt(this, x, y);
+        return true;
+      }
+    }
     if (this.stats.rainLevel <= 0) return false;
     const b = UI.rainButtonArea();
     // Parmakla basmak fareden zor: dokunurken alan daha geniş
@@ -11166,6 +11456,7 @@ class Game {
 
   update(dt) {
     if (this.rainCooldown > 0) this.rainCooldown -= dt;
+    Orders.update(this, dt);
     this.waves.update(dt);
     this.castle.update(dt);
     this.player.update(dt, this);
@@ -11337,6 +11628,24 @@ class Game {
       }
     }
     if (this.econ.people < ECONOMY.minPeople) return this.onGameOver(); // Açlık ya da gedikler
+    // Kralın yardım kervanı: oyunda bir kez, kale zor durumdayken
+    const E = ECONOMY;
+    const broken = this.fronts.list.filter((f) => f.hp <= 0).length;
+    if (!this.aidUsed && this.waves.wave >= 5 && (this.econ.people < E.aidBelow || broken >= 2)) {
+      this.aidUsed = true;
+      const A = E.aid;
+      this.econ.people += A.people;
+      this.econ.add({ odun: A.odun, tas: A.tas, ok: A.ok, yiyecek: A.yiyecek });
+      for (const f of this.fronts.list) f.hp = Math.max(f.hp, f.maxHp * E.aidWall);
+      report.notes.push(`Kralın yardım kervanı geldi: ${A.people} kişi, ${A.odun} odun, ${A.tas} taş, ${A.ok} ok, ${A.yiyecek} yiyecek. Ustaları yıkık surları onardı. Bir daha gelmez!`);
+    }
+    // Kale tükeniyor: halk birkaç gün çok az kalırsa kuşatma kaybedilir
+    this.lowDays = this.econ.people < E.lowPeople ? (this.lowDays || 0) + 1 : 0;
+    if (this.lowDays >= E.lowDays) {
+      this.exhausted = true;
+      return this.onGameOver();
+    }
+    if (this.lowDays > 0) report.notes.push(`Kalede çok az kişi kaldı! ${E.lowDays - this.lowDays} gün içinde nüfus ${E.lowPeople}'i geçmezse kale düşer.`);
     this.econ.eventNote = null;
     Events.roll(this); // Bazı günler kapıya biri gelir
     this.fronts.makePlan(this.waves.wave + 1);
@@ -11409,6 +11718,7 @@ class Game {
     this.player.draw(ctx);
     for (const c of this.corpses) c.draw(ctx);
     for (const z of this.zombies) z.draw(ctx);
+    Orders.drawMarker(ctx, this);
     for (const a of this.arrows) a.draw(ctx);
     for (const s of this.enemyShots) s.draw(ctx);
     this.effects.drawParticles(ctx);
