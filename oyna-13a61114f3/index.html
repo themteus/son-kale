@@ -5,7 +5,6 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Son Kale</title>
-  <meta name="claude:viewport-fit-sides" content="cover">
   <meta name="theme-color" content="#171a24">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,7 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;700&family=Grenze+Gotisch:wght@600;800&display=swap">
-  <style>
+  <meta name="claude:viewport-fit-sides" content="cover">
+<style>
 /* =============================================================
    SAYFA STİLİ (style.css)
    Oyun tek bir görünümde (alacakaranlık / taş) tasarlandı,
@@ -727,6 +727,7 @@ button { touch-action: manipulation; }
   .cevir-simge { animation: none; transform: rotate(-90deg); }
 }
 
+
 html, body { background: var(--gece); }
 </style>
 </head>
@@ -883,6 +884,15 @@ const CONFIG = {
     damageRatio: 0.6,   // Oyuncu hasarının yüzde kaçı
     cooldownRatio: 1.8, // Oyuncu bekleme süresinin kaç katı
     color: '#6b4a8a',
+    // Askerler de yorulur ve şaşırır (oyuncu gibi kusursuz değiller)
+    stamina: 100,       // Her askerin dayanıklılığı
+    shotCost: 12,       // Her atış
+    regen: 8,           // Saniyede dolan
+    tiredAt: 0.3,       // Bu oranın altında yorgun
+    tiredSlow: 1.7,     // Yorgun asker bu kadar yavaş atar
+    aimSpread: 0.028,   // Nişan sapması (radyan)
+    tiredSpread: 0.04,  // Yorgunken eklenen sapma
+    leadError: 0.18,    // Yürüyen zombinin önüne nişan alırken yanılma payı
   },
 
   waves: {
@@ -1417,6 +1427,7 @@ const EXPEDITION = {
   mercCost: 30,          // Paralı asker: 30 altın + dalga başına 3 altın
   mercPerWave: 3,
   settlers: 4,           // Ele geçirmek için yerleşecek köylü
+  raidPower: 0.975,      // Seferde askerin hasarı (oyuncu hasarına göre, isabet dahil)
   safeHome: 40,          // Kalede bundan az kişi kalacaksa ele geçirme ekranı uyarır
   claimCost: { odun: 40, tas: 30 }, // Çit ve barınak
   attackChance: 0.35,    // Ele geçirilen yerin her gün basılma olasılığı
@@ -3525,7 +3536,8 @@ class Archer {
     if (this.isPlayer) return { ...s, damage: game.playerDamage(), speed: game.arrowSpeed() };
     return {
       damage: game.playerDamage() * CONFIG.helper.damageRatio * (game.helperMult || 1), // Okçu Ustası
-      cooldown: s.cooldown * CONFIG.helper.cooldownRatio / (game.helperBoost || 1),
+      // Yorgun asker yavaş atar (helper.tiredSlow)
+      cooldown: s.cooldown * CONFIG.helper.cooldownRatio / (game.helperBoost || 1) * (this.tired ? CONFIG.helper.tiredSlow : 1),
       speed: game.arrowSpeed(),
       count: 1,
     };
@@ -3544,10 +3556,23 @@ class Archer {
       this.angle = clamp(Math.atan2(dy, dx), -1.45, 1.2);
       this.updateBow(dt, game, stats);
     } else {
+      // Asker dayanıklılığı: her atış yorar, beklerken dinlenir
+      const H = CONFIG.helper;
+      if (this.stamina === undefined) this.stamina = H.stamina;
+      this.stamina = Math.min(H.stamina, this.stamina + H.regen * dt);
+      this.tired = this.stamina < H.stamina * H.tiredAt;
       const target = this.findTarget(game);
       if (target) {
-        this.angle = this.aimAt(target, stats.speed);
-        if (this.cooldownTimer <= 0) this.shoot(game, stats);
+        // Önüne nişan alırken yanılır, yorgunken daha çok sapar
+        if (this.cooldownTimer <= 0 || this.lead === undefined) this.lead = 1 + gaussRandom() * H.leadError;
+        this.angle = this.aimAt(target, stats.speed, this.lead);
+        if (this.cooldownTimer <= 0) {
+          const aim = this.angle;
+          this.angle += gaussRandom() * (H.aimSpread + (this.tired ? H.tiredSpread : 0));
+          if (this.shoot(game, stats)) this.stamina = Math.max(0, this.stamina - H.shotCost);
+          this.angle = aim;
+          this.lead = undefined;
+        }
       }
     }
   }
@@ -3664,8 +3689,7 @@ class Archer {
     this.lastCooldown = stats.cooldown;
     this.recoil = 1;
 
-    // Yardımcılar biraz şaşırsın, hep tam isabet olmasın
-    const jitter = this.isPlayer ? 0 : (Math.random() - 0.5) * 0.05;
+    const jitter = 0; // Askerlerin sapması update içinde (helper.aimSpread)
     const spread = 0.07; // Çoklu okta oklar arası açı
 
     // Çoklu Ok: ortadaki ok tam hasar, yandakiler daha az
@@ -3700,12 +3724,13 @@ class Archer {
 
   // Ok atış formülü: belirli bir hızla hedefe ulaşmak için gereken açı.
   // Zombi yürüyorsa okun yolda geçireceği süre kadar önüne nişan alır.
-  aimAt(zombie, speed) {
+  // lead: önüne nişan alma çarpanı (askerler yanılır, 1 = tam)
+  aimAt(zombie, speed, lead = 1) {
     const g = CONFIG.gravity;
     let tx = zombie.x;
     const ty = zombie.aimY; // Zombinin vurulacak noktası (her tür kendisi söyler)
     const flightTime = Math.max(0, (tx - this.pivotX) / (speed * 0.9));
-    if (zombie.state === 'walk') tx -= zombie.speed * flightTime;
+    if (zombie.state === 'walk') tx -= zombie.speed * flightTime * lead;
     // Askerler rüzgârı hesaba katar (oyuncu kendisi ayarlar)
     tx -= 0.5 * Arrow.wind * flightTime * flightTime;
 
@@ -3727,6 +3752,17 @@ class Archer {
     const body = Sprites.archer(this.color);
     Sprites.draw(ctx, body, this.x - 7 * SPRITE_PX, this.footY - body.height * SPRITE_PX / 2);
     this.drawBowArm(ctx);
+    // Askerin dayanıklılık çubuğu (dolu değilse)
+    const H = CONFIG.helper;
+    if (!this.isPlayer && this.stamina < H.stamina) {
+      const w = 20, x = Math.round(this.x - w / 2), y = Math.round(this.footY - 52);
+      ctx.fillStyle = '#181425';
+      ctx.fillRect(x - 2, y - 2, w + 4, 8);
+      ctx.fillStyle = '#3a3226';
+      ctx.fillRect(x, y, w, 4);
+      ctx.fillStyle = this.tired ? '#e0803a' : '#e8c34a';
+      ctx.fillRect(x, y, Math.round(w * this.stamina / H.stamina), 4);
+    }
   }
 
   // Kol + yay nişan açısına göre döner; piksel çizgilerle çizilir
@@ -6100,7 +6136,10 @@ class FrontBattle {
 
     // Askerlerin ateşi: her asker kendi bekleme süresinde bir ok atar
     const cooldown = s.cooldown * CONFIG.helper.cooldownRatio;
-    const perShot = game.playerDamage() * C.soldierPower * C.accuracy * f.towerBonus * archerB;
+    // Oyuncunun olmadığı cephede askerler kendi düzeninde savaşır: nöbetleşe
+    // atıp dinlenirler, bu yüzden yorgunluk ortalama isabete katılmıştır.
+    const acc = C.accuracy;
+    const perShot = game.playerDamage() * C.soldierPower * acc * f.towerBonus * archerB;
     const visible = this.units.filter((u) => !u.dead && u.spawn <= this.time);
 
     // Şifacılar yerlerine varınca sürüyü iyileştirir
@@ -6114,7 +6153,7 @@ class FrontBattle {
       while (this.shotTimer >= cooldown) {
         this.shotTimer -= cooldown;
         if (!econ.useArrows(1)) { noArrows = true; break; } // Ok bitti!
-        econ.registerHit(C.accuracy); // Isabet edenler toplanırken çoğu kırık çıkar
+        econ.registerHit(acc); // Isabet edenler toplanırken çoğu kırık çıkar
         // Önce sura yaklaşan yürüyenler; uzaktaki okçu zombiler sonra
         const alive = visible.filter((u) => !u.dead);
         const near = alive.filter((u) => !u.ranged && u.arrive - this.time < 6);
@@ -6477,10 +6516,10 @@ class Expeditions {
     return hp * this.places[key].guardLeft;
   }
 
-  // Bir askerin saniyedeki hasarı (cephelerdeki askerlerle aynı)
+  // Bir askerin saniyedeki hasarı. Seferdeki baskın kısa ve planlı:
+  // askerler yorulmadan ve yakından vurur (raidPower, cephe ayarından bağımsız)
   soldierDps(game) {
-    const C = FRONT_CONFIG;
-    return (game.playerDamage() * C.soldierPower * C.accuracy) / (game.stats.cooldown * CONFIG.helper.cooldownRatio);
+    return (game.playerDamage() * EXPEDITION.raidPower) / (game.stats.cooldown * CONFIG.helper.cooldownRatio);
   }
 
   // Güç oranı: 1'den büyükse askerler bekçileri yener
@@ -10761,7 +10800,7 @@ class Game {
     this.won = false;          // Yardım ordusu geldi mi (kazanıldı)
     this.arrowKind = 'normal'; // Seçili özel ok (config.js → ARROW_TYPES)
     this.kindShots = 0;        // Özel okun kaynak sayacı
-    this.waveStats = { shots: 0, hits: 0, heads: 0, kills: 0 }; // Dalga sonu özeti için
+    this.waveStats = { shots: 0, hits: 0, heads: 0, kills: 0, mine: 0 }; // Dalga sonu özeti için (mine: oyuncunun öldürdüğü)
     this.castle = new Castle();
     this.player = new Archer(CONFIG.player.x, CONFIG.player.footY, true, CONFIG.player.color);
     this.helpers = [];
@@ -10934,7 +10973,7 @@ class Game {
     this.arrows = [];
     this.enemyShots = [];
     this.corpses = [];
-    this.waveStats = { shots: 0, hits: 0, heads: 0, kills: 0 };
+    this.waveStats = { shots: 0, hits: 0, heads: 0, kills: 0, mine: 0 };
     this.beginWave();
   }
 
@@ -11244,7 +11283,10 @@ class Game {
           Sound.play('hit');
         }
 
-        if (z.dead) this.onZombieKilled(z);
+        if (z.dead) {
+          if (a.fromPlayer) this.waveStats.mine++;
+          this.onZombieKilled(z);
+        }
         break; // Bir ok yalnızca bir zombiye çarpar
       }
     }
