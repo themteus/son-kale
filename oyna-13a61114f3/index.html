@@ -2,6 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
+  <meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Son Kale</title>
   <meta name="theme-color" content="#171a24">
@@ -738,6 +739,14 @@ button { touch-action: manipulation; }
 .arastirma-satir small { opacity: 0.75; }
 .arastirma-satir.bitti { opacity: 0.6; }
 .arastirma-satir .gelistir { margin-top: 3px; }
+
+/* Ana menüde kampanya (campaign.js) */
+.kampanya { margin-top: 10px; text-align: left; }
+.kampanya summary { cursor: pointer; font-weight: bold; padding: 4px 0; }
+.kampanya-satir { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; margin-top: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); }
+.kampanya-satir small { opacity: 0.8; }
+.kampanya-satir.kilitli { opacity: 0.5; }
+.kampanya-satir .zorluk-dugme { align-self: flex-start; }
 
 html, body { background: var(--gece); }
 </style>
@@ -1529,6 +1538,42 @@ const RESEARCH = {
   kale:    { name: 'Kale Suru',         days: 4, cost: { altin: 2500, tas: 150 },  need: 'usta',    desc: 'Bütün surların canı +%25.' },
   sam:     { name: 'Şam Çeliği',        days: 5, cost: { altin: 3500, demir: 60 }, need: 'uzunyay', desc: 'Bütün okların hasarı bir kez daha +%15.' },
 };
+
+// -------------------------------------------------------------
+//  KAMPANYA (campaign.js): sırayla açılan kaleler.
+//  Her kalenin kendi kuralı var. Kazanınca sıradaki açılır, hayatta
+//  kalan komutanlar (seviyeleriyle) bir sonraki kaleye gelir.
+//    fronts: saldırılan cepheler · diff: zorluk ayarı (Normal'in üstüne)
+//    types: zombi türü olasılık çarpanı · typeShift: yeni türler kaç gün erken
+//    bats: yarasa çarpanı · prod: bina üretim çarpanı · allFrontsFrom: bu günden
+//    itibaren bütün cepheler · giants: dev dalgasındaki dev çarpanı
+// -------------------------------------------------------------
+const CAMPAIGN = [
+  {
+    id: 'gecit', name: 'Dağ Geçidi', winDay: 20,
+    desc: 'Dar bir geçit: yalnız Doğu ve Kuzey surlarına saldırırlar ama çok dev ve iri zombi gelir. Kapıda hazır bir mancınık var.',
+    fronts: ['dogu', 'kuzey'], diff: { hp: 1, speed: 1, spawn: 1, gold: 1.1, startBows: 5 },
+    types: { tank: 1.8, brute: 1.6, fast: 0.7 }, giants: 2, start: { catapult: 'dogu' },
+  },
+  {
+    id: 'bataklik', name: 'Bataklık Kalesi', winDay: 25,
+    desc: 'Çamurlu toprakta çiftlikler az ürün verir. Zehir tüküren okçu zombiler ve iyileştiriciler çok.',
+    fronts: ['dogu', 'kuzey', 'bati'], diff: { hp: 1, speed: 0.95, spawn: 1, gold: 1.1, startBows: 5 },
+    types: { archer: 2, healer: 2, climber: 1.4 }, typeShift: 2, prod: { ciftlik: 0.75 }, start: { yiyecek: 60 },
+  },
+  {
+    id: 'kiyi', name: 'Kıyı Kalesi', winDay: 25,
+    desc: 'Deniz kenarı: balıkçılar çiftliği güçlendirir, liman altın getirir. Ama gökyüzü yarasa dolu, hızlı zombiler kıyıdan koşar.',
+    fronts: ['dogu', 'kuzey', 'guney', 'bati'], diff: { hp: 1.05, speed: 1, spawn: 1, gold: 1.3, startBows: 5 },
+    types: { fast: 1.5, bomber: 1.5 }, bats: 2.2, prod: { ciftlik: 1.25 },
+  },
+  {
+    id: 'baskent', name: 'Başkent', winDay: 30,
+    desc: 'Son savaş. 8. günden itibaren dört cephe birden saldırır, yeni zombiler 4 gün erken gelir, her patron karşına çıkar.',
+    fronts: ['dogu', 'kuzey', 'guney', 'bati'], diff: { hp: 1.1, speed: 1, spawn: 1, gold: 1.1, startBows: 7 },
+    typeShift: 4, allFrontsFrom: 8, giants: 1.5,
+  },
+];
 
 </script>
   <script>
@@ -5911,7 +5956,7 @@ class Economy {
 
   // Seviyeye göre işçi verimi (1. seviye = 1)
   eff(key) {
-    return (1 + (this.buildings[key].level - 1) * ECONOMY.levelBonus) * Morale.prod(this) * Research.prodMult(key);
+    return (1 + (this.buildings[key].level - 1) * ECONOMY.levelBonus) * Morale.prod(this) * Research.prodMult(key) * Campaign.prodMult(key);
   }
 
   // ---------- Kalite (oyuncunun ve askerlerin okları) ----------
@@ -6407,8 +6452,9 @@ class FrontManager {
   // zombilerin cephelere nasıl bölüneceğini belirler.
   makePlan(wave) {
     // Dördüncü cephe 13. dalgada açılır: ilk patron (10) tek başına gelsin
-    const count = wave <= 2 ? 1 : wave <= 5 ? 2 : wave <= 12 ? 3 : 4;
-    const keys = Object.keys(FRONTS);
+    const keys = Campaign.fronts(); // Kampanyada bazı kalelerin daha az cephesi var
+    let count = Math.min(keys.length, wave <= 2 ? 1 : wave <= 5 ? 2 : wave <= 12 ? 3 : 4);
+    if (Campaign.allFronts(wave)) count = keys.length;
     // İlk dalga hep kapıdan gelir
     let chosen = wave === 1 ? ['dogu'] : shuffle(keys).slice(0, count);
     const weights = chosen.map(() => 0.5 + Math.random());
@@ -6421,7 +6467,7 @@ class FrontManager {
     // önceden belli olur, keşif raporu söyler, oyuncu hazırlanır
     const giants = {};
     if (wave % 5 === 0) {
-      for (let i = 0; i < wave / 5 + 1; i++) {
+      for (let i = 0; i < Math.round((wave / 5 + 1) * Campaign.giantMult()); i++) {
         const k = chosen[Math.floor(Math.random() * chosen.length)];
         giants[k] = (giants[k] || 0) + 1;
       }
@@ -7741,6 +7787,124 @@ const Research = {
   // Sıradaki araştırılabilecekler (bot ve ipucu için)
   available(game) {
     return Object.keys(RESEARCH).filter((id) => !this.has(id) && (!RESEARCH[id].need || this.has(RESEARCH[id].need)));
+  },
+};
+
+</script>
+  <script>
+// =============================================================
+//  KAMPANYA (campaign.js)
+//  Kaleler sırayla açılır. İlerleme tarayıcıda saklanır:
+//  localStorage 'sonKale.sefer' = { open: açık kale sayısı, done: {id: true}, carry: [komutanlar] }
+//  Campaign.cur: şu an oynanan kale (serbest oyunda null).
+//  Ayarlar: config.js → CAMPAIGN
+// =============================================================
+
+const Campaign = {
+  key: 'sonKale.sefer',
+  cur: null,
+
+  load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(this.key));
+      if (d && typeof d.open === 'number') return d;
+    } catch (e) { /* önemli değil */ }
+    return { open: 1, done: {}, carry: [] };
+  },
+
+  store(d) {
+    try { localStorage.setItem(this.key, JSON.stringify(d)); } catch (e) { /* önemli değil */ }
+  },
+
+  byId(id) {
+    return CAMPAIGN.find((c) => c.id === id) || null;
+  },
+
+  isOpen(id) {
+    return CAMPAIGN.findIndex((c) => c.id === id) < this.load().open;
+  },
+
+  // Kaleyi şu anki oyuna uygula (yeni oyun ya da kayıttan)
+  set(game, id) {
+    const C = this.byId(id);
+    this.cur = C;
+    game.campId = C ? C.id : null;
+    if (C) game.diff = Object.assign({}, DIFFICULTIES.normal, C.diff, { name: C.name, winDay: C.winDay });
+  },
+
+  // Serbest oyun: kampanya kuralları kalkar
+  clear(game) {
+    this.cur = null;
+    game.campId = null;
+    game.setDifficulty(game.diffKey);
+  },
+
+  // ---- Kuralların sorulduğu yerler ----
+  fronts() {
+    return this.cur ? this.cur.fronts : Object.keys(FRONTS);
+  },
+  typeMult(type) {
+    return (this.cur && this.cur.types && this.cur.types[type]) || 1;
+  },
+  typeShift() {
+    return (this.cur && this.cur.typeShift) || 0;
+  },
+  batMult() {
+    return (this.cur && this.cur.bats) || 1;
+  },
+  giantMult() {
+    return (this.cur && this.cur.giants) || 1;
+  },
+  prodMult(key) {
+    return (this.cur && this.cur.prod && this.cur.prod[key]) || 1;
+  },
+  allFronts(wave) {
+    return !!(this.cur && this.cur.allFrontsFrom && wave >= this.cur.allFrontsFrom);
+  },
+
+  // Yeni kale başladı: başlangıç hediyesi ve önceki kaleden gelen komutanlar
+  applyStart(game) {
+    const C = this.cur;
+    if (!C) return;
+    const s = C.start || {};
+    if (s.catapult) game.fronts.byKey[s.catapult].catapult = 1;
+    if (s.yiyecek) game.econ.res.yiyecek += s.yiyecek;
+    const carry = this.load().carry || [];
+    const keys = C.fronts.slice();
+    for (const c of carry) {
+      const k = keys.shift();
+      if (!k) break;
+      if (!game.fronts.byKey[k].commander) game.fronts.byKey[k].commander = Object.assign({}, c);
+    }
+  },
+
+  // Kale kazanıldı: sıradaki açılır, komutanlar saklanır
+  win(game) {
+    const C = this.cur;
+    if (!C) return null;
+    const d = this.load();
+    const i = CAMPAIGN.indexOf(C);
+    d.done[C.id] = true;
+    d.open = Math.max(d.open, Math.min(CAMPAIGN.length, i + 2));
+    d.carry = game.fronts.list.filter((f) => f.commander).map((f) => f.commander);
+    this.store(d);
+    return { next: CAMPAIGN[i + 1] || null, carried: d.carry.length };
+  },
+
+  // Menüdeki kampanya bloğu
+  menuBlock() {
+    const d = this.load();
+    const rows = CAMPAIGN.map((C, i) => {
+      const open = i < d.open;
+      const done = d.done[C.id];
+      return `<div class="kampanya-satir ${open ? '' : 'kilitli'}">
+          <span><b>${i + 1}. ${C.name}</b> <small>${C.winDay} gün${done ? ' · kazanıldı ✓' : ''}</small></span>
+          <small>${open ? C.desc : 'Önceki kaleyi kurtarınca açılır.'}</small>
+          ${open ? `<button class="zorluk-dugme" data-camp="${C.id}">${done ? 'Yeniden oyna' : 'Kaleye git'}</button>` : ''}
+        </div>`;
+    }).join('');
+    const carry = (d.carry || []).length ? `<p class="y-seviye">Seninle gelecek komutanlar: ${d.carry.map((c) => `${COMMANDERS.kinds[c.kind].name} ${c.name} (Sv${c.level})`).join(', ')}</p>` : '';
+    return `<details class="kampanya"><summary>Kampanya · ${Object.keys(d.done).length}/${CAMPAIGN.length} kale</summary>${rows}${carry}</details>`;
   },
 };
 
@@ -9796,7 +9960,7 @@ class WaveManager {
 
     // 4. dalgadan itibaren yarasa sürüleri araya karışır
     if (n >= 4) {
-      const bats = Math.floor((n - 2) * 0.8);
+      const bats = Math.floor((n - 2) * 0.8 * Campaign.batMult());
       for (let i = 0; i < bats; i++) list.splice(Math.floor(Math.random() * list.length), 0, 'bat');
     }
 
@@ -9808,6 +9972,7 @@ class WaveManager {
   // Yeni zombi türü eklersen burada hangi dalgadan itibaren
   // ve hangi olasılıkla çıkacağını yaz.
   pickZombieType(n) {
+    n += Campaign.typeShift(); // Kampanyada bazı kalelerde yeni türler erken gelir
     // Her tür için olasılık; listede önce yazılan önce denenir
     const chances = [
       ['tank', n >= 4 ? Math.min(0.2, 0.05 * (n - 3)) : 0],      // 4. dalgadan itibaren
@@ -9820,7 +9985,8 @@ class WaveManager {
       ['fast', n >= 2 ? 0.25 : 0],                                // 2. dalgadan itibaren
     ];
     let r = Math.random();
-    for (const [type, p] of chances) {
+    for (const [type, p0] of chances) {
+      const p = p0 * Campaign.typeMult(type); // Kalenin kuralı (campaign.js)
       if (r < p) return type;
       r -= p;
     }
@@ -10128,10 +10294,19 @@ const UI = {
             <button class="zorluk-dugme ${game.diffKey === key ? 'secili' : ''}" data-diff="${key}">${d.name}</button>`).join('')}
         </div>
         ${this.lordBlock(game)}
-        ${save ? `<button class="ana-dugme" id="btnDevam">Devam et · ${save.wave + 1}. gün (${DIFFICULTIES[save.diff].name})</button>` : ''}
+        ${save ? `<button class="ana-dugme" id="btnDevam">Devam et · ${save.wave + 1}. gün (${save.extra && save.extra.camp ? Campaign.byId(save.extra.camp).name : DIFFICULTIES[save.diff].name})</button>` : ''}
         <button class="${save ? 'ikinci-dugme' : 'ana-dugme'}" id="btnBasla">${save ? 'Yeni oyun (kayıt silinir)' : 'Kaleye gir'}</button>
+        ${Campaign.menuBlock()}
       </div>`);
-    document.getElementById('btnBasla').onclick = () => game.startGame();
+    document.getElementById('btnBasla').onclick = () => { Campaign.clear(game); game.startGame(); };
+    this.layer.querySelectorAll('[data-camp]').forEach((btn) => {
+      btn.onclick = () => { Campaign.set(game, btn.dataset.camp); game.startGame(); };
+    });
+    const det = this.layer.querySelector('details.kampanya');
+    if (det) {
+      if (this.campOpen) det.open = true;
+      det.ontoggle = () => { this.campOpen = det.open; };
+    }
     if (save) document.getElementById('btnDevam').onclick = () => game.continueGame();
     this.layer.querySelectorAll('[data-lord]').forEach((btn) => {
       btn.onclick = () => {
@@ -10834,6 +11009,14 @@ const UI = {
   },
 
   // ---------- Kazanma: yardım ordusu geldi ----------
+  // Kampanya kalesi kazanılınca: sıradaki kale ve gelen komutanlar
+  campaignText(game) {
+    const r = game.campId && game.campResult;
+    if (!r) return '';
+    if (!r.next) return '<p class="kalite"><b>Kampanya bitti!</b> Bütün kaleleri kurtardın.</p>';
+    return `<p class="kalite">Yeni kale açıldı: <b>${r.next.name}</b>.${r.carried ? ` ${r.carried} komutan seninle gelecek.` : ''} Ana menüdeki Kampanya bölümünden başlat.</p>`;
+  },
+
   showVictory(game) {
     this.show(`
       <div class="panel">
@@ -10846,6 +11029,7 @@ const UI = {
           <span>Halk: <b>${game.econ.people}</b></span>
         </div>
         ${Fame.awardText(game.fameResult)}
+        ${this.campaignText(game)}
         <p class="y-seviye">İstersen kuşatma sürer: dalgalar güçlenmeye devam eder, ne kadar dayanabilirsin?</p>
         <div class="dugme-satiri">
           <button class="ana-dugme" id="btnSurdur">Dayanmaya devam et</button>
@@ -11498,7 +11682,7 @@ class Game {
 
   // Kayda giren yeni sistemler (save.js → extra)
   saveExtra() {
-    return { aidUsed: this.aidUsed, lowDays: this.lowDays, hired: this.commanders.hired, lord: this.lordId, bossKills: this.bossKills, fameWaves: this.fameWaves, fameBosses: this.fameBosses, research: this.research };
+    return { aidUsed: this.aidUsed, lowDays: this.lowDays, hired: this.commanders.hired, lord: this.lordId, bossKills: this.bossKills, fameWaves: this.fameWaves, fameBosses: this.fameBosses, research: this.research, camp: this.campId || null };
   }
 
   loadExtra(d) {
@@ -11510,6 +11694,8 @@ class Game {
     this.fameWaves = d.fameWaves || 0;
     this.fameBosses = d.fameBosses || 0;
     if (d.research) Object.assign(this.research, d.research);
+    Campaign.set(this, d.camp || null); // Kampanya kalesi (yoksa serbest oyun)
+    if (!d.camp) Campaign.clear(this);
   }
 
   // Oyuncunun olmadığı cephede bir zombi öldü
@@ -11549,6 +11735,7 @@ class Game {
     if (isTouchDevice()) enterFullscreen(); // Telefonda tam ekran + yatay
     this.reset();
     Fame.applyLord(this, Fame.chosen().id); // Lordun başlangıç bonusu
+    Campaign.applyStart(this); // Kampanya kalesinin hediyesi ve gelen komutanlar
     UI.hide();
     this.enterBase(); // Oyun iç kalede başlar, ilk dalgayı oyuncu başlatır
   }
@@ -12028,6 +12215,7 @@ class Game {
       Save.write(this);
       if (this.waves.wave > this.bestWave) { this.bestWave = this.waves.wave; saveBestWave(this.bestWave); }
       this.fameResult = Fame.award(this, true);
+      this.campResult = Campaign.win(this); // Kampanya: sıradaki kale açılır
       Save.write(this); // Verilen ün kayda geçsin (sürdürünce iki kez verilmesin)
       Sound.play('bossHorn');
       UI.showVictory(this);
