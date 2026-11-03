@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="robots" content="noindex, nofollow">
+<meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Son Kale</title>
   <meta name="theme-color" content="#171a24">
@@ -747,6 +747,7 @@ button { touch-action: manipulation; }
 .kampanya-satir small { opacity: 0.8; }
 .kampanya-satir.kilitli { opacity: 0.5; }
 .kampanya-satir .zorluk-dugme { align-self: flex-start; }
+
 
 html, body { background: var(--gece); }
 </style>
@@ -1651,8 +1652,13 @@ function hashNoise(a, b) {
 // Sahne küçük bir tuvale çizilir, sonra yumuşatmadan büyütülür.
 // Böylece her şey piksel sanat gibi görünür. Yazılar (fillText) ise
 // küçük tuvale çizilmez, sırada bekletilip büyük tuvale keskin yazılır.
-// PIXEL_SIZE: bir sanat pikselinin sahne birimi cinsinden boyu (1 = en ince).
-const PIXEL_SIZE = 1;
+//
+// ART: piksel yoğunluğu. 1 = sahne 960x540 piksel, 2 = HD piksel
+// (1920x1080: her sahne birimi 2x2 ince piksel). Ekran yeterince
+// büyük ve ekran kartı (WebGL) varsa kendiliğinden 2 olur (Art.choose).
+// PIXEL_SIZE: bir sanat pikselinin sahne birimi cinsinden boyu (= 1 / ART).
+let ART = 1;
+let PIXEL_SIZE = 1;
 const PIXEL_DITHER = 0; // Renk geçişlerindeki desen gücü (0 = düz renk)
 
 // Piksel sanat paleti (Endesga 32 ve birkaç ara ton). Ekrandaki her nokta
@@ -1670,8 +1676,12 @@ const PIXEL_PALETTE = [
   '#4e6a34', '#3f5a2a', '#5e7c3e', '#7a9448', '#2f4a26', '#1d3622',
   '#4a3a5a', '#6a4a6a', '#8a5a6a', '#c87850', '#e09a60', '#3a3050', '#1e2238', '#2c3148',
   '#2f5878', '#22405a',
+  // HD için ek tonlar: akşam göğü geçişi, gece göğü, zombi teni, ışık kenarları
+  '#3e3e5c', '#52476a', '#664f6c', '#8e6466', '#a8705e', '#bc7c5c', '#d8946a', '#e8b080',
+  '#10142a', '#181d3c', '#22224a', '#2a2446', '#34304e',
+  '#6e8a5a', '#8aa070', '#4e6a48', '#3a5038', '#a4b48a',
+  '#d6dce8', '#f2ead6', '#5a4a3e', '#7e6a58',
 ];
-// Renk geçişleri (gökyüzü gibi) basamaklı değil noktalı görünsün diye 4x4 desen
 // Ekran tuvalinin gerçek çözünürlüğü: 960x540 sahne, ekrandaki boyuna
 // (cihaz pikseliyle) en yakın tam katla büyütülür. Böylece tarayıcı
 // tuvali esnetip bulanıklaştırmaz, her piksel keskin kare kalır.
@@ -1680,7 +1690,8 @@ const Display = {
   fit(canvas) {
     const w = canvas.clientWidth || CONFIG.width;
     const dpr = window.devicePixelRatio || 1;
-    const k = Math.max(1, Math.min(4, Math.round((w * dpr) / CONFIG.width)));
+    Art.choose(w * dpr);
+    const k = Math.max(ART, Math.min(4, Math.round((w * dpr) / CONFIG.width)));
     if (k !== this.scale || canvas.width !== CONFIG.width * k) {
       this.scale = k;
       canvas.width = CONFIG.width * k;
@@ -1689,6 +1700,106 @@ const Display = {
     return k;
   },
 };
+
+// ---------------- Grafik kalitesi (HD piksel) ----------------
+// Ayar localStorage 'sonKale.grafik': 'oto' (varsayılan), 'yuksek', 'dusuk'.
+// 'oto': ekran en az ~1500 cihaz pikseli genişse HD. Oyun yavaş kalırsa
+// (saniyede 25 karenin altı) kendiliğinden normale döner.
+const Art = {
+  slow: false,
+  lastW: 1920,
+  frameT: 0, frames: 0,
+
+  pref() {
+    try { return localStorage.getItem('sonKale.grafik') || 'oto'; } catch (e) { return 'oto'; }
+  },
+  setPref(v) {
+    try { localStorage.setItem('sonKale.grafik', v); } catch (e) { /* önemli değil */ }
+    this.slow = false;
+    this.choose(this.lastW);
+  },
+
+  choose(deviceW) {
+    this.lastW = deviceW;
+    const p = this.pref();
+    let a = 1;
+    if (p !== 'dusuk' && PixelGL.ok()) a = p === 'yuksek' || (deviceW >= 1500 && !this.slow) ? 2 : 1;
+    if (a !== ART) this.set(a);
+  },
+
+  set(a) {
+    ART = a;
+    PIXEL_SIZE = 1 / a;
+    // Önceden çizilmiş her şey yeni yoğunlukta yeniden çizilsin
+    Pixel.buffers = {};
+    if (typeof Tex !== 'undefined') Tex.cache = {};
+    if (typeof Sprites !== 'undefined') { Sprites.archers = null; Sprites.batFrames = null; }
+    if (typeof castleImage !== 'undefined') castleImage = null;
+    const g = window.game;
+    if (g && g.scenery) g.scenery.resetArt();
+    if (g && g.base) g.base.cache = null;
+  },
+
+  // Her kare çağrılır: HD'de uzun süre yavaş kalırsa normale geç
+  tick(dt) {
+    if (ART < 2 || this.pref() !== 'oto') return;
+    this.frameT += dt;
+    this.frames++;
+    if (this.frameT >= 4) {
+      if (this.frames / this.frameT < 25) { this.slow = true; this.choose(this.lastW); }
+      this.frameT = 0; this.frames = 0;
+    }
+  },
+};
+
+// O anki yoğunlukta boş bir tuval: çizim yine sahne biriminde yapılır.
+// Ekrana artDraw ile sahne boyunda çizilir.
+function artCanvas(w, h) {
+  const cv = document.createElement('canvas');
+  cv.width = Math.ceil(w * ART);
+  cv.height = Math.ceil(h * ART);
+  cv.art = ART;
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(ART, 0, 0, ART, 0, 0);
+  return { cv, ctx };
+}
+
+function artDraw(ctx, cv, x = 0, y = 0) {
+  const a = cv.art || 1;
+  ctx.drawImage(cv, x, y, cv.width / a, cv.height / a);
+}
+
+// Scale2x (EPX): piksel resmi iki kat büyütür, çapraz kenarları yumuşatır
+// ama yeni renk üretmez. wrap: karo dokularda kenarlar karşı taraftan devam eder.
+function scale2xCanvas(src, wrap = false) {
+  const w = src.width, h = src.height;
+  const sd = new Uint32Array(src.getContext('2d').getImageData(0, 0, w, h).data.buffer);
+  const c = document.createElement('canvas');
+  c.width = w * 2;
+  c.height = h * 2;
+  const x = c.getContext('2d');
+  const img = x.createImageData(w * 2, h * 2);
+  const d = new Uint32Array(img.data.buffer);
+  const at = wrap
+    ? (i, j) => sd[((j + h) % h) * w + ((i + w) % w)]
+    : (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? 0 : sd[j * w + i]);
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const P = at(i, j), A = at(i, j - 1), B = at(i + 1, j), C = at(i - 1, j), D = at(i, j + 1);
+      let e0 = P, e1 = P, e2 = P, e3 = P;
+      if (A !== D && C !== B) {
+        if (C === A) e0 = A;
+        if (A === B) e1 = B;
+        if (D === C) e2 = C;
+        if (B === D) e3 = D;
+      }
+      const o = j * 2 * w * 2 + i * 2;
+      d[o] = e0; d[o + 1] = e1; d[o + w * 2] = e2; d[o + w * 2 + 1] = e3;
+    }
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
 
 // Elle çizilmiş piksel sanat gibi doku: her piksele biraz rastgele
 // açıklık/koyuluk eklenir (çimen, toprak, taş, ağaç yüzeyleri kumlu
@@ -1718,17 +1829,11 @@ const Pixel = {
   lut: null, // 15 bitlik renk -> paletteki sıra (önbellek)
 
   // Küçük tuvaldeki her pikseli paletin en yakın rengine çeker
-  quantize(ctx, w, h, grain = 0) {
-    if (!this.lut) {
-      this.pal = PIXEL_PALETTE.map((c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
-      // Her renk 32 bit tek sayı olarak (A B G R sırası)
-      this.pal32 = this.pal.map((c) => (255 << 24 | c[2] << 16 | c[1] << 8 | c[0]) >>> 0);
-      this.lut = new Uint32Array(32768); // 0 = henüz hesaplanmadı
-    }
+  quantize(ctx, w, h, grain = 0, dither = PIXEL_DITHER) {
+    this.initPalette();
     const img = ctx.getImageData(0, 0, w, h);
     const d = new Uint32Array(img.data.buffer);
     const lut = this.lut;
-    const dither = PIXEL_DITHER;
     // Elle çizilmiş gibi tanecik: her piksele sabit küçük bir açıklık/koyuluk
     let noise = null;
     if (grain) {
@@ -1773,6 +1878,23 @@ const Pixel = {
     ctx.putImageData(img, 0, 0);
   },
 
+  initPalette() {
+    if (this.lut) return;
+    this.pal = PIXEL_PALETTE.map((c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
+    // Her renk 32 bit tek sayı olarak (A B G R sırası)
+    this.pal32 = this.pal.map((c) => (255 << 24 | c[2] << 16 | c[1] << 8 | c[0]) >>> 0);
+    this.lut = new Uint32Array(32768); // 0 = henüz hesaplanmadı
+  },
+
+  // '#rrggbb' rengin paletteki en yakın karşılığı ('#rrggbb')
+  snap(color) {
+    this.initPalette();
+    const n = parseInt(color.slice(1), 16);
+    const key = (((n >> 16) & 255) >> 3) << 10 | (((n >> 8) & 255) >> 3) << 5 | ((n & 255) >> 3);
+    const v = this.lut[key] || (this.lut[key] = this.nearest(key));
+    return '#' + (((v & 255) << 16) | (v & 0xff00) | ((v >> 16) & 255)).toString(16).padStart(6, '0');
+  },
+
   // İlk kez görülen renk: en yakın palet rengini bul (göz yeşile daha duyarlı)
   nearest(key) {
     const pal = this.pal;
@@ -1791,9 +1913,10 @@ const Pixel = {
     let c = this.buffers[name];
     if (!c) {
       c = document.createElement('canvas');
-      c.width = CONFIG.width / PIXEL_SIZE;
-      c.height = CONFIG.height / PIXEL_SIZE;
-      const x = c.getContext('2d', { willReadFrequently: true });
+      c.width = CONFIG.width * ART;
+      c.height = CONFIG.height * ART;
+      // Ekran kartı varsa tuval orada kalsın (hızlı); yoksa işlemci okuyacak
+      const x = c.getContext('2d', { willReadFrequently: !PixelGL.ok() });
       // Yazıları sıraya al (dönüşüm, yazı tipi, renk saklanır)
       x.fillText = function (str, tx, ty) {
         this.textQueue.push({
@@ -1804,24 +1927,28 @@ const Pixel = {
       this.buffers[name] = c;
     }
     const ctx = c.getContext('2d');
-    ctx.setTransform(1 / PIXEL_SIZE, 0, 0, 1 / PIXEL_SIZE, 0, 0);
+    ctx.setTransform(ART, 0, 0, ART, 0, 0);
     ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = false;
     ctx.textQueue = [];
     return ctx;
   },
 
-  // Küçük tuvali büyük tuvale büyüt, sonra bekleyen yazıları keskin yaz
+  // Küçük tuvali palete çek, büyük tuvale büyüt, sonra bekleyen yazıları keskin yaz
   end(name, target) {
     const c = this.buffers[name];
     const q = c.getContext('2d').textQueue;
-    this.quantize(c.getContext('2d'), c.width, c.height, name === 'savas' ? 0 : 5);
+    const grain = name === 'savas' ? 0 : 5;
+    let img = c;
+    if (PixelGL.ok()) img = PixelGL.run(c, grain);
+    else this.quantize(c.getContext('2d'), c.width, c.height, grain);
     target.save();
     const D = Display.scale;
     target.setTransform(D, 0, 0, D, 0, 0);
     target.imageSmoothingEnabled = false;
-    target.drawImage(c, 0, 0, CONFIG.width, CONFIG.height);
+    target.drawImage(img, 0, 0, CONFIG.width, CONFIG.height);
     target.restore();
-    const k = PIXEL_SIZE * Display.scale;
+    const k = D / ART;
     for (const t of q) {
       target.save();
       target.setTransform(t.m.a * k, t.m.b * k, t.m.c * k, t.m.d * k, t.m.e * k, t.m.f * k);
@@ -1833,6 +1960,122 @@ const Pixel = {
       target.fillText(t.str, t.tx, t.ty);
       target.restore();
     }
+  },
+};
+
+// ---------------- Ekran kartında palet (WebGL) ----------------
+// Her karede sahnenin her pikselini palete çekmek işlemcide yavaştır
+// (HD'de 2 milyon piksel). Aynı iş ekran kartında küçük bir gölgelendirici
+// ile yapılır: piksel rengi -> 32x32x32 tablodan paletteki en yakın renk.
+// WebGL yoksa Pixel.quantize (işlemci) kullanılır ve HD kapanır.
+const PixelGL = {
+  tried: false,
+  gl: null,
+
+  ok() {
+    if (!this.tried) this.init();
+    return !!this.gl;
+  },
+
+  init() {
+    this.tried = true;
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl', { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: true });
+      if (!gl) return;
+      const vs = 'attribute vec2 p; varying vec2 uv;'
+        + 'void main(){ uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0.0, 1.0); }';
+      const fs = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D src; uniform sampler2D lut; uniform vec2 size; uniform float grain;
+varying vec2 uv;
+float h(vec2 q) { return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  vec3 c = floor(texture2D(src, uv).rgb * 255.0 + 0.5);
+  if (grain > 0.0) {
+    vec2 q = floor(uv * size);
+    float n = (h(q) - 0.5) * 0.7 + (h(floor(q / 2.0) + 31.0) - 0.5);
+    c = clamp(c + floor(n * grain * 2.0 + 0.5), 0.0, 255.0);
+  }
+  vec3 k = floor(c / 8.0);
+  gl_FragColor = vec4(texture2D(lut, vec2((k.r * 32.0 + k.b + 0.5) / 1024.0, (k.g + 0.5) / 32.0)).rgb, 1.0);
+}`;
+      const sh = (type, text) => {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, text);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+        return s;
+      };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link');
+      gl.useProgram(prog);
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, 'p');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      const tex = (unit) => {
+        const t = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + unit);
+        gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return t;
+      };
+      // Palet tablosu: x = kırmızı*32 + mavi, y = yeşil (her kanal 5 bit)
+      Pixel.initPalette();
+      const lut = new Uint8Array(1024 * 32 * 4);
+      for (let g = 0; g < 32; g++) for (let r = 0; r < 32; r++) for (let b = 0; b < 32; b++) {
+        const key = (r << 10) | (g << 5) | b;
+        const v = Pixel.lut[key] || (Pixel.lut[key] = Pixel.nearest(key));
+        const o = (g * 1024 + r * 32 + b) * 4;
+        lut[o] = v & 255; lut[o + 1] = (v >> 8) & 255; lut[o + 2] = (v >> 16) & 255; lut[o + 3] = 255;
+      }
+      tex(1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 32, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut);
+      this.srcTex = tex(0);
+      gl.uniform1i(gl.getUniformLocation(prog, 'src'), 0);
+      gl.uniform1i(gl.getUniformLocation(prog, 'lut'), 1);
+      this.uSize = gl.getUniformLocation(prog, 'size');
+      this.uGrain = gl.getUniformLocation(prog, 'grain');
+      // Ekran kartı bağlantıyı kaybederse işlemciye dön
+      c.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        this.gl = null;
+        Art.set(1);
+      });
+      this.canvas = c;
+      this.gl = gl;
+    } catch (e) {
+      this.gl = null;
+    }
+  },
+
+  // Tuvali palete çekilmiş olarak döner (WebGL tuvali)
+  run(src, grain) {
+    const gl = this.gl, c = this.canvas;
+    if (c.width !== src.width || c.height !== src.height) {
+      c.width = src.width;
+      c.height = src.height;
+      gl.viewport(0, 0, c.width, c.height);
+    }
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.uniform2f(this.uSize, c.width, c.height);
+    gl.uniform1f(this.uGrain, grain);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    return c;
   },
 };
 
@@ -1859,7 +2102,9 @@ const Tex = {
 
   make(kind, color) {
     const gen = this[kind] || this.stone;
-    const { w, h, px } = gen.call(this, color);
+    // Taş ve kiremit HD'de iki kat ince ızgarada baştan üretilir (daha çok ayrıntı)
+    const native = ART >= 2 && (gen === this.stone || gen === this.roof);
+    const { w, h, px } = gen.call(this, color, native ? 2 : 1);
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
@@ -1874,6 +2119,63 @@ const Tex = {
       img.data[i * 4 + 3] = 255;
     }
     g.putImageData(img, 0, 0);
+    c.dens = native ? 2 : 1;
+    if (ART >= 2 && !native) return this.hd(c);
+    return c;
+  },
+
+  // Yüzeylere serpilen geniş kir/leke deseni (ekrana bağlı, dikişsiz döşenir).
+  // Değer gürültüsü basamaklı saydamlığa çevrilir: yumuşak değil lekeli.
+  grimePattern(ctx) {
+    if (!this.grime || this.grime.art !== ART) {
+      const S = 96 * ART, cell = 12 * ART, N = S / cell;
+      const c = document.createElement('canvas');
+      c.width = S; c.height = S; c.art = ART;
+      const g = c.getContext('2d');
+      const img = g.createImageData(S, S);
+      const node = (i, j) => hashNoise(((i % N) + N) % N, ((j % N) + N) % N + 301);
+      const sm = (t) => t * t * (3 - 2 * t);
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const fx = x / cell, fy = y / cell;
+        const i = Math.floor(fx), j = Math.floor(fy);
+        const u = sm(fx - i), v = sm(fy - j);
+        const n = (node(i, j) * (1 - u) + node(i + 1, j) * u) * (1 - v) + (node(i, j + 1) * (1 - u) + node(i + 1, j + 1) * u) * v;
+        const fine = hashNoise(x * 7 + y * 131, 303);
+        const o = (y * S + x) * 4;
+        let al = 0;
+        if (n > 0.6) al = n > 0.74 ? 0.28 : 0.15;
+        if (fine < 0.03) al += 0.12;
+        if (n < 0.22 && fine > 0.9) { img.data[o] = 255; img.data[o + 1] = 240; img.data[o + 2] = 210; img.data[o + 3] = 22; continue; }
+        img.data[o] = 34; img.data[o + 1] = 30; img.data[o + 2] = 20; img.data[o + 3] = Math.round(al * 255);
+      }
+      g.putImageData(img, 0, 0);
+      this.grime = c;
+    }
+    const pat = ctx.createPattern(this.grime, 'repeat');
+    const q = 1 / ART;
+    pat.setTransform(new DOMMatrix([q, 0, 0, q, 0, 0]));
+    return pat;
+  },
+
+  // HD piksel: karo Scale2x ile iki kat inceltilir (taş köşeleri yuvarlanır),
+  // sonra her ince piksele küçük çil ve parıltı serpilir.
+  hd(tile) {
+    const c = scale2xCanvas(tile, true);
+    const g = c.getContext('2d');
+    const img = g.getImageData(0, 0, c.width, c.height);
+    const d = img.data;
+    for (let y = 0, i = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++, i += 4) {
+        const n = hashNoise(x * 11 + y * 173, 61);
+        const k = n < 0.07 ? 0.84 : n > 0.965 ? 1.14 : 1;
+        if (k === 1) continue;
+        d[i] = Math.min(255, d[i] * k);
+        d[i + 1] = Math.min(255, d[i + 1] * k);
+        d[i + 2] = Math.min(255, d[i + 2] * k);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    c.dens = 2;
     return c;
   },
 
@@ -1895,39 +2197,68 @@ const Tex = {
     return list; // Son taş W'ye kadar uzanır
   },
 
-  // Örülmüş taş: düzensiz bloklar, harç, ışık/gölge kenarları, çil ve çatlak
-  stone(color) {
-    const W = 44, H = 24, RH = 6;
+  // Örülmüş taş: düzensiz bloklar, harç, ışık/gölge kenarları, çil ve çatlak.
+  // m = 2 (HD): aynı desen iki kat ince: iki basamaklı pah, öbek öbek leke,
+  // kılcal çatlak, köşesi kırık taşlar, dipte yosun tutmuş taşlar.
+  stone(color, m = 1) {
+    const W = 44 * m, H = 24 * m;
+    // HD'de sıralar farklı boyda (7, 5, 6, 6 birim) ve taşlar daha iri: fayans gibi durmasın
+    const rowsH = m > 1 ? [14, 10, 12, 12] : [6, 6, 6, 6];
     const px = new Array(W * H);
     const mortar = this.ramp(color, -0.5);
-    for (let row = 0; row < H / RH; row++) {
-      const off = row % 2 ? 6 + row * 3 : row * 5;
-      const cuts = this.cuts(W, row * 7 + 3, 7, 14);
+    const mortarLite = this.ramp(color, -0.4);
+    const moss = mixColor(shade(color, -0.15), '#4e6a34', 0.35);
+    let rowTop = 0;
+    for (let row = 0; row < rowsH.length; rowTop += rowsH[row], row++) {
+      const RH = rowsH[row];
+      const off = (row % 2 ? 6 + row * 3 : row * 5) * m;
+      const cuts = m > 1 ? this.cuts(W, row * 7 + 3, 16, 34) : this.cuts(W, row * 7 + 3, 7, 14);
       for (let b = 0; b < cuts.length; b++) {
         const x0 = cuts[b], x1 = b + 1 < cuts.length ? cuts[b + 1] : W;
         const r = hashNoise(row * 31 + b, 5);
-        const tone = (r - 0.5) * 0.18 + (hashNoise(b, row + 9) < 0.15 ? -0.1 : 0);
-        const base = this.ramp(color, tone);
-        const lite = this.ramp(color, tone + 0.2);
-        const dark = this.ramp(color, tone - 0.2);
+        const tone = (r - 0.5) * (m > 1 ? 0.28 : 0.2) + (hashNoise(b, row + 9) < 0.15 ? -0.1 : 0);
+        // HD: bazı taşlar sıcak (kumtaşı), bazıları soğuk (mavimsi) tonda
+        const tint = m > 1 ? hashNoise(b * 7 + row, 61) : 0.5;
+        const col = tint < 0.18 ? mixColor(color, '#9a8466', 0.3) : tint > 0.86 ? mixColor(color, '#62708a', 0.25) : color;
+        const R = (k) => this.ramp(col, k);
+        const base = R(tone);
+        const lite = R(tone + 0.2);
+        const lite2 = R(tone + 0.1);
+        const dark = R(tone - 0.2);
+        const dark2 = R(tone - 0.1);
+        const deep = R(tone - 0.32);
         const crack = hashNoise(row + b * 3, 41) < 0.18;
+        const mossy = m > 1 && hashNoise(row * 13 + b, 71) < 0.07;
+        const chipped = m > 1 && hashNoise(row * 5 + b, 73) < 0.25;
+        const ew = x1 - x0 - m, eh = RH - m; // Taşın harçsız iç boyu
+        const cx = 2 + Math.floor(hashNoise(b, row + 77) * Math.max(1, ew - 4));
         for (let yy = 0; yy < RH; yy++) {
-          const y = row * RH + yy;
+          const y = rowTop + yy;
           for (let xx = x0; xx < x1; xx++) {
             const x = (xx + off) % W;
+            const ex = xx - x0, ey = yy;
             let v = base;
-            const last = xx === x1 - 1, first = xx === x0;
-            if (yy === RH - 1 || last) v = mortar;
-            else if ((first && (yy === 0 || yy === RH - 2)) || (xx === x1 - 2 && yy === 0)) v = this.ramp(color, tone - 0.32); // Yuvarlak köşe
-            else if (yy === 0) v = lite;
-            else if (first) v = lite;
-            else if (yy === RH - 2 || xx === x1 - 2) v = dark;
+            if (ey >= eh || ex >= ew) v = m > 1 && hashNoise(x * 7 + y, 81) < 0.25 ? mortarLite : mortar;
+            else if ((ex === 0 || ex === ew - 1) && (ey === 0 || ey === eh - 1)) v = deep; // Yuvarlak köşe
+            else if (chipped && ex >= ew - 3 && ey <= 1) v = mortar; // Kırık köşe
+            else if (ey === 0 || ex === 0) v = lite;
+            else if (ey === eh - 1 || ex === ew - 1) v = dark;
+            else if (m > 1 && (ey === 1 || ex === 1)) v = lite2;
+            else if (m > 1 && (ey === eh - 2 || ex === ew - 2)) v = dark2;
             else {
               const n = hashNoise(x * 3 + y * 17, 13);
+              const n2 = hashNoise((x >> 1) * 5 + (y >> 1) * 31, 19);
               if (n < 0.07) v = dark;
               else if (n > 0.95) v = lite;
+              else if (m > 1 && n2 < 0.14) v = dark2;
+              else if (m > 1 && n2 > 0.9) v = lite2;
+              if (mossy && ey > eh * 0.6 && hashNoise((x >> 1) * 11 + (y >> 1) * 5, 83) < 0.5) v = parseInt(moss.slice(1), 16);
             }
-            if (crack && yy > 0 && yy < RH - 1 && xx === x0 + 3 + (yy >> 1)) v = mortar;
+            if (crack && ey > 0 && ey < eh - 1) {
+              const cxx = m > 1 ? cx + Math.round(Math.sin(ey * 1.3 + b) * 1.2) + (ey >> 1) : 3 + (ey >> 1);
+              if (ex === cxx) v = mortar;
+              else if (m > 1 && ex === cxx + 1) v = lite2;
+            }
             px[y * W + x] = v;
           }
         }
@@ -1954,23 +2285,47 @@ const Tex = {
   },
 
   // Kiremit / şindıra: v yönü mahyadan saçağa. Her karonun altı yuvarlak ve gölgeli.
-  roof(color) {
-    const W = 24, H = 8, TW = 6, TH = 4;
+  // m = 2 (HD): kiremitler kavisli, parlama lekeli; arada kırık, solmuş ve likenli olanlar.
+  roof(color, m = 1) {
+    const W = 24 * m, H = 8 * m, TW = 6 * m, TH = 4 * m;
     const px = new Array(W * H);
+    const lichen = mixColor(color, '#8a9a5a', 0.45);
     for (let y = 0; y < H; y++) {
       const row = Math.floor(y / TH), yy = y % TH;
       const off = row % 2 ? TW / 2 : 0;
       for (let x = 0; x < W; x++) {
         const xs = (x + off) % W;
         const t = Math.floor(xs / TW), xx = xs % TW;
-        const tone = (hashNoise(t + row * 5, 21) - 0.5) * 0.16;
+        const tn = hashNoise(t + row * 5, 21);
+        let tone = (tn - 0.5) * 0.18;
+        if (m > 1 && hashNoise(t * 3 + row, 23) < 0.12) tone -= 0.16; // Solmuş / kırık kiremit
         let k = tone;
-        if (yy === TH - 1) k = (xx === 0 || xx === TW - 1) ? -0.55 : tone - 0.3; // Alt kenar gölgesi
-        else if (xx === TW - 1) k = tone - 0.24;
-        else if (xx === 0) k = tone + 0.16;
-        else if (yy === 0) k = tone + 0.1;
-        else if (yy === 1 && xx === 1) k = tone + 0.24; // Parlama
-        px[y * W + x] = this.ramp(color, k);
+        if (m === 1) {
+          if (yy === TH - 1) k = (xx === 0 || xx === TW - 1) ? -0.55 : tone - 0.3; // Alt kenar gölgesi
+          else if (xx === TW - 1) k = tone - 0.24;
+          else if (xx === 0) k = tone + 0.16;
+          else if (yy === 0) k = tone + 0.1;
+          else if (yy === 1 && xx === 1) k = tone + 0.24; // Parlama
+          px[y * W + x] = this.ramp(color, k);
+          continue;
+        }
+        // Kavisli kiremit: ortası açık, iki yanı koyulaşır
+        const u = (xx + 0.5) / TW;
+        k = tone + Math.cos((u - 0.38) * Math.PI) * 0.14 - 0.06;
+        if (yy === TH - 1) k = -0.55;
+        else if (yy === TH - 2) k = (xx <= 1 || xx >= TW - 2) ? -0.5 : tone - 0.3;
+        else if (yy === TH - 3 && (xx === 0 || xx >= TW - 2)) k = tone - 0.32;
+        else if (xx === TW - 1) k = -0.45;
+        else if (xx === TW - 2) k = tone - 0.22;
+        else if (xx === 0) k = tone + 0.14;
+        else if (yy === 0) k = tone + 0.08;
+        else if (yy <= 2 && xx >= 2 && xx <= 4) k = tone + (yy === 1 && xx === 3 ? 0.3 : 0.2); // Parlama
+        else if (hashNoise(x * 7 + y * 13, 25) < 0.08) k -= 0.1;
+        let v = this.ramp(color, k);
+        if (yy < TH - 2 && xx < TW - 2 && hashNoise(t * 7 + row * 3, 27) < 0.12 && hashNoise(x * 5 + y * 3, 29) < 0.6) {
+          v = parseInt(shade(lichen, k * 0.6).slice(1), 16); // Liken
+        }
+        px[y * W + x] = v;
       }
     }
     return { w: W, h: H, px };
@@ -2034,7 +2389,7 @@ function texKind(color) {
 function texFill(ctx, pts, kind, color, o, U, V, stroke = 'auto') {
   const tile = Tex.get(kind, color);
   const pat = ctx.createPattern(tile, 'repeat');
-  const s = TEX_PER_UNIT;
+  const s = TEX_PER_UNIT * (tile.dens || 1);
   const p0 = iso(o[0], o[1], o[2]);
   const pu = iso(o[0] + U[0], o[1] + U[1], o[2] + U[2]);
   const pv = iso(o[0] + V[0], o[1] + V[1], o[2] + V[2]);
@@ -2043,6 +2398,9 @@ function texFill(ctx, pts, kind, color, o, U, V, stroke = 'auto') {
   ctx.imageSmoothingEnabled = false;
   isoPoly(ctx, pts, null, null);
   ctx.fillStyle = pat;
+  ctx.fill();
+  // Yüzeye geniş, düzensiz kir ve leke (aynı yol tekrar doldurulur)
+  ctx.fillStyle = Tex.grimePattern(ctx);
   ctx.fill();
   ctx.imageSmoothingEnabled = smooth;
   if (stroke === 'auto') stroke = edgeOf(color);
@@ -2060,6 +2418,55 @@ function texWall(ctx, ax, ay, bx, by, z0, z1, kind, color, stroke = 'auto') {
   const along = (ax + ISO.dx) * ux + (ay + ISO.dy) * uy; // Dünya başlangıcına göre konum
   const o = [ax - ux * along, ay - uy * along, 0];
   texFill(ctx, [[ax, ay, z0], [bx, by, z0], [bx, by, z1], [ax, ay, z1]], kind, color, o, [ux, uy, 0], [0, 0, -1], stroke);
+  weatherWall(ctx, ax, ay, bx, by, z0, z1, kind);
+}
+
+// Duvarın yıpranması: dipte basamak basamak koyulaşan kir ve yosun,
+// tepeden aşağı yağmur izleri, üst kenarda ince ışık. Basamaklı
+// (yumuşak geçiş değil) olduğu için piksel sanat gibi durur.
+function weatherWall(ctx, ax, ay, bx, by, z0, z1, kind) {
+  const H = z1 - z0;
+  if (H <= 0.15) return;
+  const L = Math.hypot(bx - ax, by - ay);
+  const quad = (t0, t1, za, zb, color) => {
+    const p = (t, z) => [ax + (bx - ax) * t, ay + (by - ay) * t, z];
+    isoPoly(ctx, [p(t0, za), p(t1, za), p(t1, zb), p(t0, zb)], color, null);
+  };
+  // Dipteki kir: 4 basamak, ahşapta daha az
+  const g = Math.min(H * 0.55, 1.6);
+  const a = kind === 'wood' ? 0.6 : 1;
+  const steps = [0.38, 0.26, 0.16, 0.08];
+  for (let i = 0; i < steps.length; i++) {
+    quad(0, 1, z0 + (g * i) / steps.length, z0 + (g * (i + 1)) / steps.length, `rgba(30, 26, 16, ${steps[i] * a})`);
+  }
+  // Dipte yosun ve toprak sıçraması: kısa, düzensiz lekeler
+  if (kind === 'stone' || kind === 'rough' || kind === 'plaster') {
+    const n = Math.max(1, Math.round(L * 1.2));
+    for (let i = 0; i < n; i++) {
+      const seed = ax * 13.7 + ay * 7.1 + i * 3.3;
+      if (hashNoise(seed, 91) < 0.4) continue;
+      const t = (i + hashNoise(seed, 92) * 0.6) / n;
+      const w = (0.15 + hashNoise(seed, 93) * 0.35) / Math.max(1, L);
+      const h = 0.12 + hashNoise(seed, 94) * Math.min(0.6, H * 0.3);
+      const mossy = hashNoise(seed, 95) < 0.6;
+      quad(t, Math.min(1, t + w), z0, z0 + h, mossy ? 'rgba(78, 106, 52, 0.55)' : 'rgba(70, 54, 34, 0.45)');
+    }
+  }
+  // Yağmur izi: tepeden aşağı inen ince koyu şeritler
+  if (H > 0.8 && kind !== 'wood') {
+    const n = Math.max(1, Math.round(L * 0.7));
+    for (let i = 0; i < n; i++) {
+      const seed = bx * 5.3 + by * 11.9 + i * 7.7;
+      if (hashNoise(seed, 96) < 0.45) continue;
+      const t = hashNoise(seed, 97);
+      const w = (0.08 + hashNoise(seed, 98) * 0.12) / Math.max(1, L);
+      const len = H * (0.25 + hashNoise(seed, 99) * 0.45);
+      quad(t, Math.min(1, t + w), z1 - len, z1, 'rgba(24, 22, 26, 0.16)');
+      quad(t, Math.min(1, t + w), z1 - len * 0.5, z1, 'rgba(24, 22, 26, 0.1)');
+    }
+  }
+  // Üst kenar ışık alır
+  quad(0, 1, z1 - Math.min(0.12, H * 0.1), z1, 'rgba(255, 240, 210, 0.12)');
 }
 
 // Yatay yüzey (üst yüz, zemin)
@@ -2076,6 +2483,13 @@ function texRoof(ctx, e1, e2, r1, r2, color) {
   const SL = Math.hypot(...sv) || 1;
   const V = sv.map((v) => v / SL);
   texFill(ctx, [e1, e2, r2, r1], 'roof', color, r1, U, V);
+  // Saçağa doğru basamaklı koyulaşma, mahyada ışık
+  const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const band = (t0, t1, col) => isoPoly(ctx, [lerp3(e1, r1, t0), lerp3(e2, r2, t0), lerp3(e2, r2, t1), lerp3(e1, r1, t1)], col, null);
+  band(0, 0.08, 'rgba(20, 10, 8, 0.32)');
+  band(0.08, 0.2, 'rgba(20, 10, 8, 0.16)');
+  band(0.2, 0.34, 'rgba(20, 10, 8, 0.07)');
+  band(0.9, 1, 'rgba(255, 235, 200, 0.1)');
 }
 
 // Dikey yüzdeki herhangi bir çokgen (kapı, kepenk): ilk iki nokta yatay kenar
@@ -2359,39 +2773,78 @@ function plainCanvas(w, h, draw) {
 // Sprite önce kaba ızgarada elle boyanır, sonra Scale2x ile iki kat
 // ince piksele çevrilir: çapraz kenarlar yumuşar, ayrıntı yoğunluğu
 // sahnenin geri kalanıyla aynı olur (1 piksel = 1 sahne pikseli).
+// HD pikselde (ART 2) bir kez daha inceltilip ışık/gölge eklenir (spriteHD).
+// c.u: sprite tuvalinin bir pikseli kaç sahne birimi.
 function spriteCanvas(w, h, draw) {
-  const src = plainCanvas(w, h, draw);
-  const sd = new Uint32Array(src.getContext('2d').getImageData(0, 0, w, h).data.buffer);
-  return plainCanvas(w * 2, h * 2, (x) => {
-    const img = x.createImageData(w * 2, h * 2);
-    const d = new Uint32Array(img.data.buffer);
-    const at = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? 0 : sd[j * w + i]);
-    for (let j = 0; j < h; j++) {
-      for (let i = 0; i < w; i++) {
-        const P = at(i, j), A = at(i, j - 1), B = at(i + 1, j), C = at(i - 1, j), D = at(i, j + 1);
-        let e0 = P, e1 = P, e2 = P, e3 = P;
-        if (A !== D && C !== B) {
-          if (C === A) e0 = A;
-          if (A === B) e1 = B;
-          if (D === C) e2 = C;
-          if (B === D) e3 = D;
-        }
-        const o = j * 2 * w * 2 + i * 2;
-        d[o] = e0; d[o + 1] = e1; d[o + w * 2] = e2; d[o + w * 2 + 1] = e3;
-      }
+  let c = scale2xCanvas(plainCanvas(w, h, draw));
+  c.u = SPRITE_PX / 2;
+  if (ART >= 2) {
+    c = spriteHD(scale2xCanvas(c));
+    c.u = SPRITE_PX / 4;
+  }
+  return c;
+}
+
+// HD sprite gölgelendirme: ışık sağ üstten (batan güneş) gelir.
+//  - kontura sağ üstten değen ince kenar açık ton (parlama)
+//  - sol alttan değen kenar koyu ton (gölge)
+//  - yüzeye seyrek koyu benekler (kumaş, kir, çürümüş ten)
+// Tonlar paletten seçilir, böylece ekranda palete oturur.
+const SHADE_CACHE = {};
+function shadeTone(v, up) {
+  const key = v + (up ? 'a' : 'k');
+  if (SHADE_CACHE[key] !== undefined) return SHADE_CACHE[key];
+  const r = v & 255, g = (v >> 8) & 255, b = (v >> 16) & 255;
+  const hex = '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  let out = v;
+  for (const k of [0.22, 0.34, 0.48]) {
+    const c = Pixel.snap(mixColor(hex, up ? '#fff2d8' : '#100c18', k));
+    if (c !== Pixel.snap(hex)) {
+      const n = parseInt(c.slice(1), 16);
+      out = (255 << 24 | (n & 255) << 16 | (n & 0xff00) | ((n >> 16) & 255)) >>> 0;
+      break;
     }
-    x.putImageData(img, 0, 0);
-  });
+  }
+  SHADE_CACHE[key] = out;
+  return out;
+}
+
+function spriteHD(c, inkHex = SPRITE_INK.K, speckle = 0.1) {
+  const w = c.width, h = c.height;
+  const g = c.getContext('2d');
+  const img = g.getImageData(0, 0, w, h);
+  const d = new Uint32Array(img.data.buffer);
+  const src = d.slice();
+  const K = parseInt(inkHex.slice(1), 16);
+  const ink = (255 << 24 | (K & 255) << 16 | (K & 0xff00) | ((K >> 16) & 255)) >>> 0;
+  const edge = (i, j) => {
+    if (i < 0 || j < 0 || i >= w || j >= h) return true;
+    const v = src[j * w + i];
+    return (v >>> 24) < 128 || v === ink;
+  };
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const v = src[j * w + i];
+      if ((v >>> 24) < 128 || v === ink) continue;
+      if (edge(i + 1, j - 1) || edge(i, j - 1) && edge(i + 1, j)) d[j * w + i] = shadeTone(v, true);
+      else if (edge(i - 2, j + 2) || edge(i - 1, j + 2)) d[j * w + i] = shadeTone(v, false);
+      else if (hashNoise(i * 7 + j * 53, 77) < speckle) d[j * w + i] = shadeTone(v, false);
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
 }
 
 // Vurulunca bir an beyaz parlayan kopya
 function whiteCopy(src) {
-  return plainCanvas(src.width, src.height, (x) => {
+  const c = plainCanvas(src.width, src.height, (x) => {
     x.drawImage(src, 0, 0);
     x.globalCompositeOperation = 'source-atop';
     x.fillStyle = '#ffffff';
     x.fillRect(0, 0, src.width, src.height);
   });
+  c.u = src.u;
+  return c;
 }
 
 // Satırları yatay aynalar (bacak karesinin diğer ayağı için)
@@ -2402,27 +2855,31 @@ function mirrorRows(rows) {
 const Sprites = {
   // Sprite'ı dünyaya çizer. x,y: sol üst köşe (dünya pikseli)
   draw(ctx, canvas, x, y) {
-    // Kareler Scale2x ile iki kat çözünürlükte: 1 kare pikseli = SPRITE_PX/2 sahne pikseli
-    const k = SPRITE_PX / 2;
+    // Kareler Scale2x ile inceltilmiş: 1 kare pikseli = canvas.u sahne birimi
+    const k = canvas.u || SPRITE_PX / 2;
+    const a = Math.max(ART, 1 / k); // Konumu ince piksele oturt (titreme olmasın)
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(canvas, Math.round(x), Math.round(y), canvas.width * k, canvas.height * k);
+    ctx.drawImage(canvas, Math.round(x * a) / a, Math.round(y * a) / a, canvas.width * k, canvas.height * k);
   },
 
   // Dünya koordinatında piksel çizgi (yay, kiriş, ok)
   line(ctx, x1, y1, x2, y2, color) {
-    const k = SPRITE_PX / 2;
+    // Kalınlık 1 sahne birimi; HD'de adımlar yarım birim (çapraz çizgi daha düzgün)
+    const k = 1 / ART;
     const n = Math.max(1, Math.ceil(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / k));
     ctx.fillStyle = color;
     for (let i = 0; i <= n; i++) {
       const px = Math.round((x1 + ((x2 - x1) * i) / n) / k) * k;
       const py = Math.round((y1 + ((y2 - y1) * i) / n) / k) * k;
-      ctx.fillRect(px, py, k, k);
+      ctx.fillRect(px, py, 1, 1);
     }
   },
 
   // ---------- Zombi kareleri ----------
   // Her zombi kendi renkleriyle bir kez çizilir (kareler saklanır)
   zombie(typeKey, look) {
+    // Ayrıntılı (iki kat ince) çizim: figures.js
+    if (typeof Figures !== 'undefined') return Figures.zombie(typeKey, look);
     const S = look.skin, s = look.skinDark;
     const T = look.shirt, t = mixColor(look.shirt, '#000000', 0.3);
     const P = look.pants, p = mixColor(look.pants, '#000000', 0.3);
@@ -2521,6 +2978,7 @@ const Sprites = {
   bat() {
     if (!this.batFrames) {
       this.batFrames = BAT_FRAMES.map((rows) => spriteCanvas(rows[0].length, rows.length, (x) => paint(x, rows, 0, 0)));
+      this.batArt = ART;
       this.batFlash = this.batFrames.map(whiteCopy);
     }
     return this.batFrames;
@@ -2531,11 +2989,592 @@ const Sprites = {
     this.archers = this.archers || {};
     if (!this.archers[color]) {
       const colors = { C: color, c: mixColor(color, '#000000', 0.35), k: '#181425' };
-      this.archers[color] = spriteCanvas(ARCHER_BODY[0].length, ARCHER_BODY.length, (x) => paint(x, ARCHER_BODY, 0, 0, colors));
+      if (typeof Figures !== 'undefined') this.archers[color] = Figures.archer(color);
+      else this.archers[color] = spriteCanvas(ARCHER_BODY[0].length, ARCHER_BODY.length, (x) => paint(x, ARCHER_BODY, 0, 0, colors));
     }
     return this.archers[color];
   },
 };
+
+</script>
+  <script>
+// =============================================================
+//  AYRINTILI ZOMBİ ÇİZİMİ (figures.js)
+//  Zombiler eski 22x31'lik kaba ızgara yerine iki kat ince
+//  (44x62 piksel) çizilir: kafatası ve çene, çökük göz, dişler,
+//  yırtık gömlek ve pantolon, eklemli kol ve bacaklar.
+//
+//  Her kare önce sahne biriminde (1 piksel = 1 birim) şekillerle
+//  çizilir, sonra her piksel zombinin kendi renklerinden en yakınına
+//  oturtulur (yumuşak kenar kalmaz), en son ışık ve gölge eklenir.
+//  Işık sağ üstten (batan güneş) gelir. Zombiler sola bakar.
+//
+//  Sprites.zombie bu dosyayı kullanır; kare listesi aynı kalır:
+//  walk (4), attack (2), shoot (2), climb (2).
+// =============================================================
+
+// Gövde ölçüleri (sahne birimi). w/h: kare boyu, ax: ayakların x'i
+const FIGURE_BODY = {
+  normal: {
+    w: 44, h: 62, ax: 24, hipY: 38, thigh: 11.5, shin: 11.5, legW: 5, armW: 4,
+    upper: 8, fore: 8, torso: 18, shoulderW: 12, waistW: 9.5, head: 1, bulk: 1,
+  },
+  tank: {
+    w: 60, h: 88, ax: 32, hipY: 54, thigh: 15.5, shin: 16, legW: 10, armW: 8,
+    upper: 11, fore: 11, torso: 23, shoulderW: 25, waistW: 15, head: 1.3, bulk: 1.6,
+  },
+};
+
+const Figures = {
+  // Sprites.zombie ile aynı biçimde kare takımı döner
+  zombie(typeKey, look) {
+    const tank = typeKey === 'tank' || typeKey === 'brute';
+    const B = tank ? FIGURE_BODY.tank : FIGURE_BODY.normal;
+    const pants = mixColor(look.pants, '#a4a4b4', 0.2); // Kontura karışmasın diye biraz açık
+    const C = {
+      K: SPRITE_INK.K,
+      S: look.skin, s: look.skinDark,
+      T: look.shirt, t: mixColor(look.shirt, '#000000', 0.3),
+      P: pants, p: mixColor(pants, '#000000', 0.3),
+      H: look.hair === 1 ? look.skinDark : look.hairColor,
+      W: SPRITE_INK.W, B: SPRITE_INK.B, b: '#5a1420', E: SPRITE_INK.E,
+      V: SPRITE_INK.V, L: SPRITE_INK.L, l: SPRITE_INK.l, M: SPRITE_INK.M, m: SPRITE_INK.m,
+      G: SPRITE_INK.G, hole: mixColor(look.skinDark, '#181425', 0.55),
+    };
+    const o = { typeKey, look, B, C, tank, runner: typeKey === 'fast' };
+    const f = (pose) => this.frame(o, pose);
+    let eye = null;
+    const walk = [
+      f({ step: 0, bob: 0, swing: 0 }),
+      f({ step: 1, bob: -1, swing: 1 }),
+      f({ step: 2, bob: 0, swing: 0 }),
+      f({ step: 3, bob: -1, swing: -1 }),
+    ];
+    eye = walk[0].eye;
+    const set = {
+      w: B.w / 2, h: B.h / 2, ax: B.ax / 2,
+      eye: { x: eye.x / 2 - 0.5, y: eye.y / 2 - 0.5 },
+      walk: walk.map((x) => x.canvas),
+      attack: [f({ step: 4, arms: 'raise' }).canvas, f({ step: 4, arms: 'strike', lunge: -2 }).canvas],
+      shoot: [], climb: [],
+    };
+    if (typeKey === 'archer') set.shoot = [f({ step: 4, arms: 'bow', pull: 3 }).canvas, f({ step: 4, arms: 'bow', pull: 0 }).canvas];
+    if (!tank) set.climb = [f({ step: 4, arms: 'climb', reach: 0 }).canvas, f({ step: 4, arms: 'climb', reach: 1 }).canvas];
+    return set;
+  },
+
+  // Tek kare: şekiller -> renge oturtma -> ışık/gölge -> (HD ise) Scale2x
+  frame(o, pose) {
+    const { B, C } = o;
+    const cv = document.createElement('canvas');
+    cv.width = B.w;
+    cv.height = B.h;
+    const x = cv.getContext('2d');
+    const used = new Set(['K']);
+    const pen = {
+      x,
+      col(k) { used.add(k); return C[k]; },
+    };
+    const eye = this.drawBody(pen, o, pose);
+    snapToInks(x, B.w, B.h, [...used].map((k) => C[k]));
+    let out = spriteHD(cv, C.K, o.tank ? 0.1 : 0.12);
+    out.u = 1;
+    if (ART >= 2) {
+      out = scale2xCanvas(out);
+      out.u = 0.5;
+    }
+    return { canvas: out, eye };
+  },
+
+  // Bütün gövdeyi arkadan öne doğru çizer. Gözün yerini döner.
+  drawBody(pen, o, pose) {
+    const { B, look } = o;
+    const k = B.bulk;
+    const bob = (pose.bob || 0) * (o.tank ? 1.5 : 1);
+    const lunge = pose.lunge || 0;
+    const ground = B.h - 1;
+    const lean = (o.runner ? 5 : o.tank ? 2 : 2) + (pose.arms === 'strike' ? 2 : 0) + (pose.arms === 'climb' ? -2 : 0);
+    const hip = { x: B.ax + lunge, y: B.hipY - bob };
+    const sh = { x: hip.x - lean, y: hip.y - B.torso };
+    // Kafa: omzun üstünde, koşucuda öne ve aşağı
+    const hr = 5.6 * B.head;
+    const hc = { x: sh.x - (o.runner ? 4 : 2.5) * B.head, y: sh.y - hr - (o.runner ? 1 : 3) };
+
+    // ---- Bacaklar (ayak yerleri adıma göre) ----
+    const legLen = B.thigh + B.shin;
+    const stepX = o.tank ? 11 : 9;
+    const lift = o.tank ? 5 : 4;
+    // [yakın ayak, uzak ayak] hedefleri
+    let feet;
+    switch (pose.step) {
+      case 0: feet = [{ x: hip.x - stepX, y: ground }, { x: hip.x + stepX - 1, y: ground }]; break;
+      case 1: feet = [{ x: hip.x - 1, y: ground }, { x: hip.x + 3, y: ground - lift }]; break;
+      case 2: feet = [{ x: hip.x + stepX - 1, y: ground }, { x: hip.x - stepX, y: ground }]; break;
+      case 3: feet = [{ x: hip.x + 3, y: ground - lift }, { x: hip.x - 1, y: ground }]; break;
+      default: feet = [{ x: hip.x - 4, y: ground }, { x: hip.x + 3, y: ground }];
+    }
+    if (look.limp && pose.step === 1) feet[1].y = ground - 1; // Topal: ayağını sürür
+    const legs = feet.map((ft, i) => {
+      const hp = { x: hip.x + (i ? 1.5 : -1.5) * k, y: hip.y };
+      const ankle = { x: ft.x, y: ft.y - 2 };
+      const knee = ikKnee(hp, ankle, B.thigh, B.shin - 0.5);
+      return { hp, knee, ankle, ft };
+    });
+
+    // ---- Kollar ----
+    const armPose = (side) => {
+      // side 0: yakın kol, 1: uzak kol (biraz geride ve yukarıda)
+      const s0 = { x: sh.x + (side ? 2.5 : -0.5) * k, y: sh.y + (side ? 1.5 : 2.5) };
+      let a1, a2; // Üst kol ve ön kol açısı (0 = sağa, PI = sola)
+      const sw = (pose.swing || 0) * (side ? -1 : 1) * 0.12;
+      switch (pose.arms) {
+        case 'raise': a1 = Math.PI + 0.55 + side * 0.1; a2 = Math.PI + 0.25; break;
+        case 'strike': a1 = Math.PI - 0.15; a2 = Math.PI - 0.45; break;
+        case 'climb': {
+          const r = (pose.reach + side) % 2;
+          a1 = -Math.PI / 2 - 0.35 - r * 0.2; a2 = -Math.PI / 2 - 0.15 - r * 0.25; break;
+        }
+        case 'bow':
+          if (side === 0) { a1 = Math.PI - 0.05; a2 = Math.PI; } // Yayı tutan kol uzanır
+          else { a1 = Math.PI - 0.6; a2 = -0.3 + (pose.pull || 0) * 0.12; } // Kirişi çeken kol bükük
+          break;
+        default:
+          // Zombi kolları öne uzanır, adımla hafifçe sallanır
+          if (o.runner) {
+            // Koşucu: kollar aşağıda, adımla ileri geri savrulur
+            a1 = Math.PI * 0.6 + sw * 4;
+            a2 = Math.PI * 0.95 + sw * 2;
+          } else {
+            a1 = Math.PI - 0.12 + sw + side * 0.08;
+            a2 = Math.PI + 0.12 + sw * 1.5;
+          }
+      }
+      if (o.typeKey === 'shield' && side === 0 && !pose.arms) { a1 = Math.PI * 0.62; a2 = Math.PI * 1.08; }
+      const el = { x: s0.x + Math.cos(a1) * B.upper, y: s0.y + Math.sin(a1) * B.upper };
+      const hand = { x: el.x + Math.cos(a2) * B.fore, y: el.y + Math.sin(a2) * B.fore };
+      return { s0, el, hand };
+    };
+    const farArm = armPose(1);
+    const nearArm = armPose(0);
+
+    // ================= ÇİZİM (arkadan öne) =================
+    // Uzak kol ve uzak bacak gölgede (koyu tonlar)
+    if (!(o.tank && false)) this.arm(pen, o, farArm, true);
+    if (look.hair === 2) this.longHair(pen, o, hc, hr);
+    this.leg(pen, o, legs[1], true);
+    this.leg(pen, o, legs[0], false);
+    this.torso(pen, o, hip, sh, lean);
+    this.head(pen, o, hc, hr, sh);
+    const oneArm = look.oneArm && !o.tank && !pose.arms && o.typeKey !== 'shield' && o.typeKey !== 'archer';
+    if (oneArm) this.stump(pen, o, nearArm);
+    else this.arm(pen, o, nearArm, false);
+    if (o.typeKey === 'shield' && !pose.arms) this.shield(pen, o, nearArm.hand);
+    if (pose.arms === 'bow') this.bow(pen, nearArm.hand, farArm.hand, pose.pull || 0);
+    // Göz (gece parlaması bu noktadan çıkar)
+    return { x: Math.round(hc.x - 3 * B.head), y: Math.round(hc.y - 0.5) };
+  },
+
+  // Kol: omuzdan dirseğe yırtık yen, dirsekten ele çıplak ten, parmaklar
+  arm(pen, o, a, far) {
+    const { x } = pen;
+    const w = o.B.armW;
+    const sleeve = far ? 't' : 'T';
+    const skin = far ? 's' : 'S';
+    // Kontur
+    limb(x, [a.s0, a.el, a.hand], w + 2, pen.col('K'));
+    circle(x, a.hand.x, a.hand.y, w * 0.55 + 1, pen.col('K'));
+    // Ten
+    limb(x, [a.el, a.hand], w, pen.col(skin));
+    circle(x, a.hand.x, a.hand.y, w * 0.55, pen.col(skin));
+    // Yen: üst kolun 3/4'ü, ucu yırtık
+    const mid = lerpP(a.s0, a.el, o.tank ? 0.55 : 0.85);
+    if (!o.tank) limb(x, [a.s0, mid], w + 0.6, pen.col(sleeve));
+    else limb(x, [a.s0, lerpP(a.s0, a.el, 0.25)], w, pen.col(skin));
+    // Parmaklar: elden aşağı sarkan iki-üç kemikli parmak
+    const dx = a.hand.x - a.el.x, dy = a.hand.y - a.el.y;
+    const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L;
+    x.fillStyle = pen.col(far ? 's' : 'S');
+    for (let i = 0; i < (o.tank ? 3 : 2); i++) {
+      const fx = a.hand.x + ux * (w * 0.5 + 0.5) - uy * (i - 0.5) * 1.6;
+      const fy = a.hand.y + uy * (w * 0.5 + 0.5) + ux * (i - 0.5) * 1.6 + 1;
+      x.fillRect(Math.round(fx), Math.round(fy), 1, 2);
+    }
+    // Ten üstünde yara / damar
+    x.fillStyle = pen.col(far ? 'b' : 'B');
+    const wp = lerpP(a.el, a.hand, 0.45);
+    if (!far) x.fillRect(Math.round(wp.x), Math.round(wp.y - 0.5), 2, 1);
+  },
+
+  // Tek kollu zombinin kopuk omzu
+  stump(pen, o, a) {
+    const { x } = pen;
+    const end = lerpP(a.s0, a.el, 0.45);
+    limb(x, [a.s0, end], o.B.armW + 2, pen.col('K'));
+    limb(x, [a.s0, end], o.B.armW + 0.6, pen.col('T'));
+    x.fillStyle = pen.col('B');
+    x.fillRect(Math.round(end.x - 1), Math.round(end.y - 1), 2, 2);
+    x.fillStyle = pen.col('W');
+    x.fillRect(Math.round(end.x - 2), Math.round(end.y), 1, 1);
+  },
+
+  // Bacak: kalçadan dize pantolon, dizde yırtık, ayak bileğinde ten, ayakkabı ya da çıplak ayak
+  leg(pen, o, g, far) {
+    const { x } = pen;
+    const w = o.B.legW;
+    const P = far ? 'p' : 'P';
+    const pts = [g.hp, g.knee, g.ankle];
+    // Ayak: bilekten öne (sola) doğru
+    const toe = { x: g.ankle.x - (o.tank ? 5 : 4), y: g.ft.y - 0.5 };
+    limb(x, pts, w + 2, pen.col('K'));
+    limb(x, [g.ankle, toe], (o.tank ? 4 : 3) + 2, pen.col('K'));
+    limb(x, pts, w, pen.col(P));
+    // Paça yırtık: incik altı ten
+    const cuff = lerpP(g.knee, g.ankle, 0.72);
+    limb(x, [cuff, g.ankle], w - 1.2, pen.col(far ? 's' : 'S'));
+    // Dizde yırtık delik
+    if (!far || o.tank) {
+      x.fillStyle = pen.col(far ? 's' : 'S');
+      x.fillRect(Math.round(g.knee.x - 1), Math.round(g.knee.y - 0.5), 2, 2);
+    }
+    // Ayakkabı (uzak bacakta koyu)
+    limb(x, [g.ankle, toe], o.tank ? 4 : 3, pen.col('V'));
+  },
+
+  // Gövde: yırtık gömlek, açık yerden kaburgalar, kan lekesi, kemer
+  torso(pen, o, hip, sh, lean) {
+    const { x } = pen;
+    const B = o.B;
+    const hw = B.waistW / 2, sw = B.shoulderW / 2;
+    const body = [
+      [sh.x - sw + 1, sh.y], [sh.x + sw - 1, sh.y - 0.5], [sh.x + sw, sh.y + 3],
+      [hip.x + hw + 0.5, hip.y + 1], [hip.x - hw - 0.5, hip.y + 1], [sh.x - sw, sh.y + 3],
+    ];
+    // Kalça / kemer bölgesi (pantolon)
+    const pelvis = [[hip.x - hw, hip.y - 2], [hip.x + hw, hip.y - 2], [hip.x + hw + 0.5, hip.y + 3], [hip.x - hw - 0.5, hip.y + 3]];
+    poly(x, pelvis, pen.col('P'), pen.col('K'), 2);
+    poly(x, body, pen.col('T'), pen.col('K'), 2);
+    // Boyun
+    const neck = { x: sh.x - 1.5 * B.head, y: sh.y - 1 };
+    x.fillStyle = pen.col('K');
+    x.fillRect(Math.round(neck.x - 2.5 * B.bulk), Math.round(neck.y - 3), Math.round(5 * B.bulk), 4);
+    x.fillStyle = pen.col('s');
+    x.fillRect(Math.round(neck.x - 1.5 * B.bulk), Math.round(neck.y - 3), Math.round(3 * B.bulk), 4);
+    // Yaka: V biçimli koyu kesik
+    x.fillStyle = pen.col('t');
+    x.fillRect(Math.round(neck.x - 1), Math.round(sh.y), 3, 1);
+    x.fillRect(Math.round(neck.x), Math.round(sh.y + 1), 1, 2);
+    if (o.tank) {
+      // Devde açık yelek: göğüs ve karın çıplak, kaslar
+      const chest = [[sh.x - sw + 3, sh.y + 2], [sh.x + 3, sh.y + 2], [hip.x + 2, hip.y - 2], [hip.x - hw + 2, hip.y - 2]];
+      poly(x, chest, pen.col('S'), null);
+      x.fillStyle = pen.col('s');
+      const cx = (sh.x - sw + 3 + sh.x + 3) / 2;
+      for (let i = 0; i < 3; i++) x.fillRect(Math.round(cx - 4 + lean * 0.2 * i), Math.round(sh.y + 9 + i * 4), 7, 1);
+      x.fillRect(Math.round(cx - 1), Math.round(sh.y + 3), 1, 6);
+    } else {
+      // Yırtık delik: içinden kaburgalar görünür
+      const tx = Math.round(sh.x + 2 - lean * 0.5), ty = Math.round(sh.y + 7);
+      poly(x, [[tx - 2, ty], [tx + 2, ty - 1], [tx + 3, ty + 3], [tx, ty + 5], [tx - 2, ty + 3]], pen.col('hole'), null);
+      x.fillStyle = pen.col('s');
+      x.fillRect(tx - 1, ty + 1, 3, 1);
+      x.fillRect(tx - 1, ty + 3, 3, 1);
+      // Kan lekesi omuzdan aşağı
+      x.fillStyle = pen.col('b');
+      x.fillRect(Math.round(sh.x - sw + 3), Math.round(sh.y + 3), 3, 2);
+      x.fillRect(Math.round(sh.x - sw + 4), Math.round(sh.y + 5), 2, 3);
+      x.fillStyle = pen.col('B');
+      x.fillRect(Math.round(sh.x - sw + 3), Math.round(sh.y + 3), 2, 1);
+    }
+    // Gömleğin yırtık eteği: aşağı sarkan sivri parçalar
+    x.fillStyle = pen.col('T');
+    for (let i = 0; i < 4; i++) {
+      const ex = hip.x - hw + 1 + i * (B.waistW / 4) + (i % 2);
+      const len = 1 + ((i * 7 + 3) % 3);
+      x.fillStyle = pen.col('K');
+      x.fillRect(Math.round(ex) - 1, Math.round(hip.y + 1), 3, len + 1);
+      x.fillStyle = pen.col('T');
+      x.fillRect(Math.round(ex), Math.round(hip.y), 1, len);
+    }
+    // İp kemer
+    x.fillStyle = pen.col('l');
+    x.fillRect(Math.round(hip.x - hw), Math.round(hip.y - 2), Math.round(B.waistW), 1);
+  },
+
+  // Kafa: kafatası, sarkık çene, çökük göz, burun, açık ağız ve dişler, kulak, saç
+  head(pen, o, c, r, sh) {
+    const { x } = pen;
+    const look = o.look;
+    const s = o.B.head;
+    const jaw = [
+      [c.x - r + 0.5, c.y + 1], [c.x - r + 0.8, c.y + 5.5 * s], [c.x - 1.5 * s, c.y + 7.5 * s],
+      [c.x + 2.5 * s, c.y + 6 * s], [c.x + r - 0.8, c.y + 2],
+    ];
+    // Kontur (kafatası + çene birlikte)
+    ellipse(x, c.x, c.y, r + 1, r * 1.12 + 1, pen.col('K'));
+    poly(x, jaw, pen.col('K'), pen.col('K'), 2);
+    // Ten
+    ellipse(x, c.x, c.y, r, r * 1.12, pen.col('S'));
+    poly(x, jaw, pen.col('S'), null);
+    // Yanak çukuru ve kulak (gölgede)
+    x.fillStyle = pen.col('s');
+    x.fillRect(Math.round(c.x - 2 * s), Math.round(c.y + 2.5 * s), 2, 2);
+    x.fillRect(Math.round(c.x + 2 * s), Math.round(c.y), 2, 3);
+    // Çökük göz yuvası ve kırmızı göz
+    ellipse(x, c.x - 3 * s, c.y - 0.5, 1.9 * s, 1.4 * s, pen.col('hole'));
+    x.fillStyle = pen.col('E');
+    x.fillRect(Math.round(c.x - 3.6 * s), Math.round(c.y - 1), 2, 1);
+    // Kaş çıkıntısı
+    x.fillStyle = pen.col('s');
+    x.fillRect(Math.round(c.x - 5 * s), Math.round(c.y - 2.5 * s), Math.round(4 * s), 1);
+    // Burun (yüzün önünde küçük çıkıntı)
+    x.fillStyle = pen.col('K');
+    x.fillRect(Math.round(c.x - r - 1), Math.round(c.y + 0.5), 1, 2);
+    x.fillStyle = pen.col('S');
+    x.fillRect(Math.round(c.x - r), Math.round(c.y + 0.5), 1, 2);
+    // Açık ağız: koyu boşluk, üst dişler, ağız kenarından kan
+    const mx = Math.round(c.x - r + 1), my = Math.round(c.y + 3.5 * s);
+    x.fillStyle = pen.col('K');
+    x.fillRect(mx, my, Math.round(3 * s), Math.round(2.5 * s));
+    x.fillStyle = pen.col('W');
+    x.fillRect(mx, my, 1, 1);
+    x.fillRect(mx + 2, my, 1, 1);
+    x.fillStyle = pen.col('B');
+    x.fillRect(mx + Math.round(3 * s), my + 1, 1, 3);
+    // Saç
+    x.fillStyle = pen.col('H');
+    if (look.hair !== 1) {
+      // Kafatasının üstü ve arkası, dağınık uçlar
+      for (let i = -4; i <= 6; i++) {
+        const px = c.x + i * 0.9 * s;
+        const top = c.y - Math.sqrt(Math.max(0, 1 - Math.pow((px - c.x) / (r + 0.5), 2))) * r * 1.12;
+        const len = (i > 0 ? 3 + i * 0.7 : 2) + ((i * 5 + 7) % 3) * 0.7;
+        x.fillRect(Math.round(px), Math.round(top), 1, Math.max(1, Math.round(len)));
+      }
+    } else {
+      // Kel: seyrek tel ve leke
+      x.fillRect(Math.round(c.x + 1), Math.round(c.y - r * 1.1), 1, 2);
+      x.fillRect(Math.round(c.x + 3), Math.round(c.y - r), 1, 2);
+      x.fillStyle = pen.col('s');
+      x.fillRect(Math.round(c.x - 1), Math.round(c.y - r + 1.5), 2, 1);
+    }
+    // Sargı bezi
+    if (look.bandage) {
+      x.fillStyle = pen.col('W');
+      x.fillRect(Math.round(c.x - r + 0.5), Math.round(c.y - 3.5 * s), Math.round(r * 2 - 0.5), 2);
+      x.fillStyle = pen.col('B');
+      x.fillRect(Math.round(c.x + 1), Math.round(c.y - 3.5 * s), 2, 1);
+    }
+  },
+
+  // Uzun saç: kafanın arkasından omza sarkar (gövdeden önce çizilir)
+  longHair(pen, o, c, r) {
+    const { x } = pen;
+    const pts = [[c.x, c.y - r], [c.x + r + 1, c.y - 2], [c.x + r + 2, c.y + r + 4], [c.x + 1, c.y + r + 2]];
+    poly(x, pts, pen.col('H'), pen.col('K'), 2);
+  },
+
+  // Tahta kalkan: ortası demir göbekli, tahtalar ve perçinler
+  shield(pen, o, hand) {
+    const { x } = pen;
+    const cx = Math.round(hand.x - 2), cy = Math.round(hand.y + 1);
+    const R = 7.5;
+    circle(x, cx, cy, R + 1, pen.col('K'));
+    circle(x, cx, cy, R, pen.col('L'));
+    circle(x, cx, cy, R - 1.5, pen.col('l'));
+    x.fillStyle = pen.col('L');
+    for (let i = -1; i <= 1; i++) x.fillRect(cx + i * 3, cy - 6, 1, 12);
+    circle(x, cx, cy, 2.6, pen.col('K'));
+    circle(x, cx, cy, 2, pen.col('M'));
+    x.fillStyle = pen.col('m');
+    x.fillRect(cx, cy, 1, 1);
+    x.fillStyle = pen.col('M');
+    for (const [dx, dy] of [[-5, -4], [4, -5], [-5, 4], [5, 4]]) x.fillRect(cx + dx, cy + dy, 1, 1);
+  },
+
+  // Okçu zombinin yayı: yakın el kabzayı tutar, uzak el kirişi çeker
+  bow(pen, grip, pullHand, pull) {
+    const { x } = pen;
+    const gx = Math.round(grip.x - 1), gy = Math.round(grip.y);
+    const top = gy - 10, bot = gy + 10;
+    for (let y = top; y <= bot; y++) {
+      const t = (y - top) / (bot - top);
+      const bend = Math.round(3 * Math.sin(Math.PI * t));
+      x.fillStyle = pen.col('K');
+      x.fillRect(gx - bend - 1, y, 3, 1);
+      x.fillStyle = pen.col('l');
+      x.fillRect(gx - bend, y, 1, 1);
+    }
+    // Kiriş: iki uçtan çeken ele
+    const sx = Math.round(Math.max(gx + 1, pullHand.x));
+    x.fillStyle = pen.col('G');
+    for (let y = top; y <= bot; y++) {
+      const t = y <= gy ? (y - top) / (gy - top) : (bot - y) / (bot - gy);
+      x.fillRect(Math.round(gx + 1 + (sx - gx - 1) * t * (pull ? 1 : 0.15)), y, 1, 1);
+    }
+  },
+};
+
+// ---------------- Okçu (sağa bakar) ----------------
+// Kapüşonlu pelerin, sırtta ok kılıfı, deri kemer, çizmeler.
+// Yay kolu archer.js içinde ayrıca çizilir (omuz: 16, 20).
+Figures.archer = function (color) {
+  const C = {
+    K: SPRITE_INK.K, C: color, c: mixColor(color, '#000000', 0.35), d: mixColor(color, '#000000', 0.55),
+    F: SPRITE_INK.F, f: mixColor(SPRITE_INK.F, '#7a4a3a', 0.4), N: '#46507a', n: '#323a5a',
+    V: SPRITE_INK.V, v: '#6a5444', L: SPRITE_INK.L, l: SPRITE_INK.l, Y: SPRITE_INK.Y,
+    R: SPRITE_INK.R, W: SPRITE_INK.W, M: SPRITE_INK.M,
+  };
+  const cv = document.createElement('canvas');
+  cv.width = 28;
+  cv.height = 50;
+  const x = cv.getContext('2d');
+  const P = (a) => a.map(([px, py]) => ({ x: px, y: py }));
+  // Pelerin (sırtta, dize kadar)
+  poly(x, [[9, 16], [15, 18], [13, 41], [5, 42], [6, 30]], C.d, C.K, 2);
+  // Ok kılıfı ve oklar
+  for (let i = 0; i < 3; i++) {
+    limb(x, P([[6 + i * 1.4, 14], [5 + i * 1.4, 7]]), 3, C.K);
+  }
+  for (let i = 0; i < 3; i++) {
+    limb(x, P([[6 + i * 1.4, 14], [5.2 + i * 1.4, 8]]), 1, C.l);
+    x.fillStyle = i === 1 ? C.W : C.R;
+    x.fillRect(4 + i * 1.4, 6, 2, 3);
+  }
+  limb(x, P([[8, 13], [6, 31]]), 6, C.K);
+  limb(x, P([[8, 13], [6, 31]]), 4, C.L);
+  limb(x, P([[8.6, 14], [7, 30]]), 1, C.l);
+  x.fillStyle = C.Y;
+  x.fillRect(6, 22, 3, 1);
+  // Bacaklar: uzak (koyu) ve yakın
+  const leg = (hx, fx, col) => {
+    limb(x, P([[hx, 32], [fx, 41], [fx, 46]]), 6.5, C.K);
+    limb(x, P([[hx, 32], [fx, 41], [fx, 46]]), 4.5, col);
+  };
+  leg(15, 17.5, C.n);
+  leg(12.5, 11.5, C.N);
+  // Çizmeler: koncu kıvrık, burnu sağa
+  const boot = (bx, dark) => {
+    poly(x, [[bx - 2.5, 42], [bx + 2.5, 42], [bx + 2.5, 47], [bx + 5, 47.5], [bx + 5, 49], [bx - 2.5, 49]], dark ? C.V : C.v, C.K, 2);
+    x.fillStyle = dark ? C.v : '#8a705a';
+    x.fillRect(Math.round(bx - 2), 42, 5, 1);
+  };
+  boot(17.5, true);
+  boot(11.5, false);
+  // Gövde: belde kemerli tunik, altı hafif açılır
+  poly(x, [[9.5, 18], [19, 18], [19.5, 29], [20.5, 36], [8.5, 36], [9.5, 29]], C.C, C.K, 2);
+  x.fillStyle = C.c;
+  x.fillRect(10, 30, 2, 6); // Arka yan gölge
+  x.fillRect(14, 31, 1, 5); // Etek yırtmacı
+  // Kemer ve toka
+  x.fillStyle = C.L;
+  x.fillRect(9, 28, 11, 2);
+  x.fillStyle = C.Y;
+  x.fillRect(16, 28, 2, 2);
+  // Göğüste deri kayış (kılıfın askısı)
+  limb(x, P([[10, 18], [19, 27]]), 1.4, C.L);
+  // Omuzluk
+  ellipse(x, 16, 20, 3.4, 2.6, C.K);
+  ellipse(x, 16, 20, 2.6, 1.8, C.L);
+  // Kapüşon ve yüz
+  poly(x, [[8, 6], [12, 4.5], [17, 5], [20, 9], [20, 16], [16, 19], [10, 18], [8.5, 12]], C.C, C.K, 2);
+  poly(x, [[8, 6], [5.5, 9.5], [8.5, 12]], C.c, C.K, 1.5); // Kapüşonun ucu arkaya sarkar
+  ellipse(x, 17, 12.2, 3.2, 4.2, C.F);
+  x.fillStyle = C.c;
+  x.fillRect(14, 8, 2, 8); // Kapüşon içi gölge
+  x.fillRect(15, 7, 4, 1.4);
+  x.fillStyle = C.f;
+  x.fillRect(16, 14, 3, 1); // Yanak gölgesi
+  x.fillStyle = C.K;
+  x.fillRect(18, 10.5, 1, 1.6); // Göz
+  x.fillStyle = C.F;
+  x.fillRect(20, 11.5, 1, 2); // Burun
+  x.fillStyle = C.f;
+  x.fillRect(18, 15, 2, 1); // Ağız
+  snapToInks(x, 28, 50, Object.values(C));
+  let out = spriteHD(cv, C.K, 0.06);
+  out.u = 1;
+  if (ART >= 2) {
+    out = scale2xCanvas(out);
+    out.u = 0.5;
+  }
+  return out;
+};
+
+// ---------------- Küçük şekil yardımcıları ----------------
+function lerpP(a, b, t) {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+// Kalça-ayak bileği arasında dizi bulur (diz öne, sola doğru bükülür)
+function ikKnee(h, a, L1, L2) {
+  const dx = a.x - h.x, dy = a.y - h.y;
+  const d = Math.min(Math.hypot(dx, dy), L1 + L2 - 0.01);
+  const base = Math.atan2(dy, dx);
+  const c = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
+  const ang = base + Math.acos(Math.max(-1, Math.min(1, c)));
+  return { x: h.x + Math.cos(ang) * L1, y: h.y + Math.sin(ang) * L1 };
+}
+
+function limb(x, pts, w, color) {
+  x.strokeStyle = color;
+  x.lineWidth = w;
+  x.lineCap = 'round';
+  x.lineJoin = 'round';
+  x.beginPath();
+  x.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) x.lineTo(pts[i].x, pts[i].y);
+  x.stroke();
+}
+
+function circle(x, cx, cy, r, color) {
+  ellipse(x, cx, cy, r, r, color);
+}
+
+function ellipse(x, cx, cy, rx, ry, color) {
+  x.fillStyle = color;
+  x.beginPath();
+  x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  x.fill();
+}
+
+// Çokgen: önce kalın kontur, sonra dolgu
+function poly(x, pts, fill, stroke, w = 2) {
+  x.beginPath();
+  x.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]);
+  x.closePath();
+  if (stroke) {
+    x.strokeStyle = stroke;
+    x.lineWidth = w;
+    x.lineJoin = 'round';
+    x.stroke();
+  }
+  if (fill) {
+    x.fillStyle = fill;
+    x.fill();
+  }
+}
+
+// Her pikseli verilen renklerden en yakınına oturtur, yarı saydamı ya tam
+// doldurur ya siler: şekillerin yumuşak kenarları sert piksele döner.
+function snapToInks(x, w, h, inks) {
+  const pal = [...new Set(inks)].map((c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
+  const img = x.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 110) { d[i + 3] = 0; continue; }
+    // Yarı saydam kenarı tam renge çevir (premultiplied değil, renk zaten tam)
+    let best = 1e9, bi = 0;
+    for (let j = 0; j < pal.length; j++) {
+      const dr = d[i] - pal[j][0], dg = d[i + 1] - pal[j][1], db = d[i + 2] - pal[j][2];
+      const dist = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+      if (dist < best) { best = dist; bi = j; }
+    }
+    d[i] = pal[bi][0]; d[i + 1] = pal[bi][1]; d[i + 2] = pal[bi][2]; d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+}
 
 </script>
   <script>
@@ -2979,7 +4018,7 @@ const TORCHES = [
   { x: 176, y: 326 }, // Ön duvarın yüzü
 ];
 
-let castleImage = null; // Kalenin önceden çizilmiş değişmeyen kısmı
+let castleImage = null; // Kalenin önceden çizilmiş resimleri: hasar aşamasına göre { 0: tuval, 1: ... }
 
 class Castle {
   constructor() {
@@ -2987,7 +4026,7 @@ class Castle {
     this.hp = this.maxHp;
     this.hitFlash = 0; // Hasar alınca kısa süre kırmızı yanıp söner
     this.trailHp = this.hp; // Can barındaki "hasar izi" (yavaşça azalır)
-    if (!castleImage) castleImage = buildCastleImage();
+    if (!castleImage) castleImage = {};
   }
 
   get frontX() {
@@ -3034,7 +4073,12 @@ class Castle {
     const c = CONFIG.castle;
     const g = CONFIG.groundY;
 
-    ctx.drawImage(castleImage, 0, 0);
+    // Hasar aşaması (0 sağlam ... 4 gedik açılmış); her aşamanın resmi bir kez çizilir
+    const stage = damageStage(this.hp / this.maxHp);
+    if (!castleImage) castleImage = {}; // Piksel yoğunluğu değişince yeniden
+    if (!castleImage[stage]) castleImage[stage] = buildCastleImage(stage);
+    artDraw(ctx, castleImage[stage]);
+    if (stage >= 3) this.drawSmoke(ctx, time, stage);
 
     // Kule penceresinden sızan sıcak ışık (gece daha belirgin)
     ctx.fillStyle = `rgba(255, 180, 90, ${0.25 + 0.6 * night * this.flicker(time, 7)})`;
@@ -3075,18 +4119,32 @@ class Castle {
     // Meşaleler
     TORCHES.forEach((t, i) => this.drawTorch(ctx, t.x, t.y, time, i));
 
-    // Can azaldıkça çatlaklar belirir
-    const damage = 1 - this.hp / this.maxHp;
-    if (damage > 0.3) drawCrack(ctx, 150, 330, 1);
-    if (damage > 0.55) drawCrack(ctx, 40, 360, 1.3);
-    if (damage > 0.8) drawCrack(ctx, 120, 220, 1.1);
-    if (damage > 0.8) drawCrack(ctx, 160, 410, 0.9);
 
     // Hasar alınca kırmızı parlama
     if (this.hitFlash > 0) {
       ctx.fillStyle = 'rgba(220, 40, 30, 0.25)';
       ctx.fillRect(0, c.towerTop - 20, c.frontX, g - c.towerTop + 20);
     }
+  }
+
+  // Ağır hasarda kuleden ve gedikten yükselen duman, arada kor
+  drawSmoke(ctx, time, stage) {
+    const c = CONFIG.castle;
+    const src = stage >= 4 ? [[30, c.wallTop + 40], [128, c.towerTop + 6]] : [[128, c.towerTop + 6]];
+    src.forEach(([sx, sy], k) => {
+      for (let i = 0; i < 7; i++) {
+        const t = ((time * 0.35 + i / 7 + k * 0.37) % 1);
+        const x = sx + Math.sin(t * 5 + i) * 4 + t * 26; // Rüzgârla sağa kayar
+        const y = sy - t * 120;
+        const r = 4 + t * 14;
+        ctx.fillStyle = `rgba(${34 + t * 50}, ${32 + t * 48}, ${36 + t * 50}, ${0.8 * (1 - t)})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = `rgba(255, 140, 50, ${0.5 + 0.5 * Math.sin(time * 9 + k)})`;
+      ctx.fillRect(sx - 2 + Math.sin(time * 3) * 3, sy - 2, 1.5, 1.5);
+    });
   }
 
   drawTorch(ctx, x, y, time, i) {
@@ -3117,13 +4175,10 @@ class Castle {
 }
 
 // ---- Kalenin değişmeyen kısmını bir kere çizer ----
-function buildCastleImage() {
+function buildCastleImage(stage = 0) {
   const c = CONFIG.castle;
   const g = CONFIG.groundY;
-  const cv = document.createElement('canvas');
-  cv.width = c.frontX + 20;
-  cv.height = CONFIG.height;
-  const ctx = cv.getContext('2d');
+  const { cv, ctx } = artCanvas(c.frontX + 20, CONFIG.height);
 
   // Kalenin dibindeki gölge
   ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
@@ -3136,14 +4191,19 @@ function buildCastleImage() {
 
   // Ön duvar
   drawStoneBlock(ctx, 0, c.wallTop, c.frontX, g - c.wallTop, 1);
-  drawBattlements(ctx, 0, c.frontX, c.wallTop);
+  weatherRect(ctx, 0, c.wallTop, c.frontX, g - c.wallTop, 1);
+  drawBattlements(ctx, 0, c.frontX, c.wallTop, stage, 3);
 
   // Kule (ön duvardan biraz daha açık renkli, öne çıksın diye)
   drawStoneBlock(ctx, c.towerLeft, c.towerTop, c.towerRight - c.towerLeft, g - c.towerTop, 2);
-  drawBattlements(ctx, c.towerLeft, c.towerRight, c.towerTop);
+  weatherRect(ctx, c.towerLeft, c.towerTop, c.towerRight - c.towerLeft, g - c.towerTop, 2);
+  drawBattlements(ctx, c.towerLeft, c.towerRight, c.towerTop, stage, 7);
   // Kulenin ön duvara düşürdüğü gölge
   ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
   ctx.fillRect(c.towerRight, c.wallTop, 10, g - c.wallTop);
+
+  // Hasar: pencere, kapı ve sancaklar üstüne çizilsin diye burada
+  if (stage > 0) drawCastleDamage(ctx, stage);
 
   // Kule penceresi: kemerli, kanatlı
   drawArchWindow(ctx, 99, 238, 12, 32);
@@ -3338,11 +4398,233 @@ function buildCastleImage() {
   ctx.lineTo(0, c.wallTop);
   ctx.stroke();
 
+  if (stage >= 3) drawCastleRubble(ctx, stage); // Döküntü en önde
   texturize(ctx, cv.width, cv.height, 7);
   return cv;
 }
 
+// Duvar dibine düşmüş taşlar (3. aşamadan sonra), gedikte daha çok
+function drawCastleRubble(ctx, stage) {
+  const c = CONFIG.castle;
+  const g = CONFIG.groundY;
+  for (let i = 0; i < (stage - 2) * 16; i++) {
+    const x = hashNoise(i, 95) < 0.5 ? c.frontX - 8 + hashNoise(i, 96) * 26 : 4 + hashNoise(i, 97) * (c.towerLeft + 10);
+    rubbleStone(ctx, x, g + 1 - hashNoise(i, 98) * 3, 3 + hashNoise(i, 99) * 6, i);
+  }
+  if (stage >= 4) for (let i = 0; i < 22; i++) rubbleStone(ctx, 2 + hashNoise(i, 103) * 54, g + 1 - hashNoise(i, 104) * 12 * (1 - Math.abs(hashNoise(i, 103) - 0.5)), 3 + hashNoise(i, 105) * 7, i + 40);
+}
+
+// Sur canına göre hasar aşaması: 0 sağlam, 1 çatlak, 2 taş düşmüş,
+// 3 mazgallar kırık ve duman, 4 duvarda gedik
+function damageStage(ratio) {
+  return ratio > 0.8 ? 0 : ratio > 0.6 ? 1 : ratio > 0.4 ? 2 : ratio > 0.2 ? 3 : 4;
+}
+
+// Kalenin hasarı (savaş ekranı): aşama arttıkça öncekilerin üstüne eklenir
+function drawCastleDamage(ctx, stage) {
+  const c = CONFIG.castle;
+  const g = CONFIG.groundY;
+  const walls = [
+    [0, c.wallTop + 4, c.towerLeft - 2, g - c.wallTop - 30],              // Ön duvar, kulenin solu
+    [c.towerLeft + 4, c.towerTop + 8, c.towerRight - c.towerLeft - 8, g - c.towerTop - 40], // Kule
+    [c.towerRight + 2, c.wallTop + 4, c.frontX - c.towerRight - 4, g - c.wallTop - 30],  // Ön duvar, kulenin sağı
+  ];
+  // Çatlaklar: aşama başına çoğalır ve uzar
+  walls.forEach(([x, y, w, h], k) => {
+    const n = Math.round((w * h) / 2600 * stage);
+    for (let i = 0; i < n; i++) {
+      const sx = x + hashNoise(i, k * 11 + 1) * w, sy = y + hashNoise(i, k * 11 + 2) * h * 0.8;
+      drawCrackHD(ctx, sx, sy, (10 + hashNoise(i, k * 11 + 3) * 22) * (0.6 + stage * 0.25), i + k * 50);
+    }
+  });
+  // Düşmüş taşlar: duvarda derin oyuklar (2. aşamadan sonra)
+  if (stage >= 2) {
+    walls.forEach(([x, y, w, h], k) => {
+      const n = Math.round((w * h) / 6500 * (stage - 1));
+      for (let i = 0; i < n; i++) {
+        const hx = x + hashNoise(i, k * 13 + 5) * (w - 18), hy = y + hashNoise(i, k * 13 + 6) * (h - 14);
+        stoneHole(ctx, hx, hy, 8 + hashNoise(i, k * 13 + 7) * 16, 6 + hashNoise(i, k * 13 + 8) * 8);
+      }
+    });
+    // İs ve yanık lekeleri (yağ, ateşli ok)
+    for (let i = 0; i < stage * 3; i++) {
+      const x = 10 + hashNoise(i, 91) * (c.frontX - 20), y = c.towerTop + hashNoise(i, 92) * (g - c.towerTop - 40);
+      ctx.fillStyle = 'rgba(18, 14, 12, 0.22)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 6 + hashNoise(i, 93) * 10, 10 + hashNoise(i, 94) * 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Gedik: ön duvarda delik açılır, arkasından manzara görünür (4. aşama)
+  if (stage >= 4) {
+    const hx = 6, hy = c.wallTop + 52, hw = 40, hh = 60;
+    const pts = [];
+    for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * Math.PI * 2;
+      const r = 0.75 + hashNoise(k, 101) * 0.35;
+      // Kenar taş taş kırılmış gibi basamaklı (3 birimlik ızgara)
+      pts.push([Math.round((hx + hw / 2 + Math.cos(a) * hw / 2 * r) / 3) * 3, Math.round((hy + hh / 2 + Math.sin(a) * hh / 2 * r) / 3) * 3]);
+    }
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let k = 1; k <= pts.length; k++) {
+        const [x0, y0] = pts[k - 1], [x1, y1] = pts[k % pts.length];
+        ctx.lineTo(x1, y0); // Önce yatay, sonra dikey: taş sırası gibi basamak
+        ctx.lineTo(x1, y1);
+      }
+      ctx.closePath();
+    };
+    // Kırık taş kenarı, içi karanlık: içeride kırık kirişler ve yığılmış taş
+    path();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#3a3a40';
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#9a9ca0';
+    ctx.stroke();
+    path();
+    ctx.fillStyle = '#121014';
+    ctx.fill();
+    ctx.save();
+    path();
+    ctx.clip();
+    ctx.fillStyle = '#2a2628'; // İçerideki karşı duvar, loş
+    ctx.fillRect(hx, hy + hh * 0.15, hw, hh);
+    ctx.fillStyle = '#4a3420'; // Kırık kiriş
+    ctx.save();
+    ctx.translate(hx + hw * 0.5, hy + hh * 0.35);
+    ctx.rotate(0.35);
+    ctx.fillRect(-hw * 0.6, -2, hw * 1.2, 4);
+    ctx.restore();
+    for (let i = 0; i < 10; i++) rubbleStone(ctx, hx + hashNoise(i, 111) * hw, hy + hh - hashNoise(i, 112) * 10, 3 + hashNoise(i, 113) * 6, i + 70);
+    ctx.restore();
+  }
+}
+
+// Kılcal ve dallanan çatlak: koyu çizgi, sağında ince ışık (derinlik)
+function drawCrackHD(ctx, x, y, len, seed) {
+  const q = 1 / ART;
+  let px = x, py = y;
+  const steps = Math.round(len / 2);
+  for (let i = 0; i < steps; i++) {
+    ctx.fillStyle = 'rgba(22, 18, 16, 0.85)';
+    ctx.fillRect(Math.round(px * ART) / ART, Math.round(py * ART) / ART, i < steps * 0.6 ? 1 : q, 2);
+    ctx.fillStyle = 'rgba(255, 245, 225, 0.2)';
+    ctx.fillRect(Math.round(px * ART) / ART + 1, Math.round(py * ART) / ART, q, 2);
+    px += (hashNoise(i, seed + 7) - 0.45) * 3;
+    py += 2;
+    if (i === Math.floor(steps / 2) && hashNoise(seed, 9) < 0.7) drawCrackHD(ctx, px, py, len * 0.4, seed + 31);
+  }
+}
+
+// Düşmüş taşın bıraktığı oyuk: koyu iç, üstte gölge, altta ışık alan kırık kenar
+function stoneHole(ctx, x, y, w, h) {
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  ctx.fillStyle = '#1c1a1c';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#2e2c30';
+  ctx.fillRect(x, y + h - 3, w, 3); // Oyuğun dibi
+  ctx.fillStyle = '#8a8c90';
+  ctx.fillRect(x, y + h, w, 1);    // Alt kenar ışık alır
+  ctx.fillStyle = '#121014';
+  ctx.fillRect(x, y, w, 2);        // Üst kenar gölge
+}
+
+// Döküntü taşı: köşeli, üstü açık, altı koyu
+function rubbleStone(ctx, x, y, r, seed) {
+  x = Math.round(x); y = Math.round(y);
+  const w = Math.round(r * (1 + hashNoise(seed, 1) * 0.6)), h = Math.max(2, Math.round(r * 0.7));
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(x - 1, y - h - 1, w + 2, h + 1);
+  ctx.fillStyle = mixColor('#7c8088', '#a0a2a6', hashNoise(seed, 2));
+  ctx.fillRect(x, y - h, w, h);
+  ctx.fillStyle = 'rgba(255, 250, 235, 0.25)';
+  ctx.fillRect(x, y - h, w, 1);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.fillRect(x + w - 2, y - h + 1, 2, h - 1);
+}
+
 // ---- Yardımcı çizim fonksiyonları ----
+
+// Duvarın yıpranması: geniş kir lekeleri, mazgallardan inen yağmur izleri,
+// dipte basamak basamak koyulaşan kir ve yosun. Taşların üstüne çizilir.
+function weatherRect(ctx, x, y, w, h, seed) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  if (typeof Tex !== 'undefined') {
+    ctx.fillStyle = Tex.grimePattern(ctx);
+    ctx.fillRect(x, y, w, h);
+  }
+  // Yağmur izleri: üstten aşağı, düzensiz boy ve genişlikte
+  for (let i = 0; i < w / 9; i++) {
+    if (hashNoise(i, seed + 61) < 0.35) continue;
+    const sx = x + Math.floor(hashNoise(i, seed + 62) * w);
+    const sw = 1 + Math.floor(hashNoise(i, seed + 63) * 3);
+    const len = h * (0.15 + hashNoise(i, seed + 64) * 0.45);
+    ctx.fillStyle = 'rgba(24, 22, 30, 0.14)';
+    ctx.fillRect(sx, y, sw, len);
+    ctx.fillStyle = 'rgba(24, 22, 30, 0.1)';
+    ctx.fillRect(sx, y, sw, len * 0.55);
+    ctx.fillRect(sx + sw, y, 1 / ART, len * 0.35);
+  }
+  // Dipte kir: 4 basamak
+  const gh = Math.min(h * 0.4, 46);
+  [0.32, 0.22, 0.13, 0.06].forEach((a, i) => {
+    ctx.fillStyle = `rgba(32, 28, 18, ${a})`;
+    ctx.fillRect(x, y + h - (gh * (i + 1)) / 4, w, gh / 4);
+  });
+  // Dipte yosun ve toprak sıçraması
+  for (let i = 0; i < w / 4; i++) {
+    const px = x + hashNoise(i, seed + 71) * w;
+    const ph = 2 + hashNoise(i, seed + 72) * 12;
+    const pw = 1 + hashNoise(i, seed + 73) * 4;
+    ctx.fillStyle = hashNoise(i, seed + 74) < 0.6 ? 'rgba(78, 106, 52, 0.5)' : 'rgba(70, 54, 34, 0.45)';
+    ctx.fillRect(Math.round(px * 2) / 2, y + h - ph, pw, ph);
+  }
+  ctx.restore();
+}
+
+// HD piksel için taşa yarım birimlik ayrıntı: ikinci ışık çizgisi,
+// ince çiller, kılcal çatlak ve kırık köşe (ART 1'de görünmez, çizilmez)
+function stoneDetailHD(ctx, bx, ry, bw, rowH, col0, seed) {
+  const q = 0.5;
+  ctx.fillStyle = mixColor(col0, '#ffffff', 0.14);
+  ctx.fillRect(bx + 2, ry + 2, bw - 5, q);
+  ctx.fillStyle = mixColor(col0, '#000000', 0.18);
+  ctx.fillRect(bx + 3, ry + rowH - 2.5, bw - 5, q);
+  for (let k = 0; k < 8 + Math.floor(bw / 2); k++) {
+    const sx = bx + 2 + Math.floor(hashNoise(seed + k, 41) * (bw - 4) * 2) / 2;
+    const sy = ry + 2 + Math.floor(hashNoise(seed + k, 43) * (rowH - 4) * 2) / 2;
+    const dark = hashNoise(seed, k + 5) < 0.55;
+    ctx.fillStyle = mixColor(col0, dark ? '#000000' : '#ffffff', dark ? 0.22 : 0.18);
+    ctx.fillRect(sx, sy, q, q);
+  }
+  if (hashNoise(seed, 47) < 0.3) {
+    // Kılcal çatlak: yukarıdan aşağı zikzak, altında ince ışık
+    let cx = bx + 3 + Math.floor(hashNoise(seed, 49) * (bw - 6) * 2) / 2;
+    let cy = ry + 1.5;
+    const steps = 4 + Math.floor(hashNoise(seed, 51) * 6);
+    for (let k = 0; k < steps && cy < ry + rowH - 2; k++) {
+      ctx.fillStyle = mixColor(col0, '#000000', 0.42);
+      ctx.fillRect(cx, cy, q, q);
+      ctx.fillStyle = mixColor(col0, '#ffffff', 0.12);
+      ctx.fillRect(cx + q, cy, q, q);
+      cx += hashNoise(seed + k, 53) < 0.5 ? -q : q;
+      cy += q;
+    }
+  }
+  if (hashNoise(seed, 57) < 0.2) {
+    // Kırık köşe
+    ctx.fillStyle = mixColor(col0, '#000000', 0.3);
+    ctx.fillRect(bx + bw - 3.5, ry + 1, 1.5, q);
+    ctx.fillRect(bx + bw - 2.5, ry + 1.5, q, 1);
+  }
+}
 
 // Taş tuğla dokulu dikdörtgen. Her tuğlanın tonu biraz farklıdır.
 function drawStoneBlock(ctx, x, y, w, h, seed) {
@@ -3397,6 +4679,7 @@ function drawStoneBlock(ctx, x, y, w, h, seed) {
         ctx.fillRect(bx + Math.round(bw * 0.5), ry + 4, 3, 2);
         ctx.fillRect(bx + Math.round(bw * 0.5) + 1, ry + 6, 1, 2);
       }
+      if (ART >= 2) stoneDetailHD(ctx, bx, ry, bw, rowH, col0, row * 31 + col + seed * 97);
       bx += bw;
     }
     ry += rowH;
@@ -3495,12 +4778,27 @@ function drawHangingBanner(ctx, x, y, w, h, main, trim) {
 }
 
 // Duvarın üstündeki diş diş mazgallar
-function drawBattlements(ctx, left, right, top) {
+function drawBattlements(ctx, left, right, top, stage = 0, seed = 0) {
   const size = 18;
-  for (let x = left; x < right; x += size * 2) {
+  for (let x = left, i = 0; x < right; x += size * 2, i++) {
     const w = Math.min(size, right - x);
+    // Hasarda mazgallar kırılır: 3. aşamada bazıları yarım, 4. aşamada bazıları hiç yok
+    const r = hashNoise(i, seed + 201);
+    const broken = stage >= 3 && r < (stage >= 4 ? 0.6 : 0.35);
+    if (broken && stage >= 4 && r < 0.3) continue;
+    const mh = broken ? Math.round(size * (0.35 + hashNoise(i, seed + 202) * 0.3)) : size;
     ctx.fillStyle = '#858a90';
-    ctx.fillRect(x, top - size, w, size);
+    ctx.fillRect(x, top - mh, w, mh);
+    if (broken) {
+      // Kırık üst: basamaklı, koyu kenarlı
+      ctx.fillStyle = '#858a90';
+      ctx.fillRect(x, top - mh - 4, Math.round(w * 0.4), 4);
+      ctx.fillStyle = '#3a3a42';
+      ctx.fillRect(x + Math.round(w * 0.4), top - mh, w - Math.round(w * 0.4), 1.5);
+      ctx.fillRect(x, top - mh - 4, Math.round(w * 0.4), 1.5);
+      ctx.fillRect(x + Math.round(w * 0.4), top - mh - 4, 1.5, 4);
+      continue;
+    }
     ctx.fillStyle = 'rgba(255, 250, 235, 0.18)'; // Üstte ışık
     ctx.fillRect(x, top - size, w, 3);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';       // Sağda gölge
@@ -3943,7 +5241,7 @@ class Archer {
     drawGroundShadow(ctx, this.x, this.footY, 11, 0.4);
     // Gövde: elle çizilmiş piksel kare (pelerin rengine göre)
     const body = Sprites.archer(this.color);
-    Sprites.draw(ctx, body, this.x - 7 * SPRITE_PX, this.footY - body.height * SPRITE_PX / 2);
+    Sprites.draw(ctx, body, this.x - 7 * SPRITE_PX, this.footY - body.height * body.u);
     this.drawBowArm(ctx);
     // Askerin dayanıklılık çubuğu (dolu değilse)
     const H = CONFIG.helper;
@@ -4608,7 +5906,7 @@ class Bat {
     const frames = Sprites.bat();
     const i = Math.sin(this.flap) > 0 ? 0 : 1;
     const img = flash ? Sprites.batFlash[i] : frames[i];
-    const k = SPRITE_PX / 2;
+    const k = img.u || SPRITE_PX / 2;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, -Math.round(img.width / 2) * k, -Math.round(img.height / 2) * k, img.width * k, img.height * k);
   }
@@ -5097,6 +6395,8 @@ class Scenery {
 
     this.landCache = null;   // Tepeler ve zemin (her karede yeniden çizilmesin diye)
     this.landNight = -1;
+    this.skyCache = null;    // Gökyüzü, güneş ve ay (noktalı geçişle, bir kez çizilir)
+    this.skyNight = -1;
     this.vignette = this.buildVignette();
     this.fogSprite = this.buildFogSprite();
 
@@ -5106,6 +6406,13 @@ class Scenery {
     this.flash = 0;          // Şimşek parlaması (1'den 0'a söner)
     this.lightningTimer = 2; // Sonraki şimşeğe kalan süre
     this.bolt = null;        // Şimşeğin çizgisi
+  }
+
+  // Piksel yoğunluğu (ART) değişince önceden çizilenler yeniden çizilir
+  resetArt() {
+    this.landNight = -1;
+    this.skyNight = -1;
+    this.clouds = {};
   }
 
   // Yeni bir kor parçası. first=true ise ekranın her yerine dağıtılır.
@@ -5219,40 +6526,25 @@ class Scenery {
     const W = CONFIG.width;
     const G = CONFIG.groundY;
 
-    // Gökyüzü
-    const sky = ctx.createLinearGradient(0, 0, 0, G);
-    sky.addColorStop(0, mixColor(SKY.dusk[0], SKY.night[0], night));
-    sky.addColorStop(0.6, mixColor(SKY.dusk[1], SKY.night[1], night));
-    sky.addColorStop(1, mixColor(SKY.dusk[2], SKY.night[2], night));
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, G);
+    // Gökyüzü, güneş ve ay (önceden çizilmiş resimden)
+    const key = Math.round(night * 20) / 20;
+    if (key !== this.skyNight) {
+      this.skyCache = this.buildSky(key);
+      this.skyNight = key;
+    }
+    artDraw(ctx, this.skyCache);
 
-    // Yıldızlar göz kırpar
+    // Yıldızlar göz kırpar (ayın önüne düşenler çizilmez)
     if (night > 0.05) {
+      const my = 95 + (1 - key) * 70;
       ctx.fillStyle = '#fff6e0';
       for (const s of this.stars) {
+        if (Math.hypot(s.x - 800, s.y - my) < 30) continue;
         ctx.globalAlpha = night * (0.5 + 0.5 * Math.sin(time * 2 + s.phase));
         ctx.fillRect(s.x, s.y, s.r, s.r);
       }
       ctx.globalAlpha = 1;
     }
-
-    // Güneş: gece oldukça tepelerin arkasına batar
-    if (night < 0.98) {
-      const sy = G - 60 + night * 150;
-      const glow = ctx.createRadialGradient(720, sy, 20, 720, sy, 160);
-      glow.addColorStop(0, `rgba(255, 190, 120, ${0.45 * (1 - night)})`);
-      glow.addColorStop(1, 'rgba(255, 190, 120, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(560, sy - 160, 320, 320);
-      ctx.fillStyle = `rgba(255, 200, 130, ${0.9 * (1 - night)})`;
-      ctx.beginPath();
-      ctx.arc(720, sy, 46, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Ay: gece yükselir
-    if (night > 0.02) this.drawMoon(ctx, 800, 95 + (1 - night) * 70, night);
 
     // Bulutlar: uzaktakiler küçük ve yavaş, yakındakiler büyük ve hızlı
     const cloudColor = night > 0.5 ? '120, 120, 160' : '240, 210, 200';
@@ -5273,12 +6565,45 @@ class Scenery {
     }
 
     // Tepeler ve zemin (önceden çizilmiş resimden kopyalanır)
-    const key = Math.round(night * 20) / 20;
     if (key !== this.landNight) {
       this.landCache = this.buildLand(key);
       this.landNight = key;
     }
-    ctx.drawImage(this.landCache, 0, 0);
+    artDraw(ctx, this.landCache);
+  }
+
+  // Gökyüzü: renk geçişi palete noktalı desenle (dither) oturtulur,
+  // böylece şerit şerit değil yumuşak görünür. Güneş ve ay da burada.
+  buildSky(night) {
+    const W = CONFIG.width;
+    const G = CONFIG.groundY;
+    const { cv, ctx } = artCanvas(W, G);
+    const sky = ctx.createLinearGradient(0, 0, 0, G);
+    sky.addColorStop(0, mixColor(SKY.dusk[0], SKY.night[0], night));
+    sky.addColorStop(0.6, mixColor(SKY.dusk[1], SKY.night[1], night));
+    sky.addColorStop(1, mixColor(SKY.dusk[2], SKY.night[2], night));
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, G);
+
+    // Güneş: gece oldukça tepelerin arkasına batar
+    if (night < 0.98) {
+      const sy = G - 60 + night * 150;
+      const glow = ctx.createRadialGradient(720, sy, 20, 720, sy, 160);
+      glow.addColorStop(0, `rgba(255, 190, 120, ${0.45 * (1 - night)})`);
+      glow.addColorStop(1, 'rgba(255, 190, 120, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(560, sy - 160, 320, 320);
+      ctx.fillStyle = `rgba(255, 200, 130, ${0.9 * (1 - night)})`;
+      ctx.beginPath();
+      ctx.arc(720, sy, 46, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ay: gece yükselir
+    if (night > 0.02) this.drawMoon(ctx, 800, 95 + (1 - night) * 70, night);
+
+    Pixel.quantize(ctx, cv.width, cv.height, 0, 20);
+    return cv;
   }
 
   drawMoon(ctx, x, y, night) {
@@ -5308,7 +6633,7 @@ class Scenery {
     ctx.globalAlpha = Math.min(1, alpha * 3.6);
     for (let i = 0; i < count; i++) {
       const img = set[(i + Math.round(scale * 3)) % set.length];
-      const w = img.width * scale * 0.9, h = img.height * scale * 0.9;
+      const w = (img.width / img.art) * scale * 0.9, h = (img.height / img.art) * scale * 0.9;
       const cx = ((i * 337 + time * (speed + i * 2)) % (W + 260)) - 130;
       const cy = baseY + i * 28;
       ctx.drawImage(img, Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h));
@@ -5327,9 +6652,7 @@ class Scenery {
     const dark = night ? '#262640' : '#5a3a5a';
     const set = [];
     for (let n = 0; n < 4; n++) {
-      const cv = document.createElement('canvas');
-      cv.width = 150; cv.height = 46;
-      const x = cv.getContext('2d');
+      const { cv, ctx: x } = artCanvas(150, 46);
       const puffs = [];
       const count = 5 + n;
       for (let i = 0; i < count; i++) {
@@ -5352,7 +6675,7 @@ class Scenery {
       x.fillRect(0, 0, 150, 40); // Altı düz kesilir
       x.globalCompositeOperation = 'source-over';
       // Kenarları yumuşatmadan sert piksel yap
-      const img = x.getImageData(0, 0, 150, 46);
+      const img = x.getImageData(0, 0, cv.width, cv.height);
       for (let i = 3; i < img.data.length; i += 4) img.data[i] = img.data[i] > 110 ? 255 : 0;
       x.putImageData(img, 0, 0);
       set.push(cv);
@@ -5367,10 +6690,7 @@ class Scenery {
     const W = CONFIG.width;
     const H = CONFIG.height;
     const G = CONFIG.groundY;
-    const cv = document.createElement('canvas');
-    cv.width = W;
-    cv.height = H;
-    const ctx = cv.getContext('2d');
+    const { cv, ctx } = artCanvas(W, H);
     const c = (pair) => mixColor(pair[0], pair[1], night);
     const sunLit = (col, k) => mixColor(col, night > 0.5 ? '#8a90c0' : '#e8a070', k * (1 - night * 0.6));
     // Pürüzlü sırt çizgisi (birkaç dalganın toplamı + küçük kırıklar)
@@ -5591,7 +6911,7 @@ class Scenery {
       if (n > 3) ctx.fillRect(px + 13, G - 5, 14, 2);
     }
 
-    texturize(ctx, W, H, 6);
+    texturize(ctx, cv.width, cv.height, 6);
     return cv;
   }
 
@@ -7974,6 +9294,7 @@ function isoPoly(ctx, pts, fill, stroke = 'auto') {
 
 // Kutu: görünen üç yüzü (sol-ön, sağ-ön, üst) ayrı tonlarda
 function isoBox(ctx, x, y, z, w, d, h, color, kind = 'auto') {
+  if (z < 0.05 && h > 0.3) isoCastShadow(ctx, x, y, w, d, h);
   if (kind === 'auto') kind = texKind(color);
   if (!kind || typeof Tex === 'undefined') {
     isoPoly(ctx, [[x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h]], shade(color, -0.3));
@@ -7984,6 +9305,24 @@ function isoBox(ctx, x, y, z, w, d, h, color, kind = 'auto') {
   texWall(ctx, x, y + d, x + w, y + d, z, z + h, kind, shade(color, -0.3));
   texWall(ctx, x + w, y, x + w, y + d, z, z + h, kind, shade(color, -0.08));
   texTop(ctx, [[x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h]], kind === 'wood' ? 'wood' : 'rough', shade(color, 0.1));
+}
+
+// Yere düşen gölge: ışık sağdan (+x) geldiği için gölge sola ve biraz geriye uzanır.
+// Kutunun tabanı ile gölge ucunun zarfı, yarı saydam koyu mavi.
+function isoCastShadow(ctx, x, y, w, d, h) {
+  const sx = -h * 0.75, sy = -h * 0.2;
+  const pts = [];
+  for (const [dx, dy] of [[0, 0], [w, 0], [w, d], [0, d]]) {
+    pts.push(iso(x + dx, y + dy, 0));
+    pts.push(iso(x + dx + sx, y + dy + sy, 0));
+  }
+  const hull = convexHull(pts);
+  ctx.fillStyle = 'rgba(12, 14, 30, 0.24)';
+  ctx.beginPath();
+  ctx.moveTo(hull[0].x, hull[0].y);
+  for (let k = 1; k < hull.length; k++) ctx.lineTo(hull[k].x, hull[k].y);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // Taş taş örülmüş düz duvar yüzü. (ax,ay)->(bx,by) taban çizgisi, z0..z1 yükseklik.
@@ -8150,8 +9489,10 @@ function isoTower(ctx, x, y, r, h, color, roof = null) {
       // Pul pul kiremit dokusu, üstüne yuvarlak gölge
       ctx.save();
       ctx.clip();
-      const pat = ctx.createPattern(Tex.get('roof', roof), 'repeat');
-      pat.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(t.x), Math.round(t.y)]));
+      const tile = Tex.get('roof', roof);
+      const pat = ctx.createPattern(tile, 'repeat');
+      const q = 1 / (tile.dens || 1);
+      pat.setTransform(new DOMMatrix([q, 0, 0, q, Math.round(t.x), Math.round(t.y)]));
       ctx.fillStyle = pat;
       ctx.fill();
       const sg = ctx.createLinearGradient(t.x - rx, 0, t.x + rx, 0);
@@ -8238,8 +9579,8 @@ function isoSquareTower(ctx, x, y, a, h, color, roof = null) {
   isoStones(ctx, x0 + a, y0, x0 + a, y0 + a, 0, h, shade(color, -0.08), x + y * 5);
   // Mazgal pencereler
   for (const z of [h * 0.45, h * 0.75]) {
-    isoPoly(ctx, [[x, y0 + a, z], [x + 0.3, y0 + a, z], [x + 0.3, y0 + a, z + 0.9], [x, y0 + a, z + 0.9]], '#15110f', null);
-    isoPoly(ctx, [[x0 + a, y, z], [x0 + a, y + 0.3, z], [x0 + a, y + 0.3, z + 0.9], [x0 + a, y, z + 0.9]], '#15110f', null);
+    isoStoneWindow(ctx, y0 + a, 'y', x - 0.05, z, 0.34, 0.95, { stone: color });
+    isoStoneWindow(ctx, x0 + a, 'x', y - 0.05, z, 0.34, 0.95, { stone: color });
   }
   if (roof) {
     const o = 0.3, rh = a * 0.95;
@@ -8291,6 +9632,48 @@ function insideHull(hull, x, y) {
     }
   }
   return true;
+}
+
+// Derin taş pencere / mazgal: söve taşları, lento, çıkıntılı denizlik,
+// kemerli üst, içinde gölgeli oyuk (ışık alan yan iç yüzü biraz açık).
+//  side 'x': yüz x = f sabit, u ekseni y boyunca; 'y': yüz y = f sabit, u ekseni x boyunca
+function isoStoneWindow(ctx, f, side, u0, z0, w, h, o = {}) {
+  const P = (u, z) => (side === 'x' ? [f, u, z] : [u, f, z]);
+  const stone = o.stone || '#a4a6a8';
+  const arch = o.arch !== false;
+  const fr = Math.max(0.12, w * 0.28);
+  const top = (pad) => {
+    // Üst kenar: kemerliyse yarım daire, değilse düz
+    if (!arch) return [P(u0 + w + pad, z0 + h + pad), P(u0 - pad, z0 + h + pad)];
+    const pts = [];
+    const r = w / 2 + pad, cu = u0 + w / 2;
+    for (let k = 0; k <= 8; k++) {
+      const a = (k / 8) * Math.PI;
+      pts.push(P(cu + Math.cos(a) * r, z0 + h - w / 2 + Math.sin(a) * r * 1.1 + pad * 0.4));
+    }
+    return pts;
+  };
+  // Söve (çerçeve taşları)
+  isoPoly(ctx, [P(u0 - fr, z0 - fr * 0.6), P(u0 + w + fr, z0 - fr * 0.6), ...top(fr)], shade(stone, 0.12));
+  // Söve taşlarının ek yerleri
+  const seam = shade(stone, -0.35);
+  for (const t of [0.35, 0.7]) {
+    const z = z0 + h * t;
+    isoPoly(ctx, [P(u0 - fr, z), P(u0, z), P(u0, z + 0.05), P(u0 - fr, z + 0.05)], seam, null);
+    isoPoly(ctx, [P(u0 + w, z - 0.15), P(u0 + w + fr, z - 0.15), P(u0 + w + fr, z - 0.1), P(u0 + w, z - 0.1)], seam, null);
+  }
+  // Oyuk: koyu iç, ışık alan sol iç yüz
+  isoPoly(ctx, [P(u0, z0), P(u0 + w, z0), ...top(0)], '#120e0c', null);
+  isoPoly(ctx, [P(u0, z0), P(u0 + w * 0.28, z0 + 0.06), P(u0 + w * 0.28, z0 + h * 0.75), P(u0, z0 + h * 0.8)], '#3a332e', null);
+  if (o.lit) {
+    isoPoly(ctx, [P(u0 + w * 0.35, z0 + 0.08), P(u0 + w * 0.85, z0 + 0.08), P(u0 + w * 0.85, z0 + h * 0.6), P(u0 + w * 0.35, z0 + h * 0.6)], o.lit, null);
+  }
+  // Çıkıntılı denizlik: açık üst, koyu alt
+  const sw = fr + 0.08, zs = z0 - fr * 0.6;
+  isoPoly(ctx, [P(u0 - sw, zs - 0.14), P(u0 + w + sw, zs - 0.14), P(u0 + w + sw, zs), P(u0 - sw, zs)], shade(stone, 0.25));
+  isoPoly(ctx, [P(u0 - sw, zs - 0.2), P(u0 + w + sw, zs - 0.2), P(u0 + w + sw, zs - 0.14), P(u0 - sw, zs - 0.14)], 'rgba(20, 16, 14, 0.5)', null);
+  // Denizlik altından inen yağmur izi
+  isoPoly(ctx, [P(u0 + w * 0.2, zs - 0.9), P(u0 + w * 0.8, zs - 0.9), P(u0 + w * 0.8, zs - 0.2), P(u0 + w * 0.2, zs - 0.2)], 'rgba(24, 22, 26, 0.14)', null);
 }
 
 </script>
@@ -8501,17 +9884,14 @@ class BaseScene {
       };
     }
     this.blit(ctx, this.cache.back);
+    this.drawWallDamage(ctx, game, false, time);
     this.drawMoatShine(ctx, time);
     this.drawKaleRest(ctx, game, time, lights);
   }
 
   // Sahnenin boyunda boş bir katman açar, içine bir kez çizer
   layer(draw) {
-    const c = document.createElement('canvas');
-    c.width = CONFIG.width / PIXEL_SIZE;
-    c.height = CONFIG.height / PIXEL_SIZE;
-    const x = c.getContext('2d');
-    x.setTransform(1 / PIXEL_SIZE, 0, 0, 1 / PIXEL_SIZE, 0, 0);
+    const { cv: c, ctx: x } = artCanvas(CONFIG.width, CONFIG.height);
     draw(x);
     texturize(x, c.width, c.height);
     return c;
@@ -8730,6 +10110,7 @@ class BaseScene {
 
     // ---- 5) Ön surlar, kapı, ön kuleler ----
     this.blit(ctx, this.cache.walls);
+    this.drawWallDamage(ctx, game, true, time);
     // Kapının meşaleleri
     for (const tx of [GATE.x1 - 0.4, GATE.x2 + 0.4]) {
       const p = iso(tx, GATE.y + WALL_T + 0.07, 2.6);
@@ -8822,6 +10203,276 @@ class BaseScene {
     for (const t of towers) items.push({ d: t.x + t.y, f: () => this.wallTower(ctx, t) });
     items.sort((a, b) => a.d - b.d);
     for (const it of items) it.f();
+  }
+
+  // ---------- Sur hasarı ----------
+  // Sur parçasının hangi cepheye ait olduğu (dışa bakan yönüne göre)
+  frontOf(nx, ny) {
+    if (Math.abs(nx) > Math.abs(ny)) return nx > 0 ? 'dogu' : 'bati';
+    return ny > 0 ? 'guney' : 'kuzey';
+  }
+
+  // Her cephenin canına göre surda ve kulelerinde çatlak, düşmüş taş,
+  // kırık mazgal, gedik ve moloz. Aşamalar değişince bir kez çizilip saklanır.
+  drawWallDamage(ctx, game, front, time) {
+    if (!game.fronts) return;
+    const stages = {};
+    for (const f of game.fronts.list) stages[f.key] = f.maxHp > 0 ? damageStage(f.hp / f.maxHp) : 0;
+    const key = JSON.stringify(stages);
+    const c = this.cache;
+    if (c.dmgKey !== key) {
+      c.dmgKey = key;
+      c.dmg = {};
+      c.dmgSmoke = [];
+      for (const fr of [false, true]) {
+        const any = this.wallSegs().some((s) => s.front === fr && (stages[this.frontOf(s.nx, s.ny)] || 0) > 0);
+        c.dmg[fr] = any ? this.layer0((x) => this.paintWallDamage(x, stages, fr, c.dmgSmoke)) : null;
+      }
+    }
+    if (c.dmg[front]) this.blit(ctx, c.dmg[front]);
+    // Ağır hasarlı yerlerden duman tüter
+    for (const sm of c.dmgSmoke) if (sm.front === front) this.smoke(ctx, sm.x, sm.y, time, sm.seed, sm.color);
+  }
+
+  // Boş katman (doku serpmeden)
+  layer0(draw) {
+    const { cv, ctx } = artCanvas(CONFIG.width, CONFIG.height);
+    draw(ctx);
+    return cv;
+  }
+
+  paintWallDamage(ctx, stages, front, smokes) {
+    const towers = this.placedTowers();
+    const q = 1 / ART;
+    for (const s of this.wallSegs()) {
+      if (s.front !== front) continue;
+      const st = stages[this.frontOf(s.nx, s.ny)] || 0;
+      if (!st) continue;
+      const ux = (s.x2 - s.x1) / s.L, uy = (s.y2 - s.y1) / s.L;
+      const off = front ? WALL_T : 0;
+      const P = (u, z, o = 0) => iso(s.x1 + ux * u + s.nx * (off + o), s.y1 + uy * u + s.ny * (off + o), z);
+      // Kulelerin ve kapının önündeki kısım boş kalır
+      const free = (u, w) => {
+        if (u - w < 0.15 || u + w > s.L - 0.15) return false;
+        for (const t of towers) {
+          const half = (t.a ? t.a / 2 : t.r) + 0.35;
+          const k = (t.x - s.x1) * ux + (t.y - s.y1) * uy;
+          const perp = Math.abs((t.x - s.x1) * -uy + (t.y - s.y1) * ux);
+          if (perp < half + WALL_T && Math.abs(k - u) < half + w) return false;
+        }
+        if (front && s.y1 === GATE.y && s.y2 === GATE.y) {
+          const g0 = Math.min(Math.abs(GATE.x1 - s.x1), Math.abs(GATE.x2 - s.x1)) - 0.4;
+          const g1 = Math.max(Math.abs(GATE.x1 - s.x1), Math.abs(GATE.x2 - s.x1)) + 0.4;
+          if (u + w > g0 && u - w < g1) return false;
+        }
+        return true;
+      };
+      const seed = s.i * 37 + 5;
+      // Gedik (4. aşama): uzun parçanın ortasında
+      let breach = null;
+      if (st >= 4 && s.L > 3) {
+        for (const k of [0.5, 0.35, 0.65, 0.25, 0.75]) if (free(s.L * k, 1.1)) { breach = s.L * k; break; }
+      }
+      // Çatlaklar
+      const nCr = Math.round(s.L * 0.45 * st);
+      for (let i = 0; i < nCr; i++) {
+        const u = 0.3 + hashNoise(i, seed) * (s.L - 0.6);
+        if (!free(u, 0.1) || (breach !== null && Math.abs(u - breach) < 1.2)) continue;
+        this.wallCrack(ctx, P, u, WALL_H - 0.2 - hashNoise(i, seed + 1) * WALL_H * 0.5, (0.8 + hashNoise(i, seed + 2) * 1.2) * (0.6 + st * 0.25), seed + i * 7);
+      }
+      // Düşmüş taşlar: oyuk
+      if (st >= 2) {
+        const nH = Math.round(s.L * 0.22 * (st - 1));
+        for (let i = 0; i < nH; i++) {
+          const u = 0.4 + hashNoise(i, seed + 3) * (s.L - 0.8), z = 0.4 + hashNoise(i, seed + 4) * (WALL_H - 1.2);
+          const w = 0.35 + hashNoise(i, seed + 5) * 0.4, h = 0.28 + hashNoise(i, seed + 6) * 0.25;
+          if (!free(u, w) || (breach !== null && Math.abs(u - breach) < 1.4)) continue;
+          this.wallHole(ctx, P, u, z, w, h);
+        }
+        // İs lekeleri
+        for (let i = 0; i < st * s.L * 0.12; i++) {
+          const u = hashNoise(i, seed + 8) * s.L;
+          if (!free(u, 0.3)) continue;
+          const p = P(u, 0.8 + hashNoise(i, seed + 9) * (WALL_H - 1));
+          ctx.fillStyle = 'rgba(18, 14, 12, 0.2)';
+          ctx.beginPath();
+          ctx.ellipse(p.x, p.y, 4 + hashNoise(i, seed + 10) * 4, 7 + hashNoise(i, seed + 11) * 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // Kırık mazgallar ve dipte moloz (3. aşama)
+      if (st >= 3) {
+        for (let k = 0.2; k < s.L - 0.6; k += 1.3) {
+          if (hashNoise(k * 10, seed + 12) > 0.18 + (st - 3) * 0.25 || !free(k + 0.35, 0.4)) continue;
+          this.brokenMerlon(ctx, s, ux, uy, k, front);
+        }
+        const n = Math.round(s.L * 0.5 * (st - 2));
+        for (let i = 0; i < n; i++) {
+          const u = 0.3 + hashNoise(i, seed + 14) * (s.L - 0.6);
+          if (!free(u, 0.2)) continue;
+          this.rubble(ctx, s.x1 + ux * u + s.nx * (off + (front ? 0.15 : -0.5)) , s.y1 + uy * u + s.ny * (off + (front ? 0.15 : -0.5)), 0.18 + hashNoise(i, seed + 15) * 0.22, i + seed);
+        }
+      }
+      if (breach !== null) {
+        this.wallBreach(ctx, P, breach, front, seed);
+        const sideO = front ? 0.5 : -0.9;
+        for (let i = 0; i < 14; i++) {
+          const a = (hashNoise(i, seed + 20) - 0.5) * 2.2, o = sideO + (hashNoise(i, seed + 21) - 0.5) * 0.9;
+          this.rubble(ctx, s.x1 + ux * (breach + a) + s.nx * (off + o), s.y1 + uy * (breach + a) + s.ny * (off + o), 0.2 + hashNoise(i, seed + 22) * 0.3 * (1 - Math.abs(a) / 1.4), i + seed + 50);
+        }
+        const p = P(breach, WALL_H * 0.7);
+        smokes.push({ front, x: p.x, y: p.y, seed: seed % 7, color: '#6a6a6a' });
+      } else if (st >= 3 && s.L > 6) {
+        const u = s.L * (0.3 + hashNoise(seed, 30) * 0.4);
+        if (free(u, 0.3)) { const p = P(u, WALL_H); smokes.push({ front, x: p.x, y: p.y, seed: seed % 5, color: '#7a7a7a' }); }
+      }
+    }
+    // Kuleler: en yakın surun cephesine göre çatlak ve oyuk
+    for (const t of towers) {
+      if (!!t.front !== front) continue;
+      let best = null, bd = Infinity;
+      for (const s of this.wallSegs()) {
+        const u = Math.max(0, Math.min(1, ((t.x - s.x1) * (s.x2 - s.x1) + (t.y - s.y1) * (s.y2 - s.y1)) / (s.L * s.L)));
+        const d = Math.hypot(s.x1 + (s.x2 - s.x1) * u - t.x, s.y1 + (s.y2 - s.y1) * u - t.y);
+        if (d < bd - 0.01) { bd = d; best = s; }
+      }
+      const st = best ? stages[this.frontOf(best.nx, best.ny)] || 0 : 0;
+      if (!st) continue;
+      const seed = Math.round(t.x * 13 + t.y * 7);
+      // Görünen iki yüz: +y ve +x yönüne bakanlar
+      const half = t.a ? t.a / 2 : t.r * 0.72;
+      const faces = [
+        (u, z) => iso(t.x - half + u, t.y + (t.a ? half : t.r * 0.72), z),
+        (u, z) => iso(t.x + (t.a ? half : t.r * 0.72), t.y - half + u, z),
+      ];
+      faces.forEach((P, fi) => {
+        for (let i = 0; i < st + 1; i++) {
+          const u = 0.3 + hashNoise(i, seed + fi * 9) * (half * 2 - 0.6);
+          this.wallCrack(ctx, P, u, t.h - 0.3 - hashNoise(i, seed + fi * 9 + 1) * t.h * 0.4, (0.9 + hashNoise(i, seed + fi + 2) * 1.3) * (0.6 + st * 0.3), seed + i * 5 + fi);
+        }
+        if (st >= 2) for (let i = 0; i < st - 1; i++) {
+          const u = 0.5 + hashNoise(i, seed + fi * 9 + 3) * (half * 2 - 1);
+          this.wallHole(ctx, P, u, 0.6 + hashNoise(i, seed + fi * 9 + 4) * (t.h * 0.6), 0.32, 0.26);
+        }
+      });
+      if (st >= 3) {
+        for (let i = 0; i < 2 + st; i++) {
+          const a = hashNoise(i, seed + 40) * Math.PI * 0.5;
+          const r = half + 0.3 + hashNoise(i, seed + 41) * 0.5;
+          this.rubble(ctx, t.x + Math.cos(a) * r, t.y + Math.sin(a) * r, 0.15 + hashNoise(i, seed + 42) * 0.2, i + seed);
+        }
+      }
+      if (st >= 4) {
+        const p = iso(t.x, t.y, t.h + (t.roof ? 1.5 : 0.8));
+        smokes.push({ front, x: p.x, y: p.y, seed: seed % 9, color: '#5e5e5e' });
+      }
+    }
+  }
+
+  // Yüzeyde aşağı inen kırık çizgi: koyu yarık, yanında ince ışık
+  wallCrack(ctx, P, u, z, len, seed) {
+    const q = 1 / ART;
+    let a = P(u, z);
+    const steps = Math.max(3, Math.round(len * 5));
+    for (let i = 0; i < steps; i++) {
+      u += (hashNoise(i, seed) - 0.5) * 0.28;
+      z -= 0.2;
+      const b = P(u, z);
+      ctx.strokeStyle = 'rgba(24, 20, 18, 0.85)';
+      ctx.lineWidth = i < steps * 0.5 ? 1 : q;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 245, 225, 0.22)';
+      ctx.lineWidth = q;
+      ctx.beginPath(); ctx.moveTo(a.x + 1, a.y); ctx.lineTo(b.x + 1, b.y); ctx.stroke();
+      if (i === Math.floor(steps / 2) && hashNoise(seed, 3) < 0.6) this.wallCrack(ctx, P, u, z, len * 0.4, seed + 17);
+      a = b;
+    }
+  }
+
+  // Düşmüş taşın yeri: karanlık oyuk, üst kenarı gölgeli, alt kenarı ışıkta
+  wallHole(ctx, P, u, z, w, h) {
+    const quad = (u0, z0, u1, z1, fill) => {
+      const pts = [P(u0, z0), P(u1, z0), P(u1, z1), P(u0, z1)];
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    quad(u - w / 2 - 0.04, z - 0.04, u + w / 2 + 0.04, z + h + 0.04, 'rgba(60, 58, 60, 0.9)');
+    quad(u - w / 2, z, u + w / 2, z + h, '#19161a');
+    quad(u - w / 2, z + h * 0.62, u + w / 2, z + h, '#0e0c0e');
+    quad(u - w / 2, z - 0.05, u + w / 2, z + 0.03, 'rgba(200, 196, 186, 0.55)');
+  }
+
+  // Kırık mazgal: diş yarıya kadar kopmuş, kırık yüzü koyu
+  brokenMerlon(ctx, s, ux, uy, k, front) {
+    const t = WALL_T, h = WALL_H;
+    const o = front ? t : t - 0.35;
+    const mx = s.x1 + ux * k + s.nx * o, my = s.y1 + uy * k + s.ny * o;
+    const ex = mx + ux * 0.7, ey = my + uy * 0.7;
+    const ix = -s.nx * 0.35, iy = -s.ny * 0.35;
+    // Dişin üst kısmını arkadaki seğirdim yolu rengiyle sil
+    const walk = shade('#858a90', 0.12);
+    const cut = 0.15 + hashNoise(k, s.i) * 0.3;
+    isoPoly(ctx, [[mx + ix, my + iy, h + cut], [ex + ix, ey + iy, h + cut], [ex + ix, ey + iy, h + 0.82], [mx + ix, my + iy, h + 0.82]], walk, null);
+    isoPoly(ctx, [[mx, my, h + cut], [ex, ey, h + cut], [ex, ey, h + 0.82], [mx, my, h + 0.82]], walk, null);
+    isoPoly(ctx, [[mx + ix, my + iy, h + 0.82], [ex + ix, ey + iy, h + 0.82], [ex, ey, h + 0.82], [mx, my, h + 0.82]], walk, null);
+    // Kırık üst yüz: basamaklı, koyu
+    isoPoly(ctx, [[mx, my, h + cut], [mx + ux * 0.3, my + uy * 0.3, h + cut + 0.18], [ex, ey, h + cut - 0.05], [ex + ix, ey + iy, h + cut], [mx + ix, my + iy, h + cut]], '#5a5c62');
+  }
+
+  // Moloz: birkaç küçük taş bloğu
+  rubble(ctx, x, y, r, seed) {
+    const cols = ['#7a7e84', '#8e9298', '#6a6d72'];
+    for (let i = 0; i < 3; i++) {
+      const w = r * (0.6 + hashNoise(i, seed + 1) * 0.6);
+      isoBox(ctx, x + (hashNoise(i, seed + 2) - 0.5) * r * 1.6, y + (hashNoise(i, seed + 3) - 0.5) * r * 1.6, 0, w, w * 0.8, w * 0.6, cols[(i + seed) % 3]);
+    }
+  }
+
+  // Gedik: duvarda yukarı doğru genişleyen kırık açıklık, içi karanlık
+  wallBreach(ctx, P, u, front, seed) {
+    const pts = [];
+    const n = 12;
+    // Alt kenar zeminin biraz üstünde, üst kenar mazgallara kadar açık
+    for (let i = 0; i <= n; i++) {
+      const k = i / n;
+      const w = 0.35 + k * 0.75 + (hashNoise(i, seed + 60) - 0.5) * 0.25;
+      pts.push([u - w, 0.5 + k * (WALL_H + 0.3)]);
+    }
+    for (let i = n; i >= 0; i--) {
+      const k = i / n;
+      const w = 0.35 + k * 0.8 + (hashNoise(i, seed + 61) - 0.5) * 0.25;
+      pts.push([u + w, 0.5 + k * (WALL_H + 0.3)]);
+    }
+    const path = () => {
+      ctx.beginPath();
+      pts.forEach(([a, b], i) => { const p = P(a, b); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+      ctx.closePath();
+    };
+    path();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3a3a40';
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#a4a6aa';
+    ctx.stroke();
+    path();
+    ctx.fillStyle = '#141216';
+    ctx.fill();
+    // İçeride: kalınlığın kırık taşları ve kiriş
+    ctx.save();
+    path();
+    ctx.clip();
+    const fl = [P(u - 1.2, 0.5), P(u + 1.2, 0.5), P(u + 1.2, 1.1), P(u - 1.2, 1.1)];
+    ctx.fillStyle = '#4a4a50';
+    ctx.beginPath(); fl.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); ctx.fill();
+    const b0 = P(u - 1, WALL_H * 0.75), b1 = P(u + 0.9, WALL_H * 0.55);
+    ctx.strokeStyle = '#4a3420';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
+    ctx.restore();
   }
 
   wallSegs() {
@@ -9059,9 +10710,7 @@ class BaseScene {
       isoPoly(ctx, [[wx, y + d, 2.6], [wx + 0.8, y + d, 2.6], [wx + 0.8, y + d, 4.8], [wx, y + d, 4.8]], '#9a2a22');
       isoPoly(ctx, [[wx + 0.15, y + d, 3.3], [wx + 0.65, y + d, 3.3], [wx + 0.65, y + d, 3.9], [wx + 0.15, y + d, 3.9]], '#e0b040', null);
     }
-    for (const wy of [-0.6, 1.8]) {
-      isoPoly(ctx, [[x + w, wy, 3.4], [x + w, wy + 0.6, 3.4], [x + w, wy + 0.6, 4.6], [x + w, wy, 4.6]], '#1a1612');
-    }
+    for (const wy of [-0.6, 1.8]) isoStoneWindow(ctx, x + w, 'x', wy, 3.4, 0.6, 1.2, { stone: c });
     isoRoof(ctx, x, y, h, w, d, 2.8, '#7a3426', c, 'x');
     // Kapı ve merdiven
     texPoly(ctx, [[33.2, y + d, 1.4], [34.6, y + d, 1.4], [34.6, y + d, 3.2], [33.9, y + d, 3.7], [33.2, y + d, 3.2]], 'wood', '#2e2016');
@@ -10964,9 +12613,16 @@ const UI = {
           <button class="ana-dugme" id="btnDevam">Devam et <kbd>Esc</kbd></button>
           <button class="ikinci-dugme" id="btnSes">Ses: ${Sound.muted ? 'Kapalı' : 'Açık'} <kbd>M</kbd></button>
           ${canFullscreen() ? `<button class="ikinci-dugme" id="btnTamEkran">${document.fullscreenElement || document.webkitFullscreenElement ? 'Tam ekrandan çık' : 'Tam ekran'}</button>` : ''}
+          <button class="ikinci-dugme" id="btnGrafik">Grafik: ${{ oto: 'Otomatik', yuksek: 'HD piksel', dusuk: 'Hafif' }[Art.pref()] || 'Otomatik'}${ART >= 2 ? ' (HD)' : ''}</button>
           <button class="ikinci-dugme" id="btnYeniden">Baştan başla</button>
         </div>
       </div>`);
+    // Grafik kalitesi: Otomatik -> HD piksel -> Hafif -> Otomatik (visuals.js → Art)
+    document.getElementById('btnGrafik').onclick = () => {
+      const next = { oto: 'yuksek', yuksek: 'dusuk', dusuk: 'oto' }[Art.pref()] || 'oto';
+      Art.setPref(next);
+      this.showPause(game);
+    };
     const fs = document.getElementById('btnTamEkran');
     if (fs) {
       fs.onclick = () => {
@@ -11965,8 +13621,11 @@ class Game {
   loop(now) {
     // dt: son kareden bu yana geçen süre (saniye). Sekme
     // arka plandayken büyük sıçramalar olmasın diye sınırlıyoruz.
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    const raw = (now - this.lastTime) / 1000;
+    const dt = Math.min(raw, 0.05);
     this.lastTime = now;
+    // HD piksel çok yavaş kalırsa normal piksele dön (visuals.js → Art)
+    if (this.state === 'playing' && raw < 0.5) Art.tick(raw);
     this.time += dt;
 
     // Manzara her zaman canlı (menüde ve dükkânda da).
