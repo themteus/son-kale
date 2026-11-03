@@ -42,6 +42,7 @@ class YukleSahnesi extends Phaser.Scene {
     // İç kale: arka plan, her binanın 3 seviyesi, köylüler
     const KM = this.cache.json.get('kale');
     this.load.image('k_arka', 'assets/kale/arka.png');
+    this.load.image('k_on', 'assets/kale/on.png'); // ön surlar (her şeyin önünde)
     for (const ad of Object.keys(KM.binalar)) this.load.image('k_' + ad, 'assets/kale/' + ad + '.png');
     for (const [ad, m] of Object.entries(KM.koylu)) this.load.spritesheet(ad, 'assets/kale/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
     this.load.once('complete', () => this.bitti(K, KM));

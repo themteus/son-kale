@@ -27,12 +27,13 @@ Bir yerel sunucu gerekir (dosyayı çift tıklamak yetmez, tarayıcı görseller
 - `js/kale.js`     : iç kale sahnesi (binalar, köylüler, paneller)
 - `js/savas.js`    : oyunun akışı, oklar, isabet
 - `assets/gorsel/kareler.json`: savaş şeritlerinin kare boyu ve ayak noktası
-- `assets/kale/kale.json`: iç kale binalarının ekrandaki yeri (her binanın 3 seviyesi)
+- `assets/kale/kale.json`: iç kale binalarının yeri (her binanın 3 seviyesi), tıklama alanları, köylü şeritleri
 
 ## Görseller nereden?
 Karakterler Quaternius'un CC0 (serbest, ticari kullanım dahil) 3D modellerinden yandan
-çizilip piksel şeride çevrildi. İç kale binaları basit 3D parçalardan (kutu, çatı, kütük,
-kaya) kurulup aynı yolla çizildi; dokular Screaming Brain Studios (CC0). Sesler Kenney (CC0),
+çizilip piksel şeride çevrildi. İç kale izometrik açıdan (2:1) çizildi: surlar, kuleler,
+binalar (3 seviye) ve süs eşyaları 3D parçalardan kurulup küçük boyda çizildi, renkleri
+azaltılıp siyah kontur verildi, oyunda 3 kat büyütülür. Maden ve taş ocağı surun dışındadır. Sesler Kenney (CC0),
 müzik "Battle Theme A" cynicmusic (CC0). Ayrıntı: `assets/LISANS-NOTICE.txt`.
 Phaser 4.2.1 MIT lisanslıdır.
 

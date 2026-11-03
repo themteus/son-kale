@@ -4,16 +4,16 @@
 //  Binaya tıkla → sağda paneli açılır (işçi, yükseltme).
 //  Kapı kulesi = sur ve askerler, kuyu meydanı = pazar,
 //  arkadaki büyük kule = günün raporu.
-//  Görseller 3D sahneden çizildi (assets/kale, kale.json).
+//  Görseller izometrik piksel sanat: 640x360 çizilip 3 kat büyütülür
+//  (assets/kale, kale.json içindeki yerler küçük boydadır).
+//  Katmanlar: zemin + arka surlar → binalar ve köylüler → ön surlar
+//  → sur dışındaki binalar (maden, taş ocağı) ve oradaki işçiler.
 // =============================================================
 
-// Tıklanabilir yerler (1920x1080 sahnede dikdörtgen: x, y, en, boy)
-const KALE_ALANLARI = {
-  // ey: adın yazıldığı yükseklik (alanın üstünden)
-  sur:   { ad: 'Sur ve Kapı', x: 1770, y: 430, w: 150, h: 330, ey: 30 },
-  pazar: { ad: 'Pazar',       x: 850, y: 600, w: 220, h: 130, ey: 0 },
-  rapor: { ad: 'Günün raporu', x: 840, y: 40,  w: 240, h: 320, ey: 160 },
-};
+// Tıklanabilir yerlerin adları (yerleri kale.json → alanlar)
+const KALE_ALANLARI = { sur: 'Sur ve Kapı', pazar: 'Pazar', rapor: 'Günün raporu' };
+// Sur dışındaki binalar: ön surun önünde çizilir, işçileri içeri girmez
+const DIS_BINALAR = ['maden', 'tasocagi'];
 
 class KaleSahnesi extends Phaser.Scene {
   constructor() { super('kale'); }
@@ -26,7 +26,10 @@ class KaleSahnesi extends Phaser.Scene {
   create() {
     this.E = this.oyun.ekonomi;
     this.M = this.cache.json.get('kale');
-    this.add.image(0, 0, 'k_arka').setOrigin(0);
+    this.O = this.M.olcek;
+    this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.O);
+    const on = this.M.on;
+    this.add.image(on.x * this.O, on.y * this.O, 'k_on').setOrigin(0).setScale(this.O).setDepth(20);
     this.secili = null;
     this.panel = null;
     this.binaSprite = {};
@@ -43,7 +46,7 @@ class KaleSahnesi extends Phaser.Scene {
   // ---------------- Binalar ----------------
   binalariKur() {
     for (const k of Object.keys(BINALAR)) {
-      const sp = this.add.image(0, 0, 'k_' + k + '1').setOrigin(0);
+      const sp = this.add.image(0, 0, 'k_' + k + '1').setOrigin(0).setScale(this.O);
       sp.setInteractive({ pixelPerfect: true, useHandCursor: true })
         .on('pointerover', () => this.etiketVurgu(k, true))
         .on('pointerout', () => this.etiketVurgu(k, false))
@@ -57,19 +60,25 @@ class KaleSahnesi extends Phaser.Scene {
   binaMeta(k) { return this.M.binalar[k + this.E.bina[k].seviye]; }
   binaGorsel(k) {
     const m = this.binaMeta(k), sp = this.binaSprite[k];
-    sp.setTexture('k_' + k + this.E.bina[k].seviye).setPosition(m.x, m.y).setDepth(10 + m.dipY / 1000);
+    const O = this.O;
+    sp.setTexture('k_' + k + this.E.bina[k].seviye).setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
     const B = BINALAR[k], b = this.E.bina[k];
     const yazi = k === 'ev' ? `${B.ad}  ${this.E.nufus}/${this.E.barinak}` : `${B.ad}  ${b.isci}/${this.E.yerSayisi(k)}`;
-    this.etiket[k].setText(yazi).setPosition(m.merkez[0], m.y + 18);
+    this.etiket[k].setText(yazi).setPosition(m.merkez[0] * O, Math.max(96, m.y * O + 30));
   }
+  // Çizim sırası: ekranda aşağıda olan önde. Sur dışı her zaman ön surun önünde.
+  derinlik(y, disari) { return (disari ? 30 : 10) + y / 2000; }
   etiketVurgu(k, acik) {
     this.etiket[k].setColor(acik || this.secili === k ? '#ffe08a' : '#efe6d2');
   }
 
   alanlariKur() {
-    for (const [ad, A] of Object.entries(KALE_ALANLARI)) {
-      const z = this.add.zone(A.x, A.y, A.w, A.h).setOrigin(0).setInteractive({ useHandCursor: true });
-      const t = this.add.text(A.x + A.w / 2, A.y + A.ey, A.ad,
+    const O = this.O, L = this.M.alanlar;
+    for (const [ad, isim] of Object.entries(KALE_ALANLARI)) {
+      const A = { ...L[ad] };
+      if (ad === 'rapor') A.h = L.sur.y - A.y; // kapı kulesiyle çakışmasın
+      const z = this.add.zone(A.x * O, A.y * O, A.w * O, A.h * O).setOrigin(0).setInteractive({ useHandCursor: true }).setDepth(25);
+      const t = this.add.text((A.x + A.w / 2) * O, Math.max(96, (A.y + (ad === 'pazar' ? 0 : 16)) * O), isim,
         stil('govde', 22, { fontStyle: 'bold', backgroundColor: '#1a1410cc', padding: { x: 8, y: 3 } })).setOrigin(0.5, 1).setDepth(90);
       z.on('pointerover', () => t.setColor('#ffe08a')).on('pointerout', () => t.setColor(this.secili === ad ? '#ffe08a' : '#efe6d2'))
         .on('pointerdown', () => this.sec(ad));
@@ -329,21 +338,29 @@ class KaleSahnesi extends Phaser.Scene {
   }
 
   koyluYap(grup, i) {
-    const tur = ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
-    const ev = this.M.binalar['ev' + this.E.bina.ev.seviye].merkez;
-    const sp = this.add.sprite(ev[0], ev[1] + 60, tur, 0).setOrigin(0.5, 0.96);
-    const k = { sprite: sp, tur, grup, x: ev[0] + (Math.random() - 0.5) * 60, y: ev[1] + 60, bekle: Math.random() * 2, hedef: null, is: false };
-    sp.setPosition(k.x, k.y);
-    if (grup === 'asker') sp.setTint(0xa8b8d0);
+    const O = this.O;
+    // Askerler nöbetçi kılığında, ötekiler üç köylü tipinden biri
+    const tur = grup === 'asker' ? 'nobetci' : ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
+    const disari = DIS_BINALAR.includes(grup);
+    // Dışarıdakiler işinin başında doğar, içeridekiler evin önünde
+    const bas = disari ? this.binaMeta(grup).is : this.M.binalar['ev' + this.E.bina.ev.seviye].is;
+    const m = this.M.koylu[tur + '_a'];
+    const sp = this.add.sprite(0, 0, tur + '_a', 0).setOrigin(0.5, m.footY / m.fh).setScale(O);
+    const k = { sprite: sp, tur, grup, disari, x: (bas[0] + (Math.random() - 0.5) * 16) * O, y: (bas[1] + Math.random() * 6) * O,
+      bekle: Math.random() * 2, hedef: null, isBasi: true, hiz: 45 + Math.random() * 25 };
+    sp.play(tur + '_a_idle');
+    sp.setPosition(k.x, k.y).setDepth(this.derinlik(k.y, disari));
     return k;
   }
 
-  // Grubun çalışma yeri (binanın önü, meydan ya da kapı)
+  // Grubun gideceği yer (ekran pikseli): binanın iş noktası, meydan ya da kapı
   yerBul(k) {
-    if (k.grup === 'bosta') return [880 + Math.random() * 160, 720 + Math.random() * 60];
-    if (k.grup === 'asker') return [1700 + Math.random() * 60, 640 + Math.random() * 70];
-    const m = this.binaMeta(k.grup);
-    return [m.merkez[0] + (Math.random() - 0.5) * 120, Math.min(960, m.dipY + 6 + Math.random() * 24)];
+    const O = this.O, N = this.M.alanlar.noktalar;
+    const sapma = (n) => (Math.random() - 0.5) * n;
+    if (k.grup === 'asker') return [(N.kapi[0] - 20 + sapma(24)) * O, (N.kapi[1] - 12 + sapma(14)) * O];
+    if (k.grup === 'bosta' || !k.isBasi) return [(N.meydan[0] + sapma(50)) * O, (N.meydan[1] + sapma(26)) * O];
+    const is = this.binaMeta(k.grup).is;
+    return [(is[0] + sapma(20)) * O, (is[1] + sapma(10)) * O];
   }
 
   update(t, ms) {
@@ -360,23 +377,25 @@ class KaleSahnesi extends Phaser.Scene {
         k.bekle = 2 + Math.random() * 5;
         // İşçi binasında çalışır, ötekiler bekler
         const calis = !['bosta', 'asker'].includes(k.grup) && k.isBasi;
-        sp.play(k.tur + (calis ? '_work' : '_idle'), true);
+        sp.play(k.tur + '_a' + (calis ? '_work' : '_idle'), true);
       } else {
-        const v = 70 * dt;
+        const v = k.hiz * this.O / 3 * dt;
         k.x += dx / d * v;
-        k.y += dy / d * v * 0.8;
-        sp.setFlipX(dx > 0);
+        k.y += dy / d * v;
+        // Aşağı giderken önden (_a), yukarı giderken arkadan (_y) görünür; sola giderken aynalanır
+        sp.play(k.tur + (dy >= 0 ? '_a' : '_y') + '_walk', true);
+        sp.setFlipX(dx < 0);
       }
     } else {
       k.bekle -= dt;
       if (k.bekle <= 0) {
-        // İşçi: çoğunlukla işinin başına, arada bir meydana gidip gelir
-        k.isBasi = !['bosta', 'asker'].includes(k.grup) && (Math.random() < 0.75 || !k.isBasi);
-        k.hedef = k.isBasi || k.grup === 'bosta' || k.grup === 'asker' ? this.yerBul(k) : [900 + Math.random() * 120, 700 + Math.random() * 50];
-        sp.play(k.tur + '_walk', true);
+        // İşçi çoğunlukla işinin başında; içeridekiler arada bir meydana uğrar.
+        // Dışarıdakiler (maden, taş ocağı) hep işinin başındadır.
+        k.isBasi = k.disari || (!['bosta', 'asker'].includes(k.grup) && (Math.random() < 0.75 || !k.isBasi));
+        k.hedef = this.yerBul(k);
       }
     }
-    sp.setPosition(k.x, k.y).setDepth(10 + k.y / 1000);
+    sp.setPosition(Math.round(k.x), Math.round(k.y)).setDepth(this.derinlik(k.y, k.disari));
   }
 
   // ---------------- Çıkış ----------------
