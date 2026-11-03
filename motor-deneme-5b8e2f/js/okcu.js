@@ -51,6 +51,10 @@ class Okcu {
     const hazir = this.bekleme <= 0 && (this.oyuncu || this.germe > 0.5);
     this.takiliOk.setVisible(hazir);
     if (hazir) this.takiliOk.setPosition(this.kiris.x, this.kiris.y).setRotation(Phaser.Math.DegToRad(A[i]));
+    if (hazir && this.oyuncu) {
+      const t = this.s.okTuru;
+      if (t && t !== 'normal') this.takiliOk.setTint(OK_TURLERI[t].renk); else this.takiliOk.clearTint();
+    }
   }
 
   guncelle(dt, oyun) {
@@ -117,7 +121,8 @@ class Okcu {
     this.tutma = 0;
     this.otoBirak = false;
     this.bekleme = B.takmaSuresi * oyun.germeCarpani();
-    this.at(oyun, aci, oyun.okHizi() * guc * (1 + gaussRastgele() * 0.03), oyun.okHasari() * hasarCarpani, oyun.okSayisi());
+    const sayi = oyun.okSayisi();
+    this.at(oyun, aci, oyun.okHizi() * guc * (1 + gaussRastgele() * 0.03), oyun.okHasari() * hasarCarpani, sayi, oyun.okTuruHarca(sayi));
     oyun.sesCal('shoot', 0.35);
   }
 
@@ -140,7 +145,7 @@ class Okcu {
   hedefBul(oyun) {
     let en = null;
     for (const d of oyun.dusmanlar) {
-      if (d.durum === 'olu' || d.x > AYAR.en - 20) continue;
+      if (!d.canli || d.x > AYAR.en - 20) continue;
       if (!en || d.x < en.x) en = d;
     }
     return en;
@@ -168,12 +173,12 @@ class Okcu {
     return -Math.atan((v2 - Math.sqrt(disc)) / (g * dx));
   }
 
-  at(oyun, aci, hiz, hasar, sayi) {
+  at(oyun, aci, hiz, hasar, sayi, tur = 'normal') {
     const ara = AYAR.ok.cokluAci;
     for (let i = 0; i < sayi; i++) {
       const a = aci + (i - (sayi - 1) / 2) * ara;
       const orta = i === Math.floor((sayi - 1) / 2);
-      oyun.okEkle(this.tutamak.x, this.tutamak.y, a, hiz, orta ? hasar : hasar * AYAR.ok.yanOkOrani, this.oyuncu);
+      oyun.okEkle(this.tutamak.x, this.tutamak.y, a, hiz, orta ? hasar : hasar * AYAR.ok.yanOkOrani, this.oyuncu, tur);
     }
   }
 

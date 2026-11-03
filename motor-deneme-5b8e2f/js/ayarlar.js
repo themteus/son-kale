@@ -104,14 +104,37 @@ const DUSMAN_TURLERI = {
              agir: true, ipucu: 'Çok dayanıklı. Askerlerle birlikte hep ona nişan al.' },
   yarasa:  { ad: 'Yarasa',  gorsel: 'yarasa',  can: 18,  hiz: 140, hasar: 7,  vurus: 0,   altin: 4,  boy: 50,  kafa: 1,
              ucan: true, ipucu: 'Kuleye dalar. Havada vur.' },
+  kurt:    { ad: 'Kurt',    gorsel: 'kurt',    can: 34,  hiz: 150, hasar: 5,  vurus: 0.5, altin: 8,  boy: 70,  kafa: 0.45, en: 110,
+             ipucu: 'Çok hızlı koşar ama alçaktan gelir. Önüne nişan al.' },
+  kalkanli:{ ad: 'Kalkanlı', gorsel: 'kalkanli', can: 90, hiz: 40,  hasar: 10, vurus: 1.1, altin: 12, boy: 120, kafa: 0.24,
+             kalkan: 0.6, ipucu: 'Kalkan gövdeye gelen oku tutar. Kafasına ya da delici okla vur.' },
+  okcuiskelet: { ad: 'Okçu İskelet', gorsel: 'okcuiskelet', can: 45, hiz: 48, hasar: 9, vurus: 2.6, altin: 10, boy: 122, kafa: 0.22,
+             kemik: 0.6, menzil: [1120, 1520], ipucu: 'Uzakta durup sura ok atar. Okları havada vurabilirsin.' },
+  tirmanici:{ ad: 'Tırmanıcı', gorsel: 'tirmanici', can: 60, hiz: 64, hasar: 18, vurus: 1.0, altin: 12, boy: 112, kafa: 0.28,
+             tirman: 28, ipucu: 'Sura tırmanır, tepeye çıkınca sert vurur. Tırmanırken düşür.' },
+  patlayan:{ ad: 'Patlayan', gorsel: 'patlayan', can: 40,  hiz: 60,  hasar: 50, vurus: 1,   altin: 9,  boy: 112, kafa: 0.26,
+             patlar: 160, ipucu: 'Sura varınca patlar. Uzakta vur: ölünce yanındakileri de patlatır.' },
+  sifaci:  { ad: 'Şifacı',  gorsel: 'sifaci',  can: 55,  hiz: 44,  hasar: 0,  vurus: 2,   altin: 15, boy: 118, kafa: 0.26,
+             menzil: [1200, 1520], sifa: 0.12, sifaAlan: 360, ipucu: 'Geride durup sürüyü iyileştirir. Önce onu vur.' },
+  kalkanlidev: { ad: 'Kalkanlı Dev', gorsel: 'kalkanlidev', can: 300, hiz: 28, hasar: 34, vurus: 1.7, altin: 32, boy: 200, kafa: 0.2,
+             agir: true, kalkan: 0.7, ipucu: 'Kocaman kalkan oku tutar. Kafasına ya da delici okla vur.' },
+  patron:  { ad: 'Ak Dev',  gorsel: 'patron',  can: 1400, hiz: 22, hasar: 60, vurus: 2.0, altin: 150, boy: 250, kafa: 0.18,
+             agir: true, patron: true },
 };
 
-// Hangi dalgada hangi tür, hangi olasılıkla çıkar
+// Hangi dalgada hangi tür, hangi olasılıkla çıkar (önce yazılan önce denenir)
 function dusmanSec(n) {
   const sans = [
-    ['dev', n >= 4 ? Math.min(0.2, 0.05 * (n - 3)) : 0],
-    ['iskelet', n >= 3 ? Math.min(0.2, 0.05 * (n - 2)) : 0],
-    ['kosucu', n >= 2 ? 0.25 : 0],
+    ['dev', n >= 4 ? Math.min(0.16, 0.04 * (n - 3)) : 0],
+    ['okcuiskelet', n >= 3 ? Math.min(0.14, 0.04 * (n - 2)) : 0],
+    ['iskelet', n >= 3 ? Math.min(0.12, 0.04 * (n - 2)) : 0],
+    ['kurt', n >= 5 ? Math.min(0.14, 0.04 * (n - 4)) : 0],
+    ['kalkanli', n >= 6 ? Math.min(0.14, 0.04 * (n - 5)) : 0],
+    ['tirmanici', n >= 7 ? Math.min(0.12, 0.04 * (n - 6)) : 0],
+    ['patlayan', n >= 9 ? Math.min(0.07, 0.02 * (n - 8)) : 0],
+    ['sifaci', n >= 11 ? Math.min(0.05, 0.015 * (n - 10)) : 0],
+    ['kalkanlidev', n >= 13 ? Math.min(0.06, 0.015 * (n - 12)) : 0],
+    ['kosucu', n >= 2 ? 0.2 : 0],
   ];
   let r = Math.random();
   for (const [tur, p] of sans) {
@@ -120,6 +143,32 @@ function dusmanSec(n) {
   }
   return 'zombi';
 }
+
+// Her 10. dalga patron dalgası
+const PATRON_ARASI = 10;
+
+// -------------------------------------------------------------
+//  ZORLUK (başlangıçta seçilir)
+//   can/hiz/cikis: düşman canı, hızı, geliş aralığı çarpanı
+//   altin: kazanılan altın çarpanı · kurtulus: bu dalga atlatılınca kazanırsın
+// -------------------------------------------------------------
+const ZORLUKLAR = {
+  kolay:  { ad: 'Kolay',  can: 0.7, hiz: 0.9, cikis: 1.3, altin: 1.25, kurtulus: 25 },
+  normal: { ad: 'Normal', can: 1,   hiz: 1,   cikis: 1,   altin: 1,    kurtulus: 30 },
+  kabus:  { ad: 'Kabus',  can: 1.25, hiz: 1.1, cikis: 0.85, altin: 0.9, kurtulus: 30 },
+};
+
+// -------------------------------------------------------------
+//  OK TÜRLERİ (1-2-3 tuşu ya da ekrandaki düğmeler)
+// -------------------------------------------------------------
+const OK_TURLERI = {
+  normal: { ad: 'Ok', renk: 0xbfc4c8 },
+  ates:   { ad: 'Ateşli', renk: 0xff8a30, yanma: 0.35, yanmaSure: 3, aciklama: 'Düşmanı tutuşturur: 3 sn yanar' },
+  delici: { ad: 'Delici', renk: 0x8ad0ff, delip: 3, aciklama: 'Kalkanı deler, 3 düşmandan geçer' },
+};
+
+// Ok Yağmuru (dükkândan açılır, Q ya da düğme)
+const YAGMUR = { bekleme: 20, temelOk: 12, seviyeBasi: 8, hasarOrani: 0.8, yayilma: 220 };
 
 // -------------------------------------------------------------
 //  DÜKKÂN (dalga arası)
@@ -130,8 +179,11 @@ const YUKSELTMELER = [
   { id: 'germe', ad: 'Hızlı Çekiş', aciklama: 'Yayı %12 daha hızlı gerersin', enFazla: 5, fiyat: s => Math.round(40 * Math.pow(1.7, s)) },
   { id: 'coklu', ad: 'Çoklu Ok', aciklama: 'Her atışta +1 ok', enFazla: 2, fiyat: s => [120, 300][s] },
   { id: 'asker', ad: 'Okçu Asker', aciklama: 'Sura bir okçu daha', enFazla: 5, fiyat: s => Math.round(60 * Math.pow(1.6, s)) },
+  { id: 'yagmur', ad: 'Ok Yağmuru', aciklama: 'Q: gökten ok yağdır (seviye = daha çok ok)', enFazla: 3, fiyat: s => [150, 260, 420][s] },
   { id: 'sur', ad: 'Kalın Sur', aciklama: 'Sur canı +120', enFazla: 5, fiyat: s => Math.round(70 * Math.pow(1.6, s)) },
   { id: 'onarim', ad: 'Sur Onarımı', aciklama: 'Surun %35 canını onar', enFazla: 99, fiyat: (s, oyun) => 25 + 5 * oyun.dalga },
+  { id: 'ates', ad: 'Ateşli Ok ×10', aciklama: 'Düşmanı tutuşturur (2 tuşu)', enFazla: 99, fiyat: () => 40, stok: true },
+  { id: 'delici', ad: 'Delici Ok ×10', aciklama: 'Kalkanı deler, sıra sıra geçer (3 tuşu)', enFazla: 99, fiyat: () => 50, stok: true },
 ];
 
 // Küçük yardımcılar

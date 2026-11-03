@@ -27,8 +27,12 @@ class Arayuz {
     this.odak = sahne.add.graphics().setDepth(45);
     this.canlar = sahne.add.graphics().setDepth(44);
     // Sağ üst düğmeler
-    this.sesDugme = this.dugme(AYAR.en - 150, 50, 90, 64, '♪', () => sahne.sesAcKapa(), 30);
-    this.duraklatDugme = this.dugme(AYAR.en - 50, 50, 64, 64, 'II', () => sahne.duraklat(), 30);
+    this.sesDugme = this.dugme(AYAR.en - 150, 50, 90, 64, '♪', () => sahne.sesAcKapa(), 52, 30);
+    this.duraklatDugme = this.dugme(AYAR.en - 50, 50, 64, 64, 'II', () => sahne.duraklat(), 52, 30);
+    // Sol alt: ok türü ve Ok Yağmuru düğmeleri (telefonda klavye yok)
+    this.okDugmeleri = ['normal', 'ates', 'delici'].map((t, i) =>
+      this.dugme(110 + i * 190, AYAR.boy - 56, 176, 76, '', () => sahne.okSec(t), 52, 26));
+    this.yagmurDugme = this.dugme(110 + 3 * 190 + 30, AYAR.boy - 56, 210, 76, '', () => sahne.yagmurYagdir(), 52, 26);
     this.panel = null;
   }
 
@@ -80,14 +84,40 @@ class Arayuz {
       this.ruzgarYazi.setText(r > 0 ? 'Arkadan rüzgâr' : 'Karşıdan rüzgâr');
     }
     this.ruzgarYazi.setPosition(rx, ry + 22);
+    // Savaş düğmeleri
+    const savasta = oyun.durum === 'savas';
+    ['normal', 'ates', 'delici'].forEach((t, i) => {
+      const b = this.okDugmeleri[i];
+      b.setVisible(savasta);
+      const secili = oyun.okTuru === t;
+      const ad = OK_TURLERI[t].ad;
+      b.yazi.setText(t === 'normal' ? `1 ${ad}` : `${i + 1} ${ad} ${oyun.stok[t]}`);
+      b.yazi.setColor(t === 'normal' || oyun.stok[t] > 0 ? '#' + OK_TURLERI[t].renk.toString(16).padStart(6, '0') : '#6a6050');
+      b.arka.setStrokeStyle(secili ? 5 : 2, secili ? 0xffe08a : 0x6a5430);
+    });
+    const yv = oyun.seviye.yagmur || 0;
+    this.yagmurDugme.setVisible(savasta && yv > 0);
+    if (yv > 0) {
+      const b = oyun.yagmurBekleme;
+      this.yagmurDugme.yazi.setText(b > 0 ? `Yağmur ${Math.ceil(b)} sn` : 'Q Ok Yağmuru');
+      this.yagmurDugme.yazi.setColor(b > 0 ? '#7a7060' : '#ffe08a');
+    }
+    // Patron can çubuğu
+    const p = oyun.patron && oyun.patron();
+    if (p) {
+      const w = 760, x = AYAR.en / 2 - w / 2, y = 128;
+      g.fillStyle(0x120e0c, 0.9).fillRoundedRect(x - 6, y - 6, w + 12, 30, 8);
+      g.fillStyle(0x7a1a40, 1).fillRect(x, y, w * kis(p.can / p.canEnFazla, 0, 1), 18);
+      this.kalanYazi.setText('Ak Dev');
+    }
     // Düşman can çubukları
     const c = this.canlar;
     c.clear();
     for (const d of oyun.dusmanlar) {
-      if (d.durum === 'olu' || d.can >= d.canEnFazla) continue;
+      if (!d.canli || d.can >= d.canEnFazla || d.T.patron) continue;
       const w = Math.max(40, d.en * (d.T.ucan ? 0.8 : 1.6)), x = d.x - w / 2, y = d.ust - 16;
       c.fillStyle(0x120e0c, 0.8).fillRect(x - 2, y - 2, w + 4, 10);
-      c.fillStyle(0xc9503a, 1).fillRect(x, y, w * kis(d.can / d.canEnFazla, 0, 1), 6);
+      c.fillStyle(d.yanma > 0 ? 0xff9030 : 0xc9503a, 1).fillRect(x, y, w * kis(d.can / d.canEnFazla, 0, 1), 6);
     }
     // Odak halkası: yay gerilirken nişan noktasında
     const o = this.odak, ok = oyun.oyuncu;
@@ -140,40 +170,62 @@ class Arayuz {
   }
 
   baslangic() {
-    this.panelAc(980, 640, (kap) => {
+    this.panelAc(1000, 700, (kap) => {
       const s = this.s;
-      kap.add(s.add.text(0, -230, 'SON KALE', stil('baslik', 120)).setOrigin(0.5));
-      kap.add(s.add.text(0, -140, 'Phaser 4 deneme sürümü · savaş ekranı', stil('govde', 30, { color: '#c9a24a' })).setOrigin(0.5));
+      kap.add(s.add.text(0, -250, 'SON KALE', stil('baslik', 120)).setOrigin(0.5));
+      kap.add(s.add.text(0, -165, 'Phaser 4 sürümü · savaş ekranı', stil('govde', 30, { color: '#c9a24a' })).setOrigin(0.5));
       const dokun = s.sys.game.device.input.touch;
       const anlatim = dokun
         ? 'Vurmak istediğin yere bas: yay gerilir. Bırak: ok uçar.\nKısa dokunuş yayı tam gerip kendiliğinden atar.\nKafaya isabet iki kat vurur ve altın verir.'
         : 'Fareyle vurmak istediğin yere bak, basılı tutup yayı ger, bırak.\nHalka küçülünce nişan oturmuştur. Uzun germek kolu yorar.\nKafaya isabet iki kat vurur ve altın verir.';
-      kap.add(s.add.text(0, -10, anlatim, stil('govde', 30, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
-      this.panelDugme(kap, 0, 200, 360, 90, 'Savaşa Başla', () => s.oyunuBaslat(), 40);
+      kap.add(s.add.text(0, -40, anlatim, stil('govde', 30, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
+      // Zorluk seçimi
+      const zd = {};
+      const yenile = () => {
+        for (const [ad, b] of Object.entries(zd)) {
+          const sec = s.zorlukAdi === ad;
+          b.arka.setStrokeStyle(sec ? 5 : 2, sec ? 0xffe08a : 0x6a5430);
+          b.yazi.setColor(sec ? '#ffe08a' : '#b8ac94');
+        }
+        const eniyi = +Kayit.oku('enIyi.' + s.zorlukAdi, 0);
+        rekor.setText(`Kurtuluş: ${s.zorluk.kurtulus}. dalga` + (eniyi ? ` · En iyi: ${eniyi}. dalga` : ''));
+      };
+      Object.keys(ZORLUKLAR).forEach((ad, i) => {
+        zd[ad] = this.panelDugme(kap, (i - 1) * 230, 110, 210, 66, ZORLUKLAR[ad].ad, () => { s.zorlukSec(ad); yenile(); }, 30);
+      });
+      const rekor = s.add.text(0, 168, '', stil('govde', 26, { color: '#c9a24a' })).setOrigin(0.5);
+      kap.add(rekor);
+      yenile();
+      this.panelDugme(kap, 0, 250, 360, 84, 'Savaşa Başla', () => s.oyunuBaslat(), 40);
     });
   }
 
   dukkan(oyun) {
-    this.panelAc(1240, 840, (kap) => {
+    this.panelAc(1640, 920, (kap) => {
       const s = this.s;
-      kap.add(s.add.text(0, -370, `${oyun.dalga}. dalga atlatıldı`, stil('baslik', 64)).setOrigin(0.5));
-      const altin = s.add.text(0, -300, '', stil('govde', 34, { fontStyle: 'bold', color: '#ffd76a' })).setOrigin(0.5);
+      kap.add(s.add.text(0, -405, `${oyun.dalga}. dalga atlatıldı`, stil('baslik', 60)).setOrigin(0.5));
+      const altin = s.add.text(0, -345, '', stil('govde', 32, { fontStyle: 'bold', color: '#ffd76a' })).setOrigin(0.5);
       kap.add(altin);
       const satirlar = [];
       const yenile = () => {
-        altin.setText(`Altın: ${oyun.altin}`);
+        altin.setText(`Altın: ${oyun.altin}   ·   Sur: ${Math.round(oyun.surCan)}/${oyun.surEnFazla}`);
         for (const r of satirlar) r();
       };
+      // İki sütun: solda yay ve askerler, sağda sur ve oklar
       YUKSELTMELER.forEach((u, i) => {
-        const y = -210 + i * 92;
-        const ad = s.add.text(-560, y - 18, '', stil('govde', 34, { fontStyle: 'bold' })).setOrigin(0, 0.5);
-        const ac = s.add.text(-560, y + 18, u.aciklama, stil('govde', 24, { color: '#b8ac94' })).setOrigin(0, 0.5);
+        const sutun = i < 5 ? 0 : 1, sira = i < 5 ? i : i - 5;
+        const x0 = sutun ? 40 : -780, y = -255 + sira * 108;
+        const ad = s.add.text(x0, y - 20, '', stil('govde', 31, { fontStyle: 'bold' })).setOrigin(0, 0.5);
+        const ac = s.add.text(x0, y + 18, u.aciklama, stil('govde', 22, { color: '#b8ac94', wordWrap: { width: 470 } })).setOrigin(0, 0.5);
         kap.add([ad, ac]);
-        const b = this.panelDugme(kap, 400, y, 300, 70, '', () => { if (oyun.satinAl(u)) yenile(); }, 30);
+        const b = this.panelDugme(kap, x0 + 610, y, 220, 68, '', () => { if (oyun.satinAl(u)) yenile(); }, 28);
         satirlar.push(() => {
           const sv = oyun.seviye[u.id] || 0;
           const bitti = sv >= u.enFazla || (u.id === 'onarim' && oyun.surCan >= oyun.surEnFazla);
-          ad.setText(`${i + 1}. ${u.ad}` + (u.enFazla < 99 ? `  ${'●'.repeat(sv)}${'○'.repeat(u.enFazla - sv)}` : ''));
+          let ek = '';
+          if (u.stok) ek = `  (${oyun.stok[u.id]})`;
+          else if (u.enFazla < 99) ek = `  ${'●'.repeat(sv)}${'○'.repeat(u.enFazla - sv)}`;
+          ad.setText(`${i + 1}. ${u.ad}${ek}`);
           const f = u.fiyat(sv, oyun);
           b.yazi.setText(bitti ? (u.id === 'onarim' ? 'Sur sağlam' : 'Tamam') : `${f} altın`);
           const alir = !bitti && oyun.altin >= f;
@@ -181,9 +233,24 @@ class Arayuz {
           b.arka.setStrokeStyle(3, alir ? 0xc9a24a : 0x4a4030);
         });
       });
-      this.panelDugme(kap, 0, 350, 420, 84, 'Sonraki Dalga ▶', () => s.dalgaBaslat(), 36);
+      const sonraki = oyun.dalga + 1;
+      const not = sonraki % PATRON_ARASI === 0 ? 'Sıradaki dalgada Ak Dev geliyor!' : `Kurtuluşa ${Math.max(0, oyun.zorluk.kurtulus - oyun.dalga)} dalga`;
+      kap.add(s.add.text(0, 300, oyun.kurtuldu ? 'Sonsuz kuşatma: ne kadar dayanabilirsin?' : not,
+        stil('govde', 26, { color: sonraki % PATRON_ARASI === 0 ? '#e08070' : '#c9a24a' })).setOrigin(0.5));
+      this.panelDugme(kap, 0, 375, 420, 80, 'Sonraki Dalga ▶', () => s.dalgaBaslat(), 34);
       yenile();
       this.dukkanYenile = yenile;
+    });
+  }
+
+  zafer(oyun) {
+    this.panelAc(1000, 560, (kap) => {
+      const s = this.s;
+      kap.add(s.add.text(0, -190, 'Kale kurtuldu!', stil('baslik', 96, { color: '#ffe08a' })).setOrigin(0.5));
+      kap.add(s.add.text(0, -60, `Yardım ordusu ufukta göründü.\n${oyun.dalga} dalga · ${oyun.oldurulen} düşman · ${oyun.kafaVurusu} kafa vuruşu`,
+        stil('govde', 34, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
+      this.panelDugme(kap, -200, 150, 360, 84, 'Savaşmaya devam', () => this.dukkan(oyun), 32);
+      this.panelDugme(kap, 200, 150, 340, 84, 'Yeni oyun', () => s.scene.restart(), 32);
     });
   }
 
