@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="robots" content="noindex, nofollow">
+<meta name="robots" content="noindex, nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Son Kale</title>
   <meta name="theme-color" content="#171a24">
@@ -4018,7 +4018,7 @@ const TORCHES = [
   { x: 176, y: 326 }, // Ön duvarın yüzü
 ];
 
-let castleImage = null; // Kalenin önceden çizilmiş değişmeyen kısmı
+let castleImage = null; // Kalenin önceden çizilmiş resimleri: hasar aşamasına göre { 0: tuval, 1: ... }
 
 class Castle {
   constructor() {
@@ -4026,7 +4026,7 @@ class Castle {
     this.hp = this.maxHp;
     this.hitFlash = 0; // Hasar alınca kısa süre kırmızı yanıp söner
     this.trailHp = this.hp; // Can barındaki "hasar izi" (yavaşça azalır)
-    if (!castleImage) castleImage = buildCastleImage();
+    if (!castleImage) castleImage = {};
   }
 
   get frontX() {
@@ -4073,8 +4073,12 @@ class Castle {
     const c = CONFIG.castle;
     const g = CONFIG.groundY;
 
-    if (!castleImage) castleImage = buildCastleImage(); // Piksel yoğunluğu değişince yeniden
-    artDraw(ctx, castleImage);
+    // Hasar aşaması (0 sağlam ... 4 gedik açılmış); her aşamanın resmi bir kez çizilir
+    const stage = damageStage(this.hp / this.maxHp);
+    if (!castleImage) castleImage = {}; // Piksel yoğunluğu değişince yeniden
+    if (!castleImage[stage]) castleImage[stage] = buildCastleImage(stage);
+    artDraw(ctx, castleImage[stage]);
+    if (stage >= 3) this.drawSmoke(ctx, time, stage);
 
     // Kule penceresinden sızan sıcak ışık (gece daha belirgin)
     ctx.fillStyle = `rgba(255, 180, 90, ${0.25 + 0.6 * night * this.flicker(time, 7)})`;
@@ -4115,18 +4119,32 @@ class Castle {
     // Meşaleler
     TORCHES.forEach((t, i) => this.drawTorch(ctx, t.x, t.y, time, i));
 
-    // Can azaldıkça çatlaklar belirir
-    const damage = 1 - this.hp / this.maxHp;
-    if (damage > 0.3) drawCrack(ctx, 150, 330, 1);
-    if (damage > 0.55) drawCrack(ctx, 40, 360, 1.3);
-    if (damage > 0.8) drawCrack(ctx, 120, 220, 1.1);
-    if (damage > 0.8) drawCrack(ctx, 160, 410, 0.9);
 
     // Hasar alınca kırmızı parlama
     if (this.hitFlash > 0) {
       ctx.fillStyle = 'rgba(220, 40, 30, 0.25)';
       ctx.fillRect(0, c.towerTop - 20, c.frontX, g - c.towerTop + 20);
     }
+  }
+
+  // Ağır hasarda kuleden ve gedikten yükselen duman, arada kor
+  drawSmoke(ctx, time, stage) {
+    const c = CONFIG.castle;
+    const src = stage >= 4 ? [[30, c.wallTop + 40], [128, c.towerTop + 6]] : [[128, c.towerTop + 6]];
+    src.forEach(([sx, sy], k) => {
+      for (let i = 0; i < 7; i++) {
+        const t = ((time * 0.35 + i / 7 + k * 0.37) % 1);
+        const x = sx + Math.sin(t * 5 + i) * 4 + t * 26; // Rüzgârla sağa kayar
+        const y = sy - t * 120;
+        const r = 4 + t * 14;
+        ctx.fillStyle = `rgba(${34 + t * 50}, ${32 + t * 48}, ${36 + t * 50}, ${0.8 * (1 - t)})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = `rgba(255, 140, 50, ${0.5 + 0.5 * Math.sin(time * 9 + k)})`;
+      ctx.fillRect(sx - 2 + Math.sin(time * 3) * 3, sy - 2, 1.5, 1.5);
+    });
   }
 
   drawTorch(ctx, x, y, time, i) {
@@ -4157,7 +4175,7 @@ class Castle {
 }
 
 // ---- Kalenin değişmeyen kısmını bir kere çizer ----
-function buildCastleImage() {
+function buildCastleImage(stage = 0) {
   const c = CONFIG.castle;
   const g = CONFIG.groundY;
   const { cv, ctx } = artCanvas(c.frontX + 20, CONFIG.height);
@@ -4174,15 +4192,18 @@ function buildCastleImage() {
   // Ön duvar
   drawStoneBlock(ctx, 0, c.wallTop, c.frontX, g - c.wallTop, 1);
   weatherRect(ctx, 0, c.wallTop, c.frontX, g - c.wallTop, 1);
-  drawBattlements(ctx, 0, c.frontX, c.wallTop);
+  drawBattlements(ctx, 0, c.frontX, c.wallTop, stage, 3);
 
   // Kule (ön duvardan biraz daha açık renkli, öne çıksın diye)
   drawStoneBlock(ctx, c.towerLeft, c.towerTop, c.towerRight - c.towerLeft, g - c.towerTop, 2);
   weatherRect(ctx, c.towerLeft, c.towerTop, c.towerRight - c.towerLeft, g - c.towerTop, 2);
-  drawBattlements(ctx, c.towerLeft, c.towerRight, c.towerTop);
+  drawBattlements(ctx, c.towerLeft, c.towerRight, c.towerTop, stage, 7);
   // Kulenin ön duvara düşürdüğü gölge
   ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
   ctx.fillRect(c.towerRight, c.wallTop, 10, g - c.wallTop);
+
+  // Hasar: pencere, kapı ve sancaklar üstüne çizilsin diye burada
+  if (stage > 0) drawCastleDamage(ctx, stage);
 
   // Kule penceresi: kemerli, kanatlı
   drawArchWindow(ctx, 99, 238, 12, 32);
@@ -4377,8 +4398,153 @@ function buildCastleImage() {
   ctx.lineTo(0, c.wallTop);
   ctx.stroke();
 
+  if (stage >= 3) drawCastleRubble(ctx, stage); // Döküntü en önde
   texturize(ctx, cv.width, cv.height, 7);
   return cv;
+}
+
+// Duvar dibine düşmüş taşlar (3. aşamadan sonra), gedikte daha çok
+function drawCastleRubble(ctx, stage) {
+  const c = CONFIG.castle;
+  const g = CONFIG.groundY;
+  for (let i = 0; i < (stage - 2) * 16; i++) {
+    const x = hashNoise(i, 95) < 0.5 ? c.frontX - 8 + hashNoise(i, 96) * 26 : 4 + hashNoise(i, 97) * (c.towerLeft + 10);
+    rubbleStone(ctx, x, g + 1 - hashNoise(i, 98) * 3, 3 + hashNoise(i, 99) * 6, i);
+  }
+  if (stage >= 4) for (let i = 0; i < 22; i++) rubbleStone(ctx, 2 + hashNoise(i, 103) * 54, g + 1 - hashNoise(i, 104) * 12 * (1 - Math.abs(hashNoise(i, 103) - 0.5)), 3 + hashNoise(i, 105) * 7, i + 40);
+}
+
+// Sur canına göre hasar aşaması: 0 sağlam, 1 çatlak, 2 taş düşmüş,
+// 3 mazgallar kırık ve duman, 4 duvarda gedik
+function damageStage(ratio) {
+  return ratio > 0.8 ? 0 : ratio > 0.6 ? 1 : ratio > 0.4 ? 2 : ratio > 0.2 ? 3 : 4;
+}
+
+// Kalenin hasarı (savaş ekranı): aşama arttıkça öncekilerin üstüne eklenir
+function drawCastleDamage(ctx, stage) {
+  const c = CONFIG.castle;
+  const g = CONFIG.groundY;
+  const walls = [
+    [0, c.wallTop + 4, c.towerLeft - 2, g - c.wallTop - 30],              // Ön duvar, kulenin solu
+    [c.towerLeft + 4, c.towerTop + 8, c.towerRight - c.towerLeft - 8, g - c.towerTop - 40], // Kule
+    [c.towerRight + 2, c.wallTop + 4, c.frontX - c.towerRight - 4, g - c.wallTop - 30],  // Ön duvar, kulenin sağı
+  ];
+  // Çatlaklar: aşama başına çoğalır ve uzar
+  walls.forEach(([x, y, w, h], k) => {
+    const n = Math.round((w * h) / 2600 * stage);
+    for (let i = 0; i < n; i++) {
+      const sx = x + hashNoise(i, k * 11 + 1) * w, sy = y + hashNoise(i, k * 11 + 2) * h * 0.8;
+      drawCrackHD(ctx, sx, sy, (10 + hashNoise(i, k * 11 + 3) * 22) * (0.6 + stage * 0.25), i + k * 50);
+    }
+  });
+  // Düşmüş taşlar: duvarda derin oyuklar (2. aşamadan sonra)
+  if (stage >= 2) {
+    walls.forEach(([x, y, w, h], k) => {
+      const n = Math.round((w * h) / 6500 * (stage - 1));
+      for (let i = 0; i < n; i++) {
+        const hx = x + hashNoise(i, k * 13 + 5) * (w - 18), hy = y + hashNoise(i, k * 13 + 6) * (h - 14);
+        stoneHole(ctx, hx, hy, 8 + hashNoise(i, k * 13 + 7) * 16, 6 + hashNoise(i, k * 13 + 8) * 8);
+      }
+    });
+    // İs ve yanık lekeleri (yağ, ateşli ok)
+    for (let i = 0; i < stage * 3; i++) {
+      const x = 10 + hashNoise(i, 91) * (c.frontX - 20), y = c.towerTop + hashNoise(i, 92) * (g - c.towerTop - 40);
+      ctx.fillStyle = 'rgba(18, 14, 12, 0.22)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 6 + hashNoise(i, 93) * 10, 10 + hashNoise(i, 94) * 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Gedik: ön duvarda delik açılır, arkasından manzara görünür (4. aşama)
+  if (stage >= 4) {
+    const hx = 6, hy = c.wallTop + 52, hw = 40, hh = 60;
+    const pts = [];
+    for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * Math.PI * 2;
+      const r = 0.75 + hashNoise(k, 101) * 0.35;
+      // Kenar taş taş kırılmış gibi basamaklı (3 birimlik ızgara)
+      pts.push([Math.round((hx + hw / 2 + Math.cos(a) * hw / 2 * r) / 3) * 3, Math.round((hy + hh / 2 + Math.sin(a) * hh / 2 * r) / 3) * 3]);
+    }
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let k = 1; k <= pts.length; k++) {
+        const [x0, y0] = pts[k - 1], [x1, y1] = pts[k % pts.length];
+        ctx.lineTo(x1, y0); // Önce yatay, sonra dikey: taş sırası gibi basamak
+        ctx.lineTo(x1, y1);
+      }
+      ctx.closePath();
+    };
+    // Kırık taş kenarı, içi karanlık: içeride kırık kirişler ve yığılmış taş
+    path();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#3a3a40';
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#9a9ca0';
+    ctx.stroke();
+    path();
+    ctx.fillStyle = '#121014';
+    ctx.fill();
+    ctx.save();
+    path();
+    ctx.clip();
+    ctx.fillStyle = '#2a2628'; // İçerideki karşı duvar, loş
+    ctx.fillRect(hx, hy + hh * 0.15, hw, hh);
+    ctx.fillStyle = '#4a3420'; // Kırık kiriş
+    ctx.save();
+    ctx.translate(hx + hw * 0.5, hy + hh * 0.35);
+    ctx.rotate(0.35);
+    ctx.fillRect(-hw * 0.6, -2, hw * 1.2, 4);
+    ctx.restore();
+    for (let i = 0; i < 10; i++) rubbleStone(ctx, hx + hashNoise(i, 111) * hw, hy + hh - hashNoise(i, 112) * 10, 3 + hashNoise(i, 113) * 6, i + 70);
+    ctx.restore();
+  }
+}
+
+// Kılcal ve dallanan çatlak: koyu çizgi, sağında ince ışık (derinlik)
+function drawCrackHD(ctx, x, y, len, seed) {
+  const q = 1 / ART;
+  let px = x, py = y;
+  const steps = Math.round(len / 2);
+  for (let i = 0; i < steps; i++) {
+    ctx.fillStyle = 'rgba(22, 18, 16, 0.85)';
+    ctx.fillRect(Math.round(px * ART) / ART, Math.round(py * ART) / ART, i < steps * 0.6 ? 1 : q, 2);
+    ctx.fillStyle = 'rgba(255, 245, 225, 0.2)';
+    ctx.fillRect(Math.round(px * ART) / ART + 1, Math.round(py * ART) / ART, q, 2);
+    px += (hashNoise(i, seed + 7) - 0.45) * 3;
+    py += 2;
+    if (i === Math.floor(steps / 2) && hashNoise(seed, 9) < 0.7) drawCrackHD(ctx, px, py, len * 0.4, seed + 31);
+  }
+}
+
+// Düşmüş taşın bıraktığı oyuk: koyu iç, üstte gölge, altta ışık alan kırık kenar
+function stoneHole(ctx, x, y, w, h) {
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  ctx.fillStyle = '#1c1a1c';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#2e2c30';
+  ctx.fillRect(x, y + h - 3, w, 3); // Oyuğun dibi
+  ctx.fillStyle = '#8a8c90';
+  ctx.fillRect(x, y + h, w, 1);    // Alt kenar ışık alır
+  ctx.fillStyle = '#121014';
+  ctx.fillRect(x, y, w, 2);        // Üst kenar gölge
+}
+
+// Döküntü taşı: köşeli, üstü açık, altı koyu
+function rubbleStone(ctx, x, y, r, seed) {
+  x = Math.round(x); y = Math.round(y);
+  const w = Math.round(r * (1 + hashNoise(seed, 1) * 0.6)), h = Math.max(2, Math.round(r * 0.7));
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(x - 1, y - h - 1, w + 2, h + 1);
+  ctx.fillStyle = mixColor('#7c8088', '#a0a2a6', hashNoise(seed, 2));
+  ctx.fillRect(x, y - h, w, h);
+  ctx.fillStyle = 'rgba(255, 250, 235, 0.25)';
+  ctx.fillRect(x, y - h, w, 1);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.fillRect(x + w - 2, y - h + 1, 2, h - 1);
 }
 
 // ---- Yardımcı çizim fonksiyonları ----
@@ -4612,12 +4778,27 @@ function drawHangingBanner(ctx, x, y, w, h, main, trim) {
 }
 
 // Duvarın üstündeki diş diş mazgallar
-function drawBattlements(ctx, left, right, top) {
+function drawBattlements(ctx, left, right, top, stage = 0, seed = 0) {
   const size = 18;
-  for (let x = left; x < right; x += size * 2) {
+  for (let x = left, i = 0; x < right; x += size * 2, i++) {
     const w = Math.min(size, right - x);
+    // Hasarda mazgallar kırılır: 3. aşamada bazıları yarım, 4. aşamada bazıları hiç yok
+    const r = hashNoise(i, seed + 201);
+    const broken = stage >= 3 && r < (stage >= 4 ? 0.6 : 0.35);
+    if (broken && stage >= 4 && r < 0.3) continue;
+    const mh = broken ? Math.round(size * (0.35 + hashNoise(i, seed + 202) * 0.3)) : size;
     ctx.fillStyle = '#858a90';
-    ctx.fillRect(x, top - size, w, size);
+    ctx.fillRect(x, top - mh, w, mh);
+    if (broken) {
+      // Kırık üst: basamaklı, koyu kenarlı
+      ctx.fillStyle = '#858a90';
+      ctx.fillRect(x, top - mh - 4, Math.round(w * 0.4), 4);
+      ctx.fillStyle = '#3a3a42';
+      ctx.fillRect(x + Math.round(w * 0.4), top - mh, w - Math.round(w * 0.4), 1.5);
+      ctx.fillRect(x, top - mh - 4, Math.round(w * 0.4), 1.5);
+      ctx.fillRect(x + Math.round(w * 0.4), top - mh - 4, 1.5, 4);
+      continue;
+    }
     ctx.fillStyle = 'rgba(255, 250, 235, 0.18)'; // Üstte ışık
     ctx.fillRect(x, top - size, w, 3);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';       // Sağda gölge
@@ -9703,6 +9884,7 @@ class BaseScene {
       };
     }
     this.blit(ctx, this.cache.back);
+    this.drawWallDamage(ctx, game, false, time);
     this.drawMoatShine(ctx, time);
     this.drawKaleRest(ctx, game, time, lights);
   }
@@ -9928,6 +10110,7 @@ class BaseScene {
 
     // ---- 5) Ön surlar, kapı, ön kuleler ----
     this.blit(ctx, this.cache.walls);
+    this.drawWallDamage(ctx, game, true, time);
     // Kapının meşaleleri
     for (const tx of [GATE.x1 - 0.4, GATE.x2 + 0.4]) {
       const p = iso(tx, GATE.y + WALL_T + 0.07, 2.6);
@@ -10020,6 +10203,276 @@ class BaseScene {
     for (const t of towers) items.push({ d: t.x + t.y, f: () => this.wallTower(ctx, t) });
     items.sort((a, b) => a.d - b.d);
     for (const it of items) it.f();
+  }
+
+  // ---------- Sur hasarı ----------
+  // Sur parçasının hangi cepheye ait olduğu (dışa bakan yönüne göre)
+  frontOf(nx, ny) {
+    if (Math.abs(nx) > Math.abs(ny)) return nx > 0 ? 'dogu' : 'bati';
+    return ny > 0 ? 'guney' : 'kuzey';
+  }
+
+  // Her cephenin canına göre surda ve kulelerinde çatlak, düşmüş taş,
+  // kırık mazgal, gedik ve moloz. Aşamalar değişince bir kez çizilip saklanır.
+  drawWallDamage(ctx, game, front, time) {
+    if (!game.fronts) return;
+    const stages = {};
+    for (const f of game.fronts.list) stages[f.key] = f.maxHp > 0 ? damageStage(f.hp / f.maxHp) : 0;
+    const key = JSON.stringify(stages);
+    const c = this.cache;
+    if (c.dmgKey !== key) {
+      c.dmgKey = key;
+      c.dmg = {};
+      c.dmgSmoke = [];
+      for (const fr of [false, true]) {
+        const any = this.wallSegs().some((s) => s.front === fr && (stages[this.frontOf(s.nx, s.ny)] || 0) > 0);
+        c.dmg[fr] = any ? this.layer0((x) => this.paintWallDamage(x, stages, fr, c.dmgSmoke)) : null;
+      }
+    }
+    if (c.dmg[front]) this.blit(ctx, c.dmg[front]);
+    // Ağır hasarlı yerlerden duman tüter
+    for (const sm of c.dmgSmoke) if (sm.front === front) this.smoke(ctx, sm.x, sm.y, time, sm.seed, sm.color);
+  }
+
+  // Boş katman (doku serpmeden)
+  layer0(draw) {
+    const { cv, ctx } = artCanvas(CONFIG.width, CONFIG.height);
+    draw(ctx);
+    return cv;
+  }
+
+  paintWallDamage(ctx, stages, front, smokes) {
+    const towers = this.placedTowers();
+    const q = 1 / ART;
+    for (const s of this.wallSegs()) {
+      if (s.front !== front) continue;
+      const st = stages[this.frontOf(s.nx, s.ny)] || 0;
+      if (!st) continue;
+      const ux = (s.x2 - s.x1) / s.L, uy = (s.y2 - s.y1) / s.L;
+      const off = front ? WALL_T : 0;
+      const P = (u, z, o = 0) => iso(s.x1 + ux * u + s.nx * (off + o), s.y1 + uy * u + s.ny * (off + o), z);
+      // Kulelerin ve kapının önündeki kısım boş kalır
+      const free = (u, w) => {
+        if (u - w < 0.15 || u + w > s.L - 0.15) return false;
+        for (const t of towers) {
+          const half = (t.a ? t.a / 2 : t.r) + 0.35;
+          const k = (t.x - s.x1) * ux + (t.y - s.y1) * uy;
+          const perp = Math.abs((t.x - s.x1) * -uy + (t.y - s.y1) * ux);
+          if (perp < half + WALL_T && Math.abs(k - u) < half + w) return false;
+        }
+        if (front && s.y1 === GATE.y && s.y2 === GATE.y) {
+          const g0 = Math.min(Math.abs(GATE.x1 - s.x1), Math.abs(GATE.x2 - s.x1)) - 0.4;
+          const g1 = Math.max(Math.abs(GATE.x1 - s.x1), Math.abs(GATE.x2 - s.x1)) + 0.4;
+          if (u + w > g0 && u - w < g1) return false;
+        }
+        return true;
+      };
+      const seed = s.i * 37 + 5;
+      // Gedik (4. aşama): uzun parçanın ortasında
+      let breach = null;
+      if (st >= 4 && s.L > 3) {
+        for (const k of [0.5, 0.35, 0.65, 0.25, 0.75]) if (free(s.L * k, 1.1)) { breach = s.L * k; break; }
+      }
+      // Çatlaklar
+      const nCr = Math.round(s.L * 0.45 * st);
+      for (let i = 0; i < nCr; i++) {
+        const u = 0.3 + hashNoise(i, seed) * (s.L - 0.6);
+        if (!free(u, 0.1) || (breach !== null && Math.abs(u - breach) < 1.2)) continue;
+        this.wallCrack(ctx, P, u, WALL_H - 0.2 - hashNoise(i, seed + 1) * WALL_H * 0.5, (0.8 + hashNoise(i, seed + 2) * 1.2) * (0.6 + st * 0.25), seed + i * 7);
+      }
+      // Düşmüş taşlar: oyuk
+      if (st >= 2) {
+        const nH = Math.round(s.L * 0.22 * (st - 1));
+        for (let i = 0; i < nH; i++) {
+          const u = 0.4 + hashNoise(i, seed + 3) * (s.L - 0.8), z = 0.4 + hashNoise(i, seed + 4) * (WALL_H - 1.2);
+          const w = 0.35 + hashNoise(i, seed + 5) * 0.4, h = 0.28 + hashNoise(i, seed + 6) * 0.25;
+          if (!free(u, w) || (breach !== null && Math.abs(u - breach) < 1.4)) continue;
+          this.wallHole(ctx, P, u, z, w, h);
+        }
+        // İs lekeleri
+        for (let i = 0; i < st * s.L * 0.12; i++) {
+          const u = hashNoise(i, seed + 8) * s.L;
+          if (!free(u, 0.3)) continue;
+          const p = P(u, 0.8 + hashNoise(i, seed + 9) * (WALL_H - 1));
+          ctx.fillStyle = 'rgba(18, 14, 12, 0.2)';
+          ctx.beginPath();
+          ctx.ellipse(p.x, p.y, 4 + hashNoise(i, seed + 10) * 4, 7 + hashNoise(i, seed + 11) * 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // Kırık mazgallar ve dipte moloz (3. aşama)
+      if (st >= 3) {
+        for (let k = 0.2; k < s.L - 0.6; k += 1.3) {
+          if (hashNoise(k * 10, seed + 12) > 0.18 + (st - 3) * 0.25 || !free(k + 0.35, 0.4)) continue;
+          this.brokenMerlon(ctx, s, ux, uy, k, front);
+        }
+        const n = Math.round(s.L * 0.5 * (st - 2));
+        for (let i = 0; i < n; i++) {
+          const u = 0.3 + hashNoise(i, seed + 14) * (s.L - 0.6);
+          if (!free(u, 0.2)) continue;
+          this.rubble(ctx, s.x1 + ux * u + s.nx * (off + (front ? 0.15 : -0.5)) , s.y1 + uy * u + s.ny * (off + (front ? 0.15 : -0.5)), 0.18 + hashNoise(i, seed + 15) * 0.22, i + seed);
+        }
+      }
+      if (breach !== null) {
+        this.wallBreach(ctx, P, breach, front, seed);
+        const sideO = front ? 0.5 : -0.9;
+        for (let i = 0; i < 14; i++) {
+          const a = (hashNoise(i, seed + 20) - 0.5) * 2.2, o = sideO + (hashNoise(i, seed + 21) - 0.5) * 0.9;
+          this.rubble(ctx, s.x1 + ux * (breach + a) + s.nx * (off + o), s.y1 + uy * (breach + a) + s.ny * (off + o), 0.2 + hashNoise(i, seed + 22) * 0.3 * (1 - Math.abs(a) / 1.4), i + seed + 50);
+        }
+        const p = P(breach, WALL_H * 0.7);
+        smokes.push({ front, x: p.x, y: p.y, seed: seed % 7, color: '#6a6a6a' });
+      } else if (st >= 3 && s.L > 6) {
+        const u = s.L * (0.3 + hashNoise(seed, 30) * 0.4);
+        if (free(u, 0.3)) { const p = P(u, WALL_H); smokes.push({ front, x: p.x, y: p.y, seed: seed % 5, color: '#7a7a7a' }); }
+      }
+    }
+    // Kuleler: en yakın surun cephesine göre çatlak ve oyuk
+    for (const t of towers) {
+      if (!!t.front !== front) continue;
+      let best = null, bd = Infinity;
+      for (const s of this.wallSegs()) {
+        const u = Math.max(0, Math.min(1, ((t.x - s.x1) * (s.x2 - s.x1) + (t.y - s.y1) * (s.y2 - s.y1)) / (s.L * s.L)));
+        const d = Math.hypot(s.x1 + (s.x2 - s.x1) * u - t.x, s.y1 + (s.y2 - s.y1) * u - t.y);
+        if (d < bd - 0.01) { bd = d; best = s; }
+      }
+      const st = best ? stages[this.frontOf(best.nx, best.ny)] || 0 : 0;
+      if (!st) continue;
+      const seed = Math.round(t.x * 13 + t.y * 7);
+      // Görünen iki yüz: +y ve +x yönüne bakanlar
+      const half = t.a ? t.a / 2 : t.r * 0.72;
+      const faces = [
+        (u, z) => iso(t.x - half + u, t.y + (t.a ? half : t.r * 0.72), z),
+        (u, z) => iso(t.x + (t.a ? half : t.r * 0.72), t.y - half + u, z),
+      ];
+      faces.forEach((P, fi) => {
+        for (let i = 0; i < st + 1; i++) {
+          const u = 0.3 + hashNoise(i, seed + fi * 9) * (half * 2 - 0.6);
+          this.wallCrack(ctx, P, u, t.h - 0.3 - hashNoise(i, seed + fi * 9 + 1) * t.h * 0.4, (0.9 + hashNoise(i, seed + fi + 2) * 1.3) * (0.6 + st * 0.3), seed + i * 5 + fi);
+        }
+        if (st >= 2) for (let i = 0; i < st - 1; i++) {
+          const u = 0.5 + hashNoise(i, seed + fi * 9 + 3) * (half * 2 - 1);
+          this.wallHole(ctx, P, u, 0.6 + hashNoise(i, seed + fi * 9 + 4) * (t.h * 0.6), 0.32, 0.26);
+        }
+      });
+      if (st >= 3) {
+        for (let i = 0; i < 2 + st; i++) {
+          const a = hashNoise(i, seed + 40) * Math.PI * 0.5;
+          const r = half + 0.3 + hashNoise(i, seed + 41) * 0.5;
+          this.rubble(ctx, t.x + Math.cos(a) * r, t.y + Math.sin(a) * r, 0.15 + hashNoise(i, seed + 42) * 0.2, i + seed);
+        }
+      }
+      if (st >= 4) {
+        const p = iso(t.x, t.y, t.h + (t.roof ? 1.5 : 0.8));
+        smokes.push({ front, x: p.x, y: p.y, seed: seed % 9, color: '#5e5e5e' });
+      }
+    }
+  }
+
+  // Yüzeyde aşağı inen kırık çizgi: koyu yarık, yanında ince ışık
+  wallCrack(ctx, P, u, z, len, seed) {
+    const q = 1 / ART;
+    let a = P(u, z);
+    const steps = Math.max(3, Math.round(len * 5));
+    for (let i = 0; i < steps; i++) {
+      u += (hashNoise(i, seed) - 0.5) * 0.28;
+      z -= 0.2;
+      const b = P(u, z);
+      ctx.strokeStyle = 'rgba(24, 20, 18, 0.85)';
+      ctx.lineWidth = i < steps * 0.5 ? 1 : q;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 245, 225, 0.22)';
+      ctx.lineWidth = q;
+      ctx.beginPath(); ctx.moveTo(a.x + 1, a.y); ctx.lineTo(b.x + 1, b.y); ctx.stroke();
+      if (i === Math.floor(steps / 2) && hashNoise(seed, 3) < 0.6) this.wallCrack(ctx, P, u, z, len * 0.4, seed + 17);
+      a = b;
+    }
+  }
+
+  // Düşmüş taşın yeri: karanlık oyuk, üst kenarı gölgeli, alt kenarı ışıkta
+  wallHole(ctx, P, u, z, w, h) {
+    const quad = (u0, z0, u1, z1, fill) => {
+      const pts = [P(u0, z0), P(u1, z0), P(u1, z1), P(u0, z1)];
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    quad(u - w / 2 - 0.04, z - 0.04, u + w / 2 + 0.04, z + h + 0.04, 'rgba(60, 58, 60, 0.9)');
+    quad(u - w / 2, z, u + w / 2, z + h, '#19161a');
+    quad(u - w / 2, z + h * 0.62, u + w / 2, z + h, '#0e0c0e');
+    quad(u - w / 2, z - 0.05, u + w / 2, z + 0.03, 'rgba(200, 196, 186, 0.55)');
+  }
+
+  // Kırık mazgal: diş yarıya kadar kopmuş, kırık yüzü koyu
+  brokenMerlon(ctx, s, ux, uy, k, front) {
+    const t = WALL_T, h = WALL_H;
+    const o = front ? t : t - 0.35;
+    const mx = s.x1 + ux * k + s.nx * o, my = s.y1 + uy * k + s.ny * o;
+    const ex = mx + ux * 0.7, ey = my + uy * 0.7;
+    const ix = -s.nx * 0.35, iy = -s.ny * 0.35;
+    // Dişin üst kısmını arkadaki seğirdim yolu rengiyle sil
+    const walk = shade('#858a90', 0.12);
+    const cut = 0.15 + hashNoise(k, s.i) * 0.3;
+    isoPoly(ctx, [[mx + ix, my + iy, h + cut], [ex + ix, ey + iy, h + cut], [ex + ix, ey + iy, h + 0.82], [mx + ix, my + iy, h + 0.82]], walk, null);
+    isoPoly(ctx, [[mx, my, h + cut], [ex, ey, h + cut], [ex, ey, h + 0.82], [mx, my, h + 0.82]], walk, null);
+    isoPoly(ctx, [[mx + ix, my + iy, h + 0.82], [ex + ix, ey + iy, h + 0.82], [ex, ey, h + 0.82], [mx, my, h + 0.82]], walk, null);
+    // Kırık üst yüz: basamaklı, koyu
+    isoPoly(ctx, [[mx, my, h + cut], [mx + ux * 0.3, my + uy * 0.3, h + cut + 0.18], [ex, ey, h + cut - 0.05], [ex + ix, ey + iy, h + cut], [mx + ix, my + iy, h + cut]], '#5a5c62');
+  }
+
+  // Moloz: birkaç küçük taş bloğu
+  rubble(ctx, x, y, r, seed) {
+    const cols = ['#7a7e84', '#8e9298', '#6a6d72'];
+    for (let i = 0; i < 3; i++) {
+      const w = r * (0.6 + hashNoise(i, seed + 1) * 0.6);
+      isoBox(ctx, x + (hashNoise(i, seed + 2) - 0.5) * r * 1.6, y + (hashNoise(i, seed + 3) - 0.5) * r * 1.6, 0, w, w * 0.8, w * 0.6, cols[(i + seed) % 3]);
+    }
+  }
+
+  // Gedik: duvarda yukarı doğru genişleyen kırık açıklık, içi karanlık
+  wallBreach(ctx, P, u, front, seed) {
+    const pts = [];
+    const n = 12;
+    // Alt kenar zeminin biraz üstünde, üst kenar mazgallara kadar açık
+    for (let i = 0; i <= n; i++) {
+      const k = i / n;
+      const w = 0.35 + k * 0.75 + (hashNoise(i, seed + 60) - 0.5) * 0.25;
+      pts.push([u - w, 0.5 + k * (WALL_H + 0.3)]);
+    }
+    for (let i = n; i >= 0; i--) {
+      const k = i / n;
+      const w = 0.35 + k * 0.8 + (hashNoise(i, seed + 61) - 0.5) * 0.25;
+      pts.push([u + w, 0.5 + k * (WALL_H + 0.3)]);
+    }
+    const path = () => {
+      ctx.beginPath();
+      pts.forEach(([a, b], i) => { const p = P(a, b); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+      ctx.closePath();
+    };
+    path();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3a3a40';
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#a4a6aa';
+    ctx.stroke();
+    path();
+    ctx.fillStyle = '#141216';
+    ctx.fill();
+    // İçeride: kalınlığın kırık taşları ve kiriş
+    ctx.save();
+    path();
+    ctx.clip();
+    const fl = [P(u - 1.2, 0.5), P(u + 1.2, 0.5), P(u + 1.2, 1.1), P(u - 1.2, 1.1)];
+    ctx.fillStyle = '#4a4a50';
+    ctx.beginPath(); fl.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); ctx.fill();
+    const b0 = P(u - 1, WALL_H * 0.75), b1 = P(u + 0.9, WALL_H * 0.55);
+    ctx.strokeStyle = '#4a3420';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
+    ctx.restore();
   }
 
   wallSegs() {
