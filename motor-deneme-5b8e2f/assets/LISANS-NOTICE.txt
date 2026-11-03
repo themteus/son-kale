@@ -50,3 +50,5 @@ Audio, CC0 1.0
 - "Battle Theme A" by cynicmusic, https://opengameart.org/content/battle-theme-a
   (the page lists License(s): CC0; verified 2026-10-16).
 
+
+İç kale (assets/kale/): binalar three.js ile basit geometriden kuruldu (bu projeye ait). Köylüler: Quaternius "worker" (CC0). Ağaçlar: Quaternius (CC0). Dokular: Screaming Brain Studios (CC0).

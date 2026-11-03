@@ -28,6 +28,11 @@ const AYAR = {
     { x: 62, ayakY: 580 },
     { x: 130, ayakY: 380 },
     { x: 18, ayakY: 580 },
+    // Sur yükseldikçe açılan yerler (SUR.askerYeri)
+    { x: 336, ayakY: 580 },
+    { x: 252, ayakY: 380 },
+    { x: 40, ayakY: 580 },
+    { x: 160, ayakY: 380 },
   ],
 
   ok: {
@@ -177,14 +182,94 @@ const YAGMUR = { bekleme: 20, temelOk: 12, seviyeBasi: 8, hasarOrani: 0.8, yayil
 const YUKSELTMELER = [
   { id: 'hasar', ad: 'Keskin Uçlar', aciklama: 'Ok hasarı +%20', enFazla: 8, fiyat: s => Math.round(30 * Math.pow(1.6, s)) },
   { id: 'germe', ad: 'Hızlı Çekiş', aciklama: 'Yayı %12 daha hızlı gerersin', enFazla: 5, fiyat: s => Math.round(40 * Math.pow(1.7, s)) },
-  { id: 'coklu', ad: 'Çoklu Ok', aciklama: 'Her atışta +1 ok', enFazla: 2, fiyat: s => [120, 300][s] },
-  { id: 'asker', ad: 'Okçu Asker', aciklama: 'Sura bir okçu daha', enFazla: 5, fiyat: s => Math.round(60 * Math.pow(1.6, s)) },
-  { id: 'yagmur', ad: 'Ok Yağmuru', aciklama: 'Q: gökten ok yağdır (seviye = daha çok ok)', enFazla: 3, fiyat: s => [150, 260, 420][s] },
-  { id: 'sur', ad: 'Kalın Sur', aciklama: 'Sur canı +120', enFazla: 5, fiyat: s => Math.round(70 * Math.pow(1.6, s)) },
-  { id: 'onarim', ad: 'Sur Onarımı', aciklama: 'Surun %35 canını onar', enFazla: 99, fiyat: (s, oyun) => 25 + 5 * oyun.dalga },
+  { id: 'coklu', ad: 'Çoklu Ok', aciklama: 'Her atışta +1 ok (stoktan da 1 fazla düşer)', enFazla: 2, fiyat: s => [120, 300][s] },
+  { id: 'yagmur', ad: 'Ok Yağmuru', aciklama: 'Q: gökten ok yağdır (oklar ambardan gider)', enFazla: 3, fiyat: s => [150, 260, 420][s] },
   { id: 'ates', ad: 'Ateşli Ok ×10', aciklama: 'Düşmanı tutuşturur (2 tuşu)', enFazla: 99, fiyat: () => 40, stok: true },
   { id: 'delici', ad: 'Delici Ok ×10', aciklama: 'Kalkanı deler, sıra sıra geçer (3 tuşu)', enFazla: 99, fiyat: () => 50, stok: true },
 ];
+
+// =============================================================
+//  İÇ KALE EKONOMİSİ (ekonomi.js, kale.js)
+//  Her dalga = bir gün. Gün sonunda binalar üretir, halk yer,
+//  duvarcılar suru onarır, savaş alanından oklar toplanır.
+//  Her atılan ok ambardan düşer; ok biterse okçular susar.
+// =============================================================
+const KAYNAKLAR = {
+  odun:    { ad: 'Odun',    renk: 0x9a6a3a },
+  tas:     { ad: 'Taş',     renk: 0x9a968c },
+  demir:   { ad: 'Demir',   renk: 0x6a7a8a },
+  yiyecek: { ad: 'Yiyecek', renk: 0xc8a040 },
+  uc:      { ad: 'Ok ucu',  renk: 0xb8c0c8 },
+  ok:      { ad: 'Ok',      renk: 0xe8dcc0 },
+  yay:     { ad: 'Yay',     renk: 0xb07840 },
+};
+
+const EKONOMI = {
+  baslangic: { odun: 80, tas: 60, demir: 12, yiyecek: 40, uc: 40, ok: 260, yay: 2 },
+  nufus: 14,          // Başlangıç nüfusu
+  yemek: 1,           // Kişi başı günlük yiyecek
+  enFazlaGelen: 3,    // Günde en fazla kaç sığınmacı gelir (evde yer olmalı)
+  gelenBasiYiyecek: 12, // Ambardaki her 12 yiyecek bir sığınmacı çeker
+  aclikOlum: 3,       // Her 3 eksik yiyecek bir kişinin ölümü
+  iskaToplama: 0.8,   // Iskalanan okların toplanan oranı
+  isabetToplama: 0.3, // Düşmana saplanan okların toplanan oranı (çoğu kırılır)
+  enAzNufus: 5,       // Halk bunun altına inerse kale düşer
+  seviyeBonus: 0.2,   // Bina her seviyede işçi başı üretimi %20 artırır
+  acilOnarim: 1.5,    // Altınla onarım: 1 can kaç altın (günde surun en çok yarısı)
+};
+
+// Binalar. yerlesim: iç kale sahnesindeki yer (assets/kale/kale.json)
+//   yer   : seviyeye göre en fazla işçi
+//   uretim: işçi başı günlük üretim · tuketim: işçi başı günlük gider
+//   yukselt: 2. ve 3. seviyenin bedeli
+const BINALAR = {
+  ciftlik: { ad: 'Çiftlik', is: 'çiftçi', aciklama: 'Yiyecek üretir. Herkes günde 1 yiyecek yer.',
+    yer: [5, 7, 10], uretim: { yiyecek: 4 },
+    yukselt: [{ odun: 25, tas: 10, altin: 65 }, { odun: 50, tas: 40, altin: 190 }], bas: { seviye: 1, isci: 4 } },
+  oduncu: { ad: 'Oduncu', is: 'oduncu', aciklama: 'Odun keser: ok gövdesi, yay, onarım ve inşaat için.',
+    yer: [3, 5, 7], uretim: { odun: 8 },
+    yukselt: [{ odun: 10, tas: 20, altin: 50 }, { odun: 30, tas: 50, demir: 5, altin: 160 }], bas: { seviye: 1, isci: 2 } },
+  tasocagi: { ad: 'Taş Ocağı', is: 'taşçı', aciklama: 'Taş çıkarır: sur onarımı ve yükseltmesi için.',
+    yer: [3, 5, 7], uretim: { tas: 5 },
+    yukselt: [{ odun: 25, tas: 10, altin: 50 }, { odun: 40, tas: 40, demir: 5, altin: 160 }], bas: { seviye: 1, isci: 1 } },
+  maden: { ad: 'Maden', is: 'madenci', aciklama: 'Az ama değerli demir çıkarır. Demir olmadan ok ucu olmaz.',
+    yer: [2, 3, 4], uretim: { demir: 4 },
+    yukselt: [{ odun: 30, tas: 40, altin: 95 }, { odun: 55, tas: 80, demir: 10, altin: 255 }], bas: { seviye: 1, isci: 1 } },
+  demirci: { ad: 'Demirci', is: 'demirci', aciklama: 'Demirden ok ucu döver. Seviyesi uçları sertleştirir: bütün okların hasarı artar.',
+    yer: [2, 3, 4], tuketim: { demir: 2 }, uretim: { uc: 50 }, // uc: bir demirden kaç uç
+    yukselt: [{ odun: 25, tas: 30, demir: 10, altin: 130 }, { odun: 50, tas: 60, demir: 25, altin: 320 }], bas: { seviye: 1, isci: 1 },
+    kalite: [{ ad: 'Demir uç', hasar: 1 }, { ad: 'Çelik uç', hasar: 1.15 }, { ad: 'Zırh delen uç', hasar: 1.35 }] },
+  yayci: { ad: 'Yaycı', is: 'yaycı', aciklama: 'Odun ve uçtan ok yapar, askerlere yay yapar. Seviyesi askerlerin yayını güçlendirir.',
+    yer: [3, 5, 7], tuketim: { odun: 4, uc: 40 }, uretim: { ok: 40 },
+    yukselt: [{ odun: 35, tas: 10, demir: 5, altin: 130 }, { odun: 70, tas: 30, demir: 15, altin: 320 }], bas: { seviye: 1, isci: 1 },
+    yayBedeli: { odun: 6 },
+    kalite: [{ ad: 'Avcı yayı', hasar: 1 }, { ad: 'Kompozit yay', hasar: 1.2 }, { ad: 'Uzun yay', hasar: 1.4 }] },
+  duvarci: { ad: 'Duvarcı', is: 'duvarcı', aciklama: 'Hasarlı suru taş ve odunla onarır. Yarıdan çok yıkılmış sur iki kat hızlı onarılır.',
+    yer: [2, 4, 6], tuketim: { tas: 3, odun: 1 }, onarim: 40, azsaHizli: 0.5,
+    yukselt: [{ odun: 20, tas: 30, altin: 65 }, { odun: 35, tas: 70, altin: 190 }], bas: { seviye: 1, isci: 1 } },
+  ev: { ad: 'Evler', aciklama: 'Nüfus sınırı. Evde yer yoksa sığınmacı alınamaz.',
+    barinak: [22, 32, 46],
+    yukselt: [{ odun: 30, tas: 20, altin: 120 }, { odun: 60, tas: 50, altin: 300 }], bas: { seviye: 1, isci: 0 } },
+};
+
+// Sur ve kuleler: seviyeye göre en yüksek can, yükseltme bedeli
+const SUR = {
+  can: [500, 650, 820, 1000, 1200],
+  askerYeri: [5, 6, 7, 8, 9],  // Surdaki okçu yeri (seviyeye göre)
+  yukselt: [{ tas: 60, odun: 20, altin: 50 }, { tas: 110, odun: 40, altin: 120 }, { tas: 170, odun: 60, demir: 10, altin: 230 }, { tas: 240, odun: 80, demir: 20, altin: 380 }],
+};
+
+// Pazar: altınla bir parti al ya da sat. Aldıkça o gün pahalanır.
+const PAZAR = {
+  odun:    { parti: 20, fiyat: 16 },
+  tas:     { parti: 15, fiyat: 18 },
+  demir:   { parti: 6,  fiyat: 22 },
+  yiyecek: { parti: 20, fiyat: 15 },
+  ok:      { parti: 50, fiyat: 30 },
+  satis: 0.5,   // Satarken alış fiyatının yarısı
+  artis: 0.15,  // Her alışta fiyat %15 artar (her gün yarı yarıya geri iner)
+};
+
 
 // Küçük yardımcılar
 const kis = (v, a, b) => Math.max(a, Math.min(b, v));

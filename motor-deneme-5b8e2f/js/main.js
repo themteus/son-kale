@@ -13,5 +13,5 @@ const oyun = new Phaser.Game({
   pixelArt: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 3 },
-  scene: [YukleSahnesi, SavasSahnesi],
+  scene: [YukleSahnesi, SavasSahnesi, KaleSahnesi],
 });

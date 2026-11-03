@@ -122,8 +122,8 @@ class Okcu {
     this.otoBirak = false;
     this.bekleme = B.takmaSuresi * oyun.germeCarpani();
     const sayi = oyun.okSayisi();
-    this.at(oyun, aci, oyun.okHizi() * guc * (1 + gaussRastgele() * 0.03), oyun.okHasari() * hasarCarpani, sayi, oyun.okTuruHarca(sayi));
-    oyun.sesCal('shoot', 0.35);
+    if (this.at(oyun, aci, oyun.okHizi() * guc * (1 + gaussRastgele() * 0.03), oyun.okHasari() * hasarCarpani, sayi, oyun.okTuruHarca(sayi)) !== false)
+      oyun.sesCal('shoot', 0.35);
   }
 
   // ---------------- Asker ----------------
@@ -136,7 +136,7 @@ class Okcu {
     // Atıştan az önce yayı gerer
     this.germe = this.bekleme < 0.45 ? 1 : 0;
     if (this.bekleme <= 0) {
-      this.at(oyun, this.aci + gaussRastgele() * A.sapma, oyun.okHizi(), oyun.okHasari() * A.hasarOrani, 1);
+      this.at(oyun, this.aci + gaussRastgele() * A.sapma, oyun.okHizi(), oyun.okHasari() * A.hasarOrani * oyun.ekonomi.yayKalite.hasar, 1);
       this.bekleme = A.beklemeSn * (0.9 + Math.random() * 0.2);
       this.onu = undefined;
     }
@@ -173,12 +173,18 @@ class Okcu {
     return -Math.atan((v2 - Math.sqrt(disc)) / (g * dx));
   }
 
+  // Normal oklar ambardan düşer; ateşli/delici oklar dükkândan alınan ayrı stoktur
   at(oyun, aci, hiz, hasar, sayi, tur = 'normal') {
+    const ambar = tur === 'normal';
+    if (ambar && !oyun.ekonomi.okHarca(sayi)) {
+      if (this.oyuncu) oyun.okBitti();
+      return false;
+    }
     const ara = AYAR.ok.cokluAci;
     for (let i = 0; i < sayi; i++) {
       const a = aci + (i - (sayi - 1) / 2) * ara;
       const orta = i === Math.floor((sayi - 1) / 2);
-      oyun.okEkle(this.tutamak.x, this.tutamak.y, a, hiz, orta ? hasar : hasar * AYAR.ok.yanOkOrani, this.oyuncu, tur);
+      oyun.okEkle(this.tutamak.x, this.tutamak.y, a, hiz, orta ? hasar : hasar * AYAR.ok.yanOkOrani, this.oyuncu, tur, ambar);
     }
   }
 

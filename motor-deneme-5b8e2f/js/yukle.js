@@ -9,6 +9,7 @@ class YukleSahnesi extends Phaser.Scene {
 
   preload() {
     this.load.json('kareler', 'assets/gorsel/kareler.json');
+    this.load.json('kale', 'assets/kale/kale.json');
     this.yaziGoster();
   }
 
@@ -38,13 +39,18 @@ class YukleSahnesi extends Phaser.Scene {
       this.load.audio(ad, 'assets/ses/' + ad + '.mp3');
     }
     this.load.audio('muzik', 'assets/ses/muzik.mp3');
-    this.load.once('complete', () => this.bitti(K));
+    // İç kale: arka plan, her binanın 3 seviyesi, köylüler
+    const KM = this.cache.json.get('kale');
+    this.load.image('k_arka', 'assets/kale/arka.png');
+    for (const ad of Object.keys(KM.binalar)) this.load.image('k_' + ad, 'assets/kale/' + ad + '.png');
+    for (const [ad, m] of Object.entries(KM.koylu)) this.load.spritesheet(ad, 'assets/kale/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
+    this.load.once('complete', () => this.bitti(K, KM));
     this.load.start();
   }
 
-  bitti(K) {
-    // Her düşman için yürüme / saldırı / ölüm animasyonu
-    for (const [ad, m] of Object.entries(K.birimler)) {
+  bitti(K, KM) {
+    // Her düşman (ve köylü) için animasyonlar: <ad>_walk, <ad>_attack ...
+    for (const [ad, m] of [...Object.entries(K.birimler), ...Object.entries(KM.koylu)]) {
       const sutun = Math.max(...Object.values(m.rows).map(r => r.frames));
       for (const [anim, r] of Object.entries(m.rows)) {
         const kareler = [];
