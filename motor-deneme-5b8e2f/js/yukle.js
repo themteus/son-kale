@@ -1,0 +1,104 @@
+// =============================================================
+//  YÜKLEME (yukle.js)
+//  Önce kareler.json okunur (her şeridin kare boyu), sonra
+//  görseller, dokular ve sesler yüklenir, animasyonlar kurulur.
+// =============================================================
+
+class YukleSahnesi extends Phaser.Scene {
+  constructor() { super('yukle'); }
+
+  preload() {
+    this.load.json('kareler', 'assets/gorsel/kareler.json');
+    this.yaziGoster();
+  }
+
+  // Yükleme çubuğu
+  yaziGoster() {
+    const { en, boy } = AYAR;
+    this.add.text(en / 2, boy / 2 - 70, 'SON KALE', { fontFamily: 'Grenze Gotisch, serif', fontSize: '96px', color: '#e8d9b0' }).setOrigin(0.5);
+    const cubuk = this.add.graphics();
+    this.load.on('progress', p => {
+      cubuk.clear();
+      cubuk.fillStyle(0x2a2420).fillRect(en / 2 - 300, boy / 2 + 30, 600, 18);
+      cubuk.fillStyle(0xc9a24a).fillRect(en / 2 - 300, boy / 2 + 30, 600 * p, 18);
+    });
+  }
+
+  create() {
+    const K = this.cache.json.get('kareler');
+    const g = 'assets/gorsel/';
+    for (const [ad, m] of Object.entries(K.birimler)) {
+      this.load.spritesheet(ad, g + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
+    }
+    this.load.spritesheet('okcu', g + 'okcu.png', { frameWidth: K.okcu.fw, frameHeight: K.okcu.fh });
+    this.load.spritesheet('asker', g + 'asker.png', { frameWidth: K.asker.fw, frameHeight: K.asker.fh });
+    for (const ad of Object.keys(K.susler)) this.load.image(ad, g + ad + '.png');
+    for (const ad of ['tas', 'cim', 'toprak', 'tahta']) this.load.image(ad, 'assets/doku/' + ad + '.png');
+    for (const ad of ['shoot', 'hit', 'kill', 'big_kill', 'hurt', 'coin', 'level_up', 'ui', 'impact', 'boss', 'confirm']) {
+      this.load.audio(ad, 'assets/ses/' + ad + '.mp3');
+    }
+    this.load.audio('muzik', 'assets/ses/muzik.mp3');
+    this.load.once('complete', () => this.bitti(K));
+    this.load.start();
+  }
+
+  bitti(K) {
+    // Her düşman için yürüme / saldırı / ölüm animasyonu
+    for (const [ad, m] of Object.entries(K.birimler)) {
+      const sutun = Math.max(...Object.values(m.rows).map(r => r.frames));
+      for (const [anim, r] of Object.entries(m.rows)) {
+        const kareler = [];
+        for (let i = 0; i < r.frames; i++) kareler.push({ key: ad, frame: r.row * sutun + i });
+        this.anims.create({ key: ad + '_' + anim, frames: kareler, frameRate: r.fps, repeat: r.once ? 0 : -1 });
+      }
+    }
+    this.kucukDokular();
+    // Yazı tipleri hazır olunca oyuna geç
+    const yazilar = document.fonts ? Promise.all([
+      document.fonts.load('48px "Grenze Gotisch"'), document.fonts.load('24px "Alegreya Sans"'),
+      document.fonts.load('bold 24px "Alegreya Sans"'),
+    ]).catch(() => {}) : Promise.resolve();
+    const zamanAsimi = new Promise(r => setTimeout(r, 2500));
+    Promise.race([yazilar, zamanAsimi]).then(() => this.scene.start('savas'));
+  }
+
+  // Kodla üretilen küçük dokular: ok, kan, toz, kıvılcım, çam
+  kucukDokular() {
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    // Ok (sağa bakar, ucu sağda): 60x12
+    g.fillStyle(0x1a1410).fillRect(2, 4, 50, 4);
+    g.fillStyle(0x7a5530).fillRect(3, 5, 48, 2);
+    g.fillStyle(0xd8d0bc).fillTriangle(0, 0, 14, 6, 0, 12);
+    g.fillStyle(0xb8ae98).fillTriangle(2, 3, 12, 6, 2, 9);
+    g.fillStyle(0x1a1410).fillTriangle(48, 1, 60, 6, 48, 11);
+    g.fillStyle(0xbfc4c8).fillTriangle(49, 3, 58, 6, 49, 9);
+    g.generateTexture('ok', 60, 12);
+    g.clear();
+    g.fillStyle(0xffffff).fillRect(0, 0, 6, 6);
+    g.generateTexture('kare', 6, 6);
+    g.clear();
+    g.fillStyle(0xffffff).fillCircle(8, 8, 8);
+    g.generateTexture('daire', 16, 16);
+    g.clear();
+    g.fillStyle(0xffffff).fillCircle(48, 48, 48);
+    g.generateTexture('ay', 96, 96);
+    g.clear();
+    // Çam silueti (tek renk, sonra boyanır): 120x260
+    const cam = (w, h, ad) => {
+      g.clear();
+      g.fillStyle(0xffffff);
+      g.fillRect(w / 2 - 5, h - 40, 10, 40);
+      const kat = 6;
+      for (let i = 0; i < kat; i++) {
+        const y = h - 34 - i * (h - 50) / kat;
+        const gen = (w / 2) * (1 - i / (kat + 1.5));
+        g.fillTriangle(w / 2 - gen, y, w / 2 + gen, y, w / 2, y - (h - 40) / kat * 1.8);
+      }
+      g.generateTexture(ad, w, h);
+    };
+    cam(120, 260, 'cam1');
+    cam(90, 300, 'cam2');
+    cam(150, 220, 'cam3');
+    g.destroy();
+  }
+}

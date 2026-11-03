@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Son Kale · Phaser</title>
+  <meta name="theme-color" content="#0d0b10">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;700&family=Grenze+Gotisch:wght@600;800&display=swap">
+  <style>
+    html, body { margin: 0; height: 100%; background: #0d0b10; overflow: hidden; touch-action: none; }
+    #oyun { position: fixed; inset: 0; }
+    canvas { display: block; }
+    /* Telefon dik tutulunca ipucu */
+    .cevir { display: none; position: fixed; left: 0; right: 0; bottom: 12px; text-align: center;
+      font: 16px "Alegreya Sans", sans-serif; color: #c9a24a; pointer-events: none; }
+    @media (orientation: portrait) and (pointer: coarse) { .cevir { display: block; } }
+  </style>
+</head>
+<body>
+  <div id="oyun"></div>
+  <p class="cevir">Telefonu yan çevirirsen oyun bütün ekranı kaplar.</p>
+  <!-- Phaser 4.2.1 (MIT) -->
+  <script src="vendor/phaser-4.2.1.min.js"></script>
+  <!-- Sıra önemli: önce ayarlar, en son main.js -->
+  <script src="js/ayarlar.js"></script>
+  <script src="js/yukle.js"></script>
+  <script src="js/cizim.js"></script>
+  <script src="js/dusman.js"></script>
+  <script src="js/okcu.js"></script>
+  <script src="js/arayuz.js"></script>
+  <script src="js/savas.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
