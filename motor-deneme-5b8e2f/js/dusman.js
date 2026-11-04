@@ -42,6 +42,7 @@ class Dusman {
     }
     this.sprite = sahne.add.sprite(this.x, this.y, T.gorsel, 0)
       .setOrigin(m.centerX / m.fw, m.footY / m.fh)
+      .setScale(m.olcek || 1)  // PixelLab kareleri küçük çizilir, ekranda büyütülür
       .setDepth((T.patron ? 22 : 20) + (this.y - AYAR.zemin) * 0.1 + Math.random() * 0.05);
     if (T.ucan) this.sprite.setOrigin(0.5, 0.5);
     this.sprite.play(T.gorsel + '_walk');

@@ -34,6 +34,9 @@ class YukleSahnesi extends Phaser.Scene {
     this.load.spritesheet('okcu', g + 'okcu.png', { frameWidth: K.okcu.fw, frameHeight: K.okcu.fh });
     this.load.spritesheet('asker', g + 'asker.png', { frameWidth: K.asker.fw, frameHeight: K.asker.fh });
     for (const ad of Object.keys(K.susler)) this.load.image(ad, g + ad + '.png');
+    // PixelLab ile çizilmiş savaş kalesi (varsa): tamamı ve mazgalsız gövde
+    if (K.manzaraPl) this.load.image('manzara_pl', g + 'manzara_pl.png');
+    if (K.kalePl) { this.load.image('kale_pl', g + 'kale_pl.png'); this.load.image('kale_pl_govde', g + 'kale_pl_govde.png'); }
     for (const ad of ['tas', 'cim', 'toprak', 'tahta']) this.load.image(ad, 'assets/doku/' + ad + '.png');
     for (const ad of ['shoot', 'hit', 'kill', 'big_kill', 'hurt', 'coin', 'level_up', 'ui', 'impact', 'boss', 'confirm']) {
       this.load.audio(ad, 'assets/ses/' + ad + '.mp3');

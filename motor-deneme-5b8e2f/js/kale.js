@@ -27,9 +27,10 @@ class KaleSahnesi extends Phaser.Scene {
     this.E = this.oyun.ekonomi;
     this.M = this.cache.json.get('kale');
     this.O = this.M.olcek;
-    this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.O);
+    // arkaPiksel / on.piksel: PixelLab ile yeniden çizilen zemin daha sık pikselli (yoksa O)
+    this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.M.arkaPiksel || this.O);
     const on = this.M.on;
-    this.add.image(on.x * this.O, on.y * this.O, 'k_on').setOrigin(0).setScale(this.O).setDepth(20);
+    this.add.image(on.x * this.O, on.y * this.O, 'k_on').setOrigin(0).setScale(on.piksel || this.O).setDepth(20);
     this.secili = null;
     this.panel = null;
     this.binaSprite = {};

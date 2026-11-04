@@ -57,3 +57,7 @@ PixelLab (pixellab.ai) ile yapay zekâyla üretilen deneme görselleri (2026-11-
   assets/kale/ altındaki 8 binanın 3 seviyesi (ev, ciftlik, oduncu, tasocagi, maden,
   demirci, yayci, duvarci), koylupl_a/_y.png, nobetcipl_a/_y.png
   Eski bina çizimleri assets/kale/eski/ içinde.
+  2026-11-04 (2): iç kale zemini ve surları (assets/kale/arka.png, on.png), savaş ekranı
+  kalesi (assets/gorsel/kale_pl*.png), manzara (manzara_pl.png), oyuncu okçu ve sur askerleri
+  (okcu.png, asker.png) ile 13 düşmanın şeritleri de PixelLab ile üretildi.
+  Okçu/asker şeritlerinde kol ve yay her nişan açısı için kodla döndürüldü.
