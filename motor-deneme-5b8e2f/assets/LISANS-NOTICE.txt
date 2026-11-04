@@ -52,3 +52,7 @@ Audio, CC0 1.0
 
 
 İç kale (assets/kale/): binalar three.js ile basit geometriden kuruldu (bu projeye ait). Köylüler: Quaternius "worker" (CC0). Ağaçlar: Quaternius (CC0). Dokular: Screaming Brain Studios (CC0).
+
+PixelLab (pixellab.ai) ile yapay zekâyla üretilen deneme görselleri (2026-11-04):
+  assets/kale/demirci1-3.png, assets/kale/koylupl_a.png, assets/kale/koylupl_y.png
+  Eski demirci çizimleri assets/kale/eski/ içinde.
