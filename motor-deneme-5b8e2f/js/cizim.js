@@ -63,9 +63,12 @@ class Manzara {
     this.zeminGolge.fillRect(0, zemin + 14, en, boy - zemin);
     this.zeminGolge.fillStyle(0x1a1410, 0.9).fillRect(0, zemin + 12, en, 3);
     // Süsler (Quaternius modellerinden çizildi)
+    this.susler = [];
     const sus = (ad, x, olcek = 1, yukseklik = 6) => {
       const m = sahne.cache.json.get('kareler').susler[ad];
-      return sahne.add.image(x, zemin + yukseklik, ad).setOrigin(m.centerX / m.fw, m.footY / m.fh).setScale(olcek).setDepth(6);
+      const i = sahne.add.image(x, zemin + yukseklik, ad).setOrigin(m.centerX / m.fw, m.footY / m.fh).setScale(olcek).setDepth(6);
+      this.susler.push(i);
+      return i;
     };
     sus('sutun', 880, 1.1);
     sus('kaya2', 930, 0.8);
@@ -77,7 +80,19 @@ class Manzara {
     sus('cali', 520, 0.9);
     sus('cali', 1760, 1.1);
     sus('kaya2', 1840, 0.6);
+    this.pixellabKur(sahne);
     this.boya(1);
+  }
+
+  // PixelLab çizimi varsa: dağ, orman, zemin ve süsler tek görsel olur (gökyüzü ve ay koddan kalır).
+  pixellabKur(sahne) {
+    const P = sahne.cache.json.get('kareler').manzaraPl;
+    if (!P || !sahne.textures.exists('manzara_pl')) return;
+    const { en, boy } = AYAR;
+    for (const o of [this.daglar, this.toprak, this.cim, this.zeminGolge, ...this.uzakOrman, ...this.yakinOrman, ...this.susler]) o.setVisible(false);
+    this.uzakOrman = []; this.yakinOrman = [];
+    sahne.add.rectangle(0, boy - 40, en, 40, 0x1e120c).setOrigin(0).setDepth(2);  // görselin altındaki ince boşluk
+    this.pl = sahne.add.image(P.x, P.y, 'manzara_pl').setOrigin(0).setScale(P.piksel).setDepth(3);
   }
 
   // Dalgaya göre gökyüzü ve sis renklerini uygula
@@ -112,6 +127,8 @@ class Manzara {
     const yakin = renkKaris(r.sis, 0x0a0c10, 0.8);
     for (const t of this.uzakOrman) t.setTint(uzak);
     for (const t of this.yakinOrman) t.setTint(yakin);
+    // PixelLab manzarası: geceye doğru sise boğulup kararır
+    if (this.pl) this.pl.setTint(renkKaris(0xffffff, renkKaris(r.sis, 0x202838, 0.5), Math.min(1, r.gece * 0.85)));
     return r;
   }
 }
@@ -157,6 +174,20 @@ class Kale {
     this.hasarCizim = sahne.add.graphics().setDepth(12);
     this.asama = 0;
     this.tohum = 1;
+    this.pixellabKur();
+  }
+
+  // PixelLab çizimi varsa: taş dokulu parçaların yerine tek görsel. Mazgallar aynı görselden
+  // kırpılır, böylece hasarla tek tek düşmeye devam eder. Çatlak ve gedik katmanı aynı kalır.
+  pixellabKur() {
+    const s = this.s, P = s.cache.json.get('kareler').kalePl;
+    if (!P || !s.textures.exists('kale_pl')) return;
+    for (const p of this.parcalar) p.setVisible(false);
+    this.golge.setVisible(false);
+    const govde = s.add.image(P.x, P.y, 'kale_pl_govde').setOrigin(0).setScale(P.piksel).setDepth(11);
+    this.mazgallar = this.mazgallar.map(d => s.add.image(P.x, P.y, 'kale_pl').setOrigin(0).setScale(P.piksel).setDepth(d.depth)
+      .setCrop((d.x - P.x) / P.piksel - 1, (d.y - P.y) / P.piksel - 1, d.width / P.piksel + 2, d.height / P.piksel + 1));
+    this.parcalar = [govde, ...this.mazgallar];
   }
 
   golgeCiz() {

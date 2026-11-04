@@ -27,9 +27,15 @@ class KaleSahnesi extends Phaser.Scene {
     this.E = this.oyun.ekonomi;
     this.M = this.cache.json.get('kale');
     this.O = this.M.olcek;
-    this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.O);
+    // arkaPiksel / on.piksel: PixelLab ile yeniden çizilen zemin daha sık pikselli (yoksa O)
+    this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.M.arkaPiksel || this.O);
     const on = this.M.on;
-    this.add.image(on.x * this.O, on.y * this.O, 'k_on').setOrigin(0).setScale(this.O).setDepth(20);
+    // Süs eşyaları: x, y = alt orta (ekran pikseli); aşağıdaki öndedir
+    for (const su of this.M.susler || []) {
+      this.add.image(su.x, su.y, 'ks_' + su.ad).setOrigin(0.5, 1).setScale(su.piksel || 1).setFlipX(!!su.ayna)
+        .setDepth(this.derinlik(su.y, su.disari));
+    }
+    this.add.image(on.x * this.O, on.y * this.O, 'k_on').setOrigin(0).setScale(on.piksel || this.O).setDepth(20);
     this.secili = null;
     this.panel = null;
     this.binaSprite = {};
@@ -61,7 +67,9 @@ class KaleSahnesi extends Phaser.Scene {
   binaGorsel(k) {
     const m = this.binaMeta(k), sp = this.binaSprite[k];
     const O = this.O;
-    sp.setTexture('k_' + k + this.E.bina[k].seviye).setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
+    // piksel: görselin bir pikseli ekranda kaç piksel (yoksa O). PixelLab çizimleri daha sık pikselli.
+    sp.setTexture('k_' + k + this.E.bina[k].seviye).setScale(m.piksel || O)
+      .setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
     const B = BINALAR[k], b = this.E.bina[k];
     const yazi = k === 'ev' ? `${B.ad}  ${this.E.nufus}/${this.E.barinak}` : `${B.ad}  ${b.isci}/${this.E.yerSayisi(k)}`;
     this.etiket[k].setText(yazi).setPosition(m.merkez[0] * O, Math.max(96, m.y * O + 30));
@@ -154,7 +162,9 @@ class KaleSahnesi extends Phaser.Scene {
     if (o.surCan < o.surEnFazla * 0.4) u.push('Sur ağır hasarlı: duvarcıya işçi ver ya da altınla onar.');
     if (E.bosta > 0) u.push(`${E.bosta} kişi boşta.`);
     this.uyari.setText(u.join('   '));
+    this.ilkDizilis = !this.koyluler || !Object.values(this.koyluler).some(l => l.length);
     this.koyluleriDiz();
+    this.ilkDizilis = false;
     if (this.panelYenile) this.panelYenile();
   }
 
@@ -340,18 +350,26 @@ class KaleSahnesi extends Phaser.Scene {
   koyluYap(grup, i) {
     const O = this.O;
     // Askerler nöbetçi kılığında, ötekiler üç köylü tipinden biri
-    const tur = grup === 'asker' ? 'nobetci' : ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
+    // PixelLab köylüsü varsa (deneme) hepsi o, yoksa eski üç tip
+    const K = this.M.koylu;
+    const tur = grup === 'asker' ? (K.nobetcipl_a ? 'nobetcipl' : 'nobetci')
+      : K.koylupl_a ? this.plKoyluler()[(grup.length + i) % this.plKoyluler().length] : ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
     const disari = DIS_BINALAR.includes(grup);
     // Dışarıdakiler işinin başında doğar, içeridekiler evin önünde
     const bas = disari ? this.binaMeta(grup).is : this.M.binalar['ev' + this.E.bina.ev.seviye].is;
     const m = this.M.koylu[tur + '_a'];
-    const sp = this.add.sprite(0, 0, tur + '_a', 0).setOrigin(0.5, m.footY / m.fh).setScale(O);
+    const sp = this.add.sprite(0, 0, tur + '_a', 0).setOrigin(0.5, m.footY / m.fh).setScale(m.piksel || O);
     const k = { sprite: sp, tur, grup, disari, x: (bas[0] + (Math.random() - 0.5) * 16) * O, y: (bas[1] + Math.random() * 6) * O,
       bekle: Math.random() * 2, hedef: null, isBasi: true, hiz: 45 + Math.random() * 25 };
+    // İlk açılışta herkes evin önünde yığılmasın: işinin başında (askerler kapıda) başlar
+    if (this.ilkDizilis) [k.x, k.y] = this.yerBul(k);
     sp.play(tur + '_a_idle');
     sp.setPosition(k.x, k.y).setDepth(this.derinlik(k.y, disari));
     return k;
   }
+
+  // PixelLab köylü çeşitleri (kale.json'da hangileri varsa)
+  plKoyluler() { return ['koylupl', 'koylupl2', 'koylupl3', 'koylupl4'].filter(t => this.M.koylu[t + '_a']); }
 
   // Grubun gideceği yer (ekran pikseli): binanın iş noktası, meydan ya da kapı
   yerBul(k) {
