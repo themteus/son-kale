@@ -14,7 +14,17 @@ Bir yerel sunucu gerekir (dosyayı çift tıklamak yetmez, tarayıcı görseller
 2. Savaş: her ok ambardan gider. Askerler de ok harcar.
 3. Gün sonu: binalar üretir, halk yer, duvarcılar suru onarır, ıskalanan okların
    çoğu, saplananların azı toplanır. Rapor iç kalede açılır.
-4. Sur yıkılırsa ya da halk 5 kişinin altına inerse oyun biter.
+4. Sur ilk yıkıldığında ambarda 40 odun varsa halk bir kez barikat kurar (surun %25'i).
+   İkinci kez yıkılırsa ya da halk 5 kişinin altına inerse oyun biter.
+
+## Yardımcı kurallar
+- **Gözcüler:** iç kalede ve dükkânda yarınki dalga yazar (kaç düşman, kaç dev, patron var mı).
+- **Kafa serisi:** art arda 3 kafa vuruşu → sıradaki tam gerili ok "keskin" olur (×2 hasar,
+  kalkanı ve 3 düşmanı deler). Iskalamak seriyi bozar. Sol üstteki 3 elmas seriyi gösterir.
+- **Eksiği altınla al:** bina ve sur yükseltmesinde malzeme eksikse, eksik kısım pazar
+  fiyatının biraz üstüne altınla alınabilir.
+- **Kayıt:** her gün iç kaleye girerken oyun kaydedilir; menüde "Devam et" çıkar.
+  Kale düşünce kayıt silinir.
 
 ## Dosyalar
 - `js/ayarlar.js`  : bütün sayılar (hasar, hız, can, dalgalar, dükkân, binalar, sur, pazar)

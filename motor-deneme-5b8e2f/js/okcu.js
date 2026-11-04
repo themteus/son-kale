@@ -53,7 +53,8 @@ class Okcu {
     if (hazir) this.takiliOk.setPosition(this.kiris.x, this.kiris.y).setRotation(Phaser.Math.DegToRad(A[i]));
     if (hazir && this.oyuncu) {
       const t = this.s.okTuru;
-      if (t && t !== 'normal') this.takiliOk.setTint(OK_TURLERI[t].renk); else this.takiliOk.clearTint();
+      if (this.s.keskinHazir) this.takiliOk.setTint(0xffe08a);
+      else if (t && t !== 'normal') this.takiliOk.setTint(OK_TURLERI[t].renk); else this.takiliOk.clearTint();
     }
   }
 
@@ -122,8 +123,13 @@ class Okcu {
     this.otoBirak = false;
     this.bekleme = B.takmaSuresi * oyun.germeCarpani();
     const sayi = oyun.okSayisi();
-    if (this.at(oyun, aci, oyun.okHizi() * guc * (1 + gaussRastgele() * 0.03), oyun.okHasari() * hasarCarpani, sayi, oyun.okTuruHarca(sayi)) !== false)
+    // Kafa serisiyle kazanılan keskin ok: tam gerili atışta harcanır
+    const keskin = oyun.keskinHazir && p >= 0.9;
+    const carp = keskin ? AYAR.keskin.hasar : 1;
+    if (this.at(oyun, aci, oyun.okHizi() * guc * (1 + gaussRastgele() * 0.03), oyun.okHasari() * hasarCarpani * carp, sayi, oyun.okTuruHarca(sayi), keskin) !== false) {
+      if (keskin) oyun.keskinHazir = false;
       oyun.sesCal('shoot', 0.35);
+    }
   }
 
   // ---------------- Asker ----------------
@@ -136,7 +142,10 @@ class Okcu {
     // Atıştan az önce yayı gerer
     this.germe = this.bekleme < 0.45 ? 1 : 0;
     if (this.bekleme <= 0) {
-      this.at(oyun, this.aci + gaussRastgele() * A.sapma, oyun.okHizi(), oyun.okHasari() * A.hasarOrani * oyun.ekonomi.yayKalite.hasar, 1);
+      // Okçu Eğitimi: hasar +%15, sapma -%12 (her seviye)
+      const egitim = oyun.seviye.egitim || 0;
+      this.at(oyun, this.aci + gaussRastgele() * A.sapma * Math.pow(0.88, egitim), oyun.okHizi(),
+        oyun.okHasari() * A.hasarOrani * oyun.ekonomi.yayKalite.hasar * (1 + 0.15 * egitim), 1);
       this.bekleme = A.beklemeSn * (0.9 + Math.random() * 0.2);
       this.onu = undefined;
     }
@@ -174,7 +183,7 @@ class Okcu {
   }
 
   // Normal oklar ambardan düşer; ateşli/delici oklar dükkândan alınan ayrı stoktur
-  at(oyun, aci, hiz, hasar, sayi, tur = 'normal') {
+  at(oyun, aci, hiz, hasar, sayi, tur = 'normal', keskin = false) {
     const ambar = tur === 'normal';
     if (ambar && !oyun.ekonomi.okHarca(sayi)) {
       if (this.oyuncu) oyun.okBitti();
@@ -184,7 +193,8 @@ class Okcu {
     for (let i = 0; i < sayi; i++) {
       const a = aci + (i - (sayi - 1) / 2) * ara;
       const orta = i === Math.floor((sayi - 1) / 2);
-      oyun.okEkle(this.tutamak.x, this.tutamak.y, a, hiz, orta ? hasar : hasar * AYAR.ok.yanOkOrani, this.oyuncu, tur, ambar);
+      const ok = oyun.okEkle(this.tutamak.x, this.tutamak.y, a, hiz, orta ? hasar : hasar * AYAR.ok.yanOkOrani, this.oyuncu, tur, ambar, keskin && orta);
+      ok.yan = !orta; // yan oklar kafa serisini bozmaz
     }
   }
 

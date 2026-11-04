@@ -62,21 +62,40 @@ class Ekonomi {
     for (const k in bedel) { if (k === 'altin') oyun.altin -= bedel[k]; else this.kaynak[k] -= bedel[k]; }
     return true;
   }
+  // Eksik malzemenin altın karşılığı (pazar fiyatı + zam). Yetmiyorsa null.
+  tamamlaAltini(bedel, oyun) {
+    let altin = bedel.altin || 0;
+    for (const k in bedel) {
+      if (k === 'altin') continue;
+      const eksik = bedel[k] - this.kaynak[k];
+      if (eksik <= 0) continue;
+      if (!PAZAR[k]) return null;
+      altin += Math.ceil(eksik * PAZAR[k].fiyat / PAZAR[k].parti * (this.pazar[k] || 1) * EKONOMI.tamamlaZam);
+    }
+    return altin;
+  }
+  // Eksik malzemeyi altınla alıp öde
+  tamamlaVeOde(bedel, oyun) {
+    const altin = this.tamamlaAltini(bedel, oyun);
+    if (altin === null || oyun.altin < altin) return false;
+    const tam = { altin };
+    for (const k in bedel) if (k !== 'altin') tam[k] = Math.min(bedel[k], this.kaynak[k]);
+    return this.ode(tam, oyun);
+  }
   yukseltBedeli(k) { return BINALAR[k].yukselt[this.bina[k].seviye - 1] || null; }
-  yukselt(k, oyun) {
+  // tamamla: eksik malzemeyi altınla al
+  yukselt(k, oyun, tamamla) {
     const b = this.yukseltBedeli(k);
-    if (!b || !this.ode(b, oyun)) return false;
+    if (!b || !(tamamla ? this.tamamlaVeOde(b, oyun) : this.ode(b, oyun))) return false;
     this.bina[k].seviye++;
     return true;
   }
   surBedeli() { return SUR.yukselt[this.surSeviye - 1] || null; }
-  surYukselt(oyun) {
+  surYukselt(oyun, tamamla) {
     const b = this.surBedeli();
-    if (!b || !this.ode(b, oyun)) return false;
+    if (!b || !(tamamla ? this.tamamlaVeOde(b, oyun) : this.ode(b, oyun))) return false;
     this.surSeviye++;
-    const fark = SUR.can[this.surSeviye - 1] - oyun.surEnFazla;
-    oyun.surEnFazla += fark;
-    oyun.surCan += fark;
+    oyun.surCanAyarla();
     return true;
   }
   // Altınla acil onarım: günde bir kez, surun en çok yarısı
