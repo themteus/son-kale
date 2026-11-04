@@ -116,8 +116,11 @@ class KaleSahnesi extends Phaser.Scene {
     this.alt.fillStyle(0x120e0c, 0.88).fillRect(0, AYAR.boy - 96, AYAR.en, 96);
     this.alt.lineStyle(2, 0x6a5430).lineBetween(0, AYAR.boy - 96, AYAR.en, AYAR.boy - 96);
     this.halkYazi = this.add.text(30, AYAR.boy - 48, '', stil('govde', 26, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
-    this.uyari = this.add.text(AYAR.en / 2, AYAR.boy - 130, '', stil('govde', 26, { color: '#ffb080', stroke: '#120e0c', strokeThickness: 6 }))
+    this.uyari = this.add.text(AYAR.en / 2, AYAR.boy - 166, '', stil('govde', 26, { color: '#ffb080', stroke: '#120e0c', strokeThickness: 6 }))
       .setOrigin(0.5).setDepth(D + 1);
+    // Gözcü raporu (yarınki dalga) alt şeridin hemen üstünde, solda
+    this.kesifYazi = this.add.text(30, AYAR.boy - 118, '', stil('govde', 24, { fontStyle: 'bold', stroke: '#120e0c', strokeThickness: 6 }))
+      .setOrigin(0, 0.5).setDepth(D + 1);
     this.dugme(890, AYAR.boy - 48, 270, 70, 'Otomatik dağıt', () => { this.E.otomatikDagit(this.oyun); this.yenile(); }, D + 1, 26);
     this.dugme(1180, AYAR.boy - 48, 270, 70, 'Silah ustası', () => this.dukkanaGit(), D + 1, 26);
     this.savasDugme = this.dugme(1620, AYAR.boy - 48, 520, 76, '', () => this.savasaCik(), D + 1, 32);
@@ -153,6 +156,10 @@ class KaleSahnesi extends Phaser.Scene {
     this.halkYazi.setColor(E.bosta > 0 ? '#ffe08a' : '#efe6d2');
     const sonraki = o.dalga + 1;
     this.savasDugme.yazi.setText(sonraki % PATRON_ARASI === 0 ? `Savaşa çık ▶ (Ak Dev!)` : `Savaşa çık ▶ ${sonraki}. dalga`);
+    // Keşif: yarın kim geliyor
+    const kesif = o.kesif();
+    this.kesifYazi.setText(`Gözcüler: ${kesif.ozet}`);
+    this.kesifYazi.setColor(['#c8bca4', '#c8bca4', '#ffb080', '#ff7a6a'][kesif.tehlike]);
     // Uyarılar
     const u = [];
     if (t.yenen < t.ihtiyac) u.push('Yiyecek yetmeyecek: çiftliğe işçi ver!');
@@ -218,17 +225,26 @@ class KaleSahnesi extends Phaser.Scene {
   }
 
   // Yükseltme satırı (bina ya da sur)
+  // fn(tamamla): tamamla = true ise eksik malzeme altınla alınır
   yukseltSatiri(p, yy, bedelFn, fn) {
     const t = p.yazi(yy, '', 24, '#c8bca4');
-    const b = p.dugme(-110, yy + 92, 300, 64, 'Yükselt', fn, 28);
+    const b = p.dugme(-110, yy + 92, 300, 64, 'Yükselt', () => fn(false), 28);
+    const tb = p.dugme(-110, yy + 166, 300, 56, '', () => fn(true), 22);
     return () => {
       const bedel = bedelFn();
-      if (!bedel) { t.setText('En yüksek seviyede.'); b.setVisible(false); return; }
+      if (!bedel) { t.setText('En yüksek seviyede.'); b.setVisible(false); tb.setVisible(false); return; }
       const yeter = this.E.yeter(bedel, this.oyun);
       t.setText('Yükseltme: ' + this.bedelYazi(bedel));
       t.setColor(yeter ? '#c8bca4' : '#d08070');
       b.setVisible(true);
       b.yazi.setColor(yeter ? '#ffd76a' : '#7a7060');
+      // Malzeme eksikse: eksiği pazardan biraz pahalıya altınla tamamla
+      const altin = yeter ? null : this.E.tamamlaAltini(bedel, this.oyun);
+      tb.setVisible(altin !== null);
+      if (altin !== null) {
+        tb.yazi.setText(`Eksiği altınla al · ${altin}`);
+        tb.yazi.setColor(this.oyun.altin >= altin ? '#ffd76a' : '#7a7060');
+      }
     };
   }
 
@@ -254,7 +270,7 @@ class KaleSahnesi extends Phaser.Scene {
         g.setText('Ambarda yiyecek ve evde yer varsa her gün en çok 3 sığınmacı gelir.');
       });
     }
-    satirlar.push(this.yukseltSatiri(p, p.ust + 470, () => E.yukseltBedeli(k), () => E.yukselt(k, this.oyun) && this.oyun.sesCal('level_up', 0.4)));
+    satirlar.push(this.yukseltSatiri(p, p.ust + 470, () => E.yukseltBedeli(k), t => E.yukselt(k, this.oyun, t) && this.oyun.sesCal('level_up', 0.4)));
     this.panelYenile = () => {
       sv.setText(`Seviye ${E.bina[k].seviye}` + (B.kalite ? ` · ${B.kalite[E.bina[k].seviye - 1].ad}` : ''));
       for (const f of satirlar) f();
@@ -274,12 +290,12 @@ class KaleSahnesi extends Phaser.Scene {
     const E = this.E, o = this.oyun;
     const can = p.yazi(p.ust, '', 30, '#efe6d2', { fontStyle: 'bold' });
     const onarB = p.dugme(-40, p.ust + 90, 440, 64, '', () => E.acilOnar(o) && o.sesCal('coin', 0.5), 24);
-    const yuk = this.yukseltSatiri(p, p.ust + 150, () => E.surBedeli(), () => E.surYukselt(o) && o.sesCal('level_up', 0.4));
-    p.yazi(p.ust + 340, 'Okçu askerler', 30, '#c9a24a', { fontStyle: 'bold' });
-    const ask = p.yazi(p.ust + 384, '', 28, '#efe6d2', { fontStyle: 'bold' });
-    p.dugme(-190, p.ust + 470, 110, 64, '−', () => { E.askerEkle(-1); }, 40);
-    p.dugme(-60, p.ust + 470, 110, 64, '+', () => { E.askerEkle(1); }, 40);
-    p.yazi(p.ust + 520, 'Sur her yükseldiğinde bir okçu yeri daha açılır. Her asker bir kişi ve bir yay ister. Yaycı boş kalan vaktinde yay yapar. Askerler de ambardan ok harcar.', 22, '#c8bca4');
+    const yuk = this.yukseltSatiri(p, p.ust + 150, () => E.surBedeli(), t => E.surYukselt(o, t) && o.sesCal('level_up', 0.4));
+    p.yazi(p.ust + 400, 'Okçu askerler', 30, '#c9a24a', { fontStyle: 'bold' });
+    const ask = p.yazi(p.ust + 444, '', 28, '#efe6d2', { fontStyle: 'bold' });
+    p.dugme(-190, p.ust + 530, 110, 64, '−', () => { E.askerEkle(-1); }, 40);
+    p.dugme(-60, p.ust + 530, 110, 64, '+', () => { E.askerEkle(1); }, 40);
+    p.yazi(p.ust + 580, 'Sur her yükseldiğinde bir okçu yeri daha açılır. Her asker bir kişi ve bir yay ister. Yaycı boş kalan vaktinde yay yapar. Askerler de ambardan ok harcar.', 22, '#c8bca4');
     this.panelYenile = () => {
       can.setText(`Sur canı ${Math.round(o.surCan)} / ${o.surEnFazla}  ·  Seviye ${E.surSeviye}`);
       const b = E.acilOnarimBilgi(o);

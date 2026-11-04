@@ -76,11 +76,18 @@ const AYAR = {
 
   ruzgar: { enFazla: 280, sakinOlasilik: 0.25 },
 
+  // Barikat: sur yıkılınca halk odunla son bir barikat kurar (dalga başına bir kez)
+  barikat: { canOrani: 0.25, odun: 40 },
+
+  // Kafa serisi: art arda bu kadar kafa vuruşu → sıradaki ok "keskin" olur
+  // Keskin ok: hasar ×2 ve önündeki düşmanların içinden geçer. Iska seriyi bozar.
+  keskin: { seri: 3, hasar: 2, delip: 3 },
+
   dalga: {
     temel: 4,          // 1. dalgadaki zombi ~ temel + artis
     artis: 2.6,        // Her dalgada eklenen zombi
     canArtisi: 0.14,   // Her dalgada zombi canı %14 artar...
-    bilesik: 0.045,    // ...üstüne bileşik %4.5
+    bilesik: 0.04,     // ...üstüne bileşik %4
     ilkBekleme: 1.2,
     bitirmeAltini: 10, // Dalga bitince: bitirmeAltini + dalga * bitirmeArtisi
     bitirmeArtisi: 5,
@@ -184,6 +191,8 @@ const YUKSELTMELER = [
   { id: 'germe', ad: 'Hızlı Çekiş', aciklama: 'Yayı %12 daha hızlı gerersin', enFazla: 5, fiyat: s => Math.round(40 * Math.pow(1.7, s)) },
   { id: 'coklu', ad: 'Çoklu Ok', aciklama: 'Her atışta +1 ok (stoktan da 1 fazla düşer)', enFazla: 2, fiyat: s => [120, 300][s] },
   { id: 'yagmur', ad: 'Ok Yağmuru', aciklama: 'Q: gökten ok yağdır (oklar ambardan gider)', enFazla: 3, fiyat: s => [150, 260, 420][s] },
+  { id: 'egitim', ad: 'Okçu Eğitimi', aciklama: 'Askerlerin hasarı +%15, daha az sapar', enFazla: 8, fiyat: s => Math.round(150 * Math.pow(1.7, s)) },
+  { id: 'payanda', ad: 'Sur Payandası', aciklama: 'Surun en yüksek canı +%10', enFazla: 8, fiyat: s => Math.round(200 * Math.pow(1.7, s)) },
   { id: 'ates', ad: 'Ateşli Ok ×10', aciklama: 'Düşmanı tutuşturur (2 tuşu)', enFazla: 99, fiyat: () => 40, stok: true },
   { id: 'delici', ad: 'Delici Ok ×10', aciklama: 'Kalkanı deler, sıra sıra geçer (3 tuşu)', enFazla: 99, fiyat: () => 50, stok: true },
 ];
@@ -216,6 +225,7 @@ const EKONOMI = {
   enAzNufus: 5,       // Halk bunun altına inerse kale düşer
   seviyeBonus: 0.2,   // Bina her seviyede işçi başı üretimi %20 artırır
   acilOnarim: 1.5,    // Altınla onarım: 1 can kaç altın (günde surun en çok yarısı)
+  tamamlaZam: 1.3,    // Yükseltmede eksik malzemeyi altınla tamamlarken pazar fiyatına zam
 };
 
 // Binalar. yerlesim: iç kale sahnesindeki yer (assets/kale/kale.json)

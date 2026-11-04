@@ -65,6 +65,13 @@ class Arayuz {
     g.fillStyle(0x120e0c, 0.85).fillRoundedRect(96, 70, 260, 18, 6);
     const st = oyun.dayaniklilik / AYAR.dayaniklilik.enFazla;
     g.fillStyle(st < AYAR.dayaniklilik.yorgun ? 0xe0803a : 0xe8c34a, 1).fillRect(100, 74, 252 * st, 10);
+    // Kafa serisi: üç küçük elmas, keskin ok hazırsa parlar
+    for (let i = 0; i < AYAR.keskin.seri; i++) {
+      const dolu = oyun.keskinHazir || i < oyun.kafaSerisi;
+      const x = 380 + i * 30, y = 79;
+      g.fillStyle(dolu ? (oyun.keskinHazir ? 0xffe08a : 0xe8c34a) : 0x3a3028, 1)
+        .fillTriangle(x, y - 10, x + 9, y, x, y + 10).fillTriangle(x, y - 10, x - 9, y, x, y + 10);
+    }
     // Altın
     g.fillStyle(0xd8a830, 1).fillCircle(56, 120, 14);
     g.fillStyle(0xffe08a, 1).fillCircle(52, 116, 6);
@@ -177,8 +184,8 @@ class Arayuz {
       kap.add(s.add.text(0, -165, 'Gündüz iç kaleyi yönet, gece surda savaş', stil('govde', 30, { color: '#c9a24a' })).setOrigin(0.5));
       const dokun = s.sys.game.device.input.touch;
       const anlatim = dokun
-        ? 'Vurmak istediğin yere bas: yay gerilir. Bırak: ok uçar.\nKafaya isabet iki kat vurur ve altın verir.\nHer ok ambardan gider: iç kalede ok üretmeyi unutma.'
-        : 'Fareyle nişan al, basılı tutup yayı ger, bırak.\nKafaya isabet iki kat vurur ve altın verir.\nHer ok ambardan gider: iç kalede ok üretmeyi unutma.';
+        ? 'Vurmak istediğin yere bas: yay gerilir. Bırak: ok uçar.\nKafaya isabet iki kat vurur, art arda 3 kafa keskin ok verir.\nHer ok ambardan gider: iç kalede ok üretmeyi unutma.'
+        : 'Fareyle nişan al, basılı tutup yayı ger, bırak.\nKafaya isabet iki kat vurur, art arda 3 kafa keskin ok verir.\nHer ok ambardan gider: iç kalede ok üretmeyi unutma.';
       kap.add(s.add.text(0, -40, anlatim, stil('govde', 30, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
       // Zorluk seçimi
       const zd = {};
@@ -197,7 +204,12 @@ class Arayuz {
       const rekor = s.add.text(0, 168, '', stil('govde', 26, { color: '#c9a24a' })).setOrigin(0.5);
       kap.add(rekor);
       yenile();
-      this.panelDugme(kap, 0, 250, 360, 84, 'Başla', () => s.oyunuBaslat(), 40);
+      const kayit = s.kayitOku();
+      if (kayit) {
+        this.panelDugme(kap, -200, 250, 380, 84, `Devam et · ${kayit.dalga + 1}. gün`, () => s.devamEt(), 32);
+        this.panelDugme(kap, 200, 250, 340, 84, 'Yeni oyun', () => { s.kayitSil(); s.oyunuBaslat(); }, 32);
+        kap.add(s.add.text(0, 312, `Kayıtlı oyun: ${ZORLUKLAR[kayit.zorluk].ad}. Yeni oyun kaydı siler.`, stil('govde', 22, { color: '#8a806c' })).setOrigin(0.5));
+      } else this.panelDugme(kap, 0, 250, 360, 84, 'Başla', () => s.oyunuBaslat(), 40);
     });
   }
 
@@ -214,12 +226,12 @@ class Arayuz {
       };
       // İki sütun: solda yay ve askerler, sağda sur ve oklar
       YUKSELTMELER.forEach((u, i) => {
-        const sutun = i < 3 ? 0 : 1, sira = i < 3 ? i : i - 3;
-        const x0 = sutun ? 40 : -780, y = -150 + sira * 108;
+        const sutun = i < 4 ? 0 : 1, sira = i < 4 ? i : i - 4;
+        const x0 = sutun ? 40 : -780, y = -170 + sira * 88;
         const ad = s.add.text(x0, y - 20, '', stil('govde', 31, { fontStyle: 'bold' })).setOrigin(0, 0.5);
-        const ac = s.add.text(x0, y + 18, u.aciklama, stil('govde', 22, { color: '#b8ac94', wordWrap: { width: 470 } })).setOrigin(0, 0.5);
+        const ac = s.add.text(x0, y + 16, u.aciklama, stil('govde', 21, { color: '#b8ac94', wordWrap: { width: 470 } })).setOrigin(0, 0.5);
         kap.add([ad, ac]);
-        const b = this.panelDugme(kap, x0 + 610, y, 220, 68, '', () => { if (oyun.satinAl(u)) yenile(); }, 28);
+        const b = this.panelDugme(kap, x0 + 610, y, 220, 64, '', () => { if (oyun.satinAl(u)) yenile(); }, 28);
         satirlar.push(() => {
           const sv = oyun.seviye[u.id] || 0;
           const bitti = sv >= u.enFazla;
@@ -236,7 +248,8 @@ class Arayuz {
       });
       const sonraki = oyun.dalga + 1;
       const not = sonraki % PATRON_ARASI === 0 ? 'Sıradaki dalgada Ak Dev geliyor!' : `Kurtuluşa ${Math.max(0, oyun.zorluk.kurtulus - oyun.dalga)} dalga`;
-      kap.add(s.add.text(0, 190, oyun.kurtuldu ? 'Sonsuz kuşatma: ne kadar dayanabilirsin?' : not,
+      kap.add(s.add.text(0, 162, 'Gözcüler: ' + oyun.kesif().ozet, stil('govde', 24, { color: '#c8bca4' })).setOrigin(0.5));
+      kap.add(s.add.text(0, 202, oyun.kurtuldu ? 'Sonsuz kuşatma: ne kadar dayanabilirsin?' : not,
         stil('govde', 26, { color: sonraki % PATRON_ARASI === 0 ? '#e08070' : '#c9a24a' })).setOrigin(0.5));
       this.panelDugme(kap, -240, 275, 420, 80, '◀ İç kale', () => s.iceGir(), 34);
       this.panelDugme(kap, 240, 275, 420, 80, 'Savaşa çık ▶', () => s.dalgaBaslat(), 34);
