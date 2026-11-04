@@ -61,3 +61,4 @@ PixelLab (pixellab.ai) ile yapay zekâyla üretilen deneme görselleri (2026-11-
   kalesi (assets/gorsel/kale_pl*.png), manzara (manzara_pl.png), oyuncu okçu ve sur askerleri
   (okcu.png, asker.png) ile 13 düşmanın şeritleri de PixelLab ile üretildi.
   Okçu/asker şeritlerinde kol ve yay her nişan açısı için kodla döndürüldü.
+  2026-11-04 (3): iç kale süs eşyaları (assets/kale/sus/) ve köylü çeşitleri (koylupl2-4) PixelLab ile.
