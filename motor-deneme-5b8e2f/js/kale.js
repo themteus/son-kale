@@ -343,7 +343,9 @@ class KaleSahnesi extends Phaser.Scene {
     const O = this.O;
     // Askerler nöbetçi kılığında, ötekiler üç köylü tipinden biri
     // PixelLab köylüsü varsa (deneme) hepsi o, yoksa eski üç tip
-    const tur = grup === 'asker' ? 'nobetci' : this.M.koylu.koylupl_a ? 'koylupl' : ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
+    const K = this.M.koylu;
+    const tur = grup === 'asker' ? (K.nobetcipl_a ? 'nobetcipl' : 'nobetci')
+      : K.koylupl_a ? 'koylupl' : ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
     const disari = DIS_BINALAR.includes(grup);
     // Dışarıdakiler işinin başında doğar, içeridekiler evin önünde
     const bas = disari ? this.binaMeta(grup).is : this.M.binalar['ev' + this.E.bina.ev.seviye].is;
