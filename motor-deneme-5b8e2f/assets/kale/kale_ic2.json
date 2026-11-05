@@ -1,232 +1,159 @@
 {
+ "bolgeler": {
+  "askeri": "batı suru: kışla + talim alanı",
+  "ciftlik": "arka sur: ahır, atlar, kümes, saman arabası, çiftlik",
+  "pazar": "orta meydan: kuyu, tezgâhlar, araba, fıçı/sandık",
+  "cadde": "kapıdan pazara taş cadde: çeşme, mangal, köpek",
+  "dini": "kale burcunun yanında şapel"
+ },
  "susler": [
   {
    "ad": "kisla",
-   "x": 610,
-   "y": 335,
-   "piksel": 0.8,
+   "x": 330,
+   "y": 568,
+   "piksel": 0.75,
    "oncelik": 1
-  },
-  {
-   "ad": "sapel",
-   "x": 1300,
-   "y": 405,
-   "piksel": 0.8,
-   "oncelik": 1
-  },
-  {
-   "ad": "ahir",
-   "x": 265,
-   "y": 655,
-   "disari": true,
-   "oncelik": 1
-  },
-  {
-   "ad": "ambar",
-   "x": 470,
-   "y": 905,
-   "piksel": 0.9,
-   "oncelik": 2,
-   "disari": true
-  },
-  {
-   "ad": "kuyu",
-   "x": 1085,
-   "y": 600,
-   "oncelik": 1
-  },
-  {
-   "ad": "cesme",
-   "x": 1165,
-   "y": 715,
-   "oncelik": 2
-  },
-  {
-   "ad": "tezgah2",
-   "x": 715,
-   "y": 655,
-   "oncelik": 1
-  },
-  {
-   "ad": "tezgah3",
-   "x": 630,
-   "y": 640,
-   "oncelik": 2
-  },
-  {
-   "ad": "fici2",
-   "x": 770,
-   "y": 565,
-   "oncelik": 2
   },
   {
    "ad": "manken",
-   "x": 730,
-   "y": 360,
-   "oncelik": 2
+   "x": 425,
+   "y": 596,
+   "oncelik": 1
   },
   {
-   "ad": "mesale",
-   "x": 1045,
-   "y": 545,
-   "oncelik": 3
-  },
-  {
-   "ad": "mesale",
-   "x": 1395,
-   "y": 690,
-   "oncelik": 3
-  },
-  {
-   "ad": "bayrak",
-   "x": 1240,
-   "y": 640,
-   "oncelik": 2
-  },
-  {
-   "ad": "bayrak",
-   "x": 505,
-   "y": 300,
-   "oncelik": 3
-  },
-  {
-   "ad": "saman",
-   "x": 470,
-   "y": 495,
-   "oncelik": 3
-  },
-  {
-   "ad": "araba",
-   "x": 1015,
-   "y": 610,
-   "oncelik": 2
-  },
-  {
-   "ad": "sandik",
-   "x": 655,
-   "y": 585,
+   "ad": "manken",
+   "x": 478,
+   "y": 616,
+   "ayna": true,
    "oncelik": 2
   },
   {
    "ad": "silahrafi",
-   "x": 545,
-   "y": 352,
+   "x": 392,
+   "y": 611,
+   "oncelik": 2
+  },
+  {
+   "ad": "bayrak",
+   "x": 268,
+   "y": 525,
+   "oncelik": 2
+  },
+  {
+   "ad": "mesale",
+   "x": 402,
+   "y": 559,
+   "oncelik": 3
+  },
+  {
+   "ad": "ahir",
+   "x": 612,
+   "y": 359,
+   "piksel": 0.8,
+   "oncelik": 1
+  },
+  {
+   "ad": "at_kahve",
+   "x": 585,
+   "y": 423,
+   "oncelik": 1
+  },
+  {
+   "ad": "at_beyaz",
+   "x": 648,
+   "y": 439,
+   "ayna": true,
    "oncelik": 2
   },
   {
    "ad": "tavuk",
-   "x": 640,
-   "y": 432,
+   "x": 992,
+   "y": 392,
    "oncelik": 3
   },
   {
    "ad": "domuz",
    "x": 1215,
-   "y": 805,
+   "y": 810,
    "oncelik": 3
+  },
+  {
+   "ad": "kuyu",
+   "x": 806,
+   "y": 607,
+   "oncelik": 1
+  },
+  {
+   "ad": "tezgah2",
+   "x": 708,
+   "y": 659,
+   "oncelik": 1
+  },
+  {
+   "ad": "tezgah3",
+   "x": 640,
+   "y": 647,
+   "oncelik": 2
+  },
+  {
+   "ad": "fici2",
+   "x": 748,
+   "y": 575,
+   "oncelik": 2
+  },
+  {
+   "ad": "sandik",
+   "x": 668,
+   "y": 594,
+   "oncelik": 3
+  },
+  {
+   "ad": "araba",
+   "x": 1012,
+   "y": 621,
+   "oncelik": 2
+  },
+  {
+   "ad": "cesme",
+   "x": 1165,
+   "y": 722,
+   "oncelik": 1
+  },
+  {
+   "ad": "mesale",
+   "x": 1396,
+   "y": 695,
+   "oncelik": 2
   },
   {
    "ad": "kopek",
-   "x": 1370,
-   "y": 712,
+   "x": 1368,
+   "y": 719,
    "ayna": true,
-   "oncelik": 3
-  },
-  {
-   "ad": "at_kahve",
-   "x": 345,
-   "y": 690,
-   "disari": true,
-   "oncelik": 2
-  },
-  {
-   "ad": "at_beyaz",
-   "x": 395,
-   "y": 712,
-   "disari": true,
-   "ayna": true,
-   "oncelik": 3
-  },
-  {
-   "ad": "manken",
-   "x": 300,
-   "y": 545,
-   "oncelik": 2
-  },
-  {
-   "ad": "manken",
-   "x": 352,
-   "y": 568,
-   "ayna": true,
-   "oncelik": 3
-  },
-  {
-   "ad": "silahrafi",
-   "x": 420,
-   "y": 560,
    "oncelik": 3
   },
   {
    "ad": "bayrak",
-   "x": 250,
-   "y": 510,
-   "oncelik": 3
+   "x": 1420,
+   "y": 615,
+   "oncelik": 2
   },
   {
-   "ad": "sandik",
-   "x": 1385,
-   "y": 575,
-   "oncelik": 3
+   "ad": "sapel",
+   "x": 1300,
+   "y": 423,
+   "piksel": 0.8,
+   "oncelik": 1
   },
   {
-   "ad": "fici2",
-   "x": 825,
-   "y": 455,
+   "ad": "saman",
+   "x": 742,
+   "y": 358,
    "oncelik": 3
   }
  ],
  "varyantlar": {
-  "ahir": [
-   "karli",
-   "gece"
-  ],
-  "ambar": [
-   "karli",
-   "gece"
-  ],
-  "araba": [
-   "karli",
-   "gece"
-  ],
-  "at_beyaz": [
-   "gece"
-  ],
-  "at_kahve": [
-   "gece"
-  ],
-  "bayrak": [
-   "karli",
-   "gece"
-  ],
-  "cesme": [
-   "karli",
-   "gece"
-  ],
-  "domuz": [
-   "gece"
-  ],
-  "fici2": [
-   "karli",
-   "gece"
-  ],
   "kisla": [
-   "karli",
-   "gece"
-  ],
-  "kopek": [
-   "gece"
-  ],
-  "kuyu": [
    "karli",
    "gece"
   ],
@@ -234,27 +161,36 @@
    "karli",
    "gece"
   ],
-  "mesale": [
-   "karli",
-   "gece"
-  ],
-  "saman": [
-   "karli",
-   "gece"
-  ],
-  "sandik": [
-   "karli",
-   "gece"
-  ],
-  "sapel": [
-   "karli",
-   "gece"
-  ],
   "silahrafi": [
    "karli",
    "gece"
   ],
+  "bayrak": [
+   "karli",
+   "gece"
+  ],
+  "mesale": [
+   "karli",
+   "gece"
+  ],
+  "ahir": [
+   "karli",
+   "gece"
+  ],
+  "at_kahve": [
+   "gece"
+  ],
+  "at_beyaz": [
+   "gece"
+  ],
   "tavuk": [
+   "gece"
+  ],
+  "domuz": [
+   "gece"
+  ],
+  "kuyu": [
+   "karli",
    "gece"
   ],
   "tezgah2": [
@@ -262,6 +198,33 @@
    "gece"
   ],
   "tezgah3": [
+   "karli",
+   "gece"
+  ],
+  "fici2": [
+   "karli",
+   "gece"
+  ],
+  "sandik": [
+   "karli",
+   "gece"
+  ],
+  "araba": [
+   "karli",
+   "gece"
+  ],
+  "cesme": [
+   "karli",
+   "gece"
+  ],
+  "kopek": [
+   "gece"
+  ],
+  "sapel": [
+   "karli",
+   "gece"
+  ],
+  "saman": [
    "karli",
    "gece"
   ]

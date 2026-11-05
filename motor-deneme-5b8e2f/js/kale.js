@@ -29,6 +29,7 @@ class KaleSahnesi extends Phaser.Scene {
     this.O = this.M.olcek;
     // arkaPiksel / on.piksel: PixelLab ile yeniden çizilen zemin daha sık pikselli (yoksa O)
     this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.M.arkaPiksel || this.O);
+    if (typeof IcSusler !== 'undefined') IcSusler.zeminKatmani(this); // patikalar, ezilmiş toprak (ic_susler.js)
     const on = this.M.on;
     // Süs eşyaları: x, y = alt orta (ekran pikseli); aşağıdaki öndedir
     for (const su of this.M.susler || []) {

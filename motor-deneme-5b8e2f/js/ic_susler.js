@@ -30,8 +30,17 @@ const IcSusler = {
     }
   },
 
-  // yukle.js create: kış/gece görselleri (ks_ic2/<ad>_karli, _gece); varyant.js bunları kullanır
+  // kale.js create: zemin katmanı (patikalar, ezilmiş toprak, ot, saman), arka planın hemen üstünde
+  zeminKatmani(sahne) {
+    if (!sahne.textures.exists('ks_ic2/zemin')) return;
+    const p = (sahne.M && sahne.M.arkaPiksel) || 1.5;
+    sahne.add.image(0, 0, 'ks_ic2/zemin').setOrigin(0).setScale(p).setDepth(1);
+  },
+
+  // yukle.js create: zemin katmanı ve kış/gece görselleri (ks_ic2/<ad>_karli, _gece); varyant.js bunları kullanır
   varyantlariYukle(sahne, L) {
+    sahne.load.image('ks_ic2/zemin', 'assets/kale/sus/ic2/zemin.png');
+    for (const v of ['karli', 'gece']) sahne.load.image(`ks_ic2/zemin_${v}`, `assets/kale/sus/ic2/zemin_${v}.png`);
     if (!L || !L.varyantlar) return;
     for (const [ad, liste] of Object.entries(L.varyantlar)) {
       for (const v of liste) sahne.load.image(`ks_ic2/${ad}_${v}`, `assets/kale/sus/ic2/${ad}_${v}.png`);
