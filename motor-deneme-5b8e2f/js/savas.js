@@ -94,6 +94,9 @@ class SavasSahnesi extends Phaser.Scene {
 
   create() {
     this.scene.stop('kale'); // yeniden başlarken eski iç kale kapansın
+    // Duraklatılmışken "Baştan Başla" denirse: animasyonlar bütün oyunda ortaktır, açılmalı
+    if (this.anims.paused) this.anims.resumeAll();
+    this.time.paused = false;
     this.durum = 'menu';
     this.dalga = 0;
     this.altin = 0;
@@ -132,6 +135,10 @@ class SavasSahnesi extends Phaser.Scene {
     this.girdiKur();
     this.sesKur();
     this.arayuz.baslangic();
+    // Sekme / uygulama arka plana geçince savaş kendiliğinden duraklar
+    const arkaPlan = () => { if (this.durum === 'savas' && !this.duraklatildi) this.duraklat(); };
+    this.game.events.on('hidden', arkaPlan);
+    this.events.once('shutdown', () => this.game.events.off('hidden', arkaPlan));
   }
 
   // ---------------- Girdi ----------------
@@ -148,6 +155,7 @@ class SavasSahnesi extends Phaser.Scene {
     this.input.on('pointerup', () => { this.girdi.basili = false; this.uiTiklandi = false; });
     // Klavye: Esc duraklat, M ses, 1-2-3 ok türü, Q yağmur; dükkânda 1-9 satın al, Boşluk devam
     this.input.keyboard.on('keydown', e => {
+      if (e.repeat) return; // basılı tutulan tuş tekrar tekrar çalışmasın
       const k = e.key.toLowerCase();
       if (k === 'escape' || k === 'p') this.duraklat();
       else if (k === 'm') this.sesAcKapa();
@@ -164,7 +172,8 @@ class SavasSahnesi extends Phaser.Scene {
   sesKur() {
     this.sesAcik = Kayit.oku('ses', 'acik') !== 'kapali';
     this.sound.mute = !this.sesAcik;
-    this.muzik = this.sound.add('muzik', { loop: true, volume: 0.3 });
+    // Ses yöneticisi bütün oyunda ortak: yeniden başlarken müzik ikinci kez eklenmesin
+    this.muzik = this.sound.get('muzik') || this.sound.add('muzik', { loop: true, volume: 0.3 });
     this.arayuz.sesDugme.yazi.setText(this.sesAcik ? '♪' : '×');
   }
   sesCal(ad, ses = 0.5) {
@@ -182,6 +191,11 @@ class SavasSahnesi extends Phaser.Scene {
     if (this.durum !== 'savas') return;
     this.duraklatildi = !this.duraklatildi;
     this.girdi.basili = false;
+    this.girdi.dokundu = false;
+    // Gerili yay bırakılır (devam edince ok kendiliğinden uçmasın)
+    this.oyuncu.geriyor = false;
+    this.oyuncu.otoBirak = false;
+    this.time.paused = this.duraklatildi; // Ok Yağmuru gibi zamanlı işler de dursun
     if (this.duraklatildi) { this.tweens.pauseAll(); this.anims.pauseAll(); this.arayuz.duraklatPaneli(); }
     else { this.tweens.resumeAll(); this.anims.resumeAll(); this.arayuz.paneliKapat(); }
   }
@@ -207,7 +221,7 @@ class SavasSahnesi extends Phaser.Scene {
     const veri = {
       surum: 1, zorluk: this.zorlukAdi, dalga: this.dalga, altin: this.altin, seviye: this.seviye, stok: this.stok,
       surCan: Math.round(this.surCan), kurtuldu: this.kurtuldu, oldurulen: this.oldurulen, kafaVurusu: this.kafaVurusu,
-      gorulen: this.gorulen, keskinHazir: this.keskinHazir,
+      gorulen: this.gorulen, keskinHazir: this.keskinHazir, sonraki: this.kesif(),
       ekonomi: { kaynak: E.kaynak, nufus: E.nufus, bina: E.bina, asker: E.asker, surSeviye: E.surSeviye, pazar: E.pazar, rapor: E.rapor },
     };
     Kayit.yaz('kayit', JSON.stringify(veri));
@@ -221,7 +235,7 @@ class SavasSahnesi extends Phaser.Scene {
     const v = this.kayitOku();
     if (!v) return this.oyunuBaslat();
     this.zorlukSec(v.zorluk);
-    for (const k of ['dalga', 'altin', 'seviye', 'stok', 'kurtuldu', 'oldurulen', 'kafaVurusu', 'gorulen', 'keskinHazir']) if (v[k] !== undefined) this[k] = v[k];
+    for (const k of ['dalga', 'altin', 'seviye', 'stok', 'kurtuldu', 'oldurulen', 'kafaVurusu', 'gorulen', 'keskinHazir', 'sonraki']) if (v[k] !== undefined) this[k] = v[k];
     Object.assign(this.ekonomi, v.ekonomi);
     this.surEnFazla = 0;
     this.surCanAyarla();
@@ -256,12 +270,17 @@ class SavasSahnesi extends Phaser.Scene {
   }
 
   dalgaBaslat() {
+    // İç kalede ve dükkânda yapılanlar da kaydedilsin (dalga artmadan önce)
+    this.kaydet();
+    // Gözcülerin bildirdiği liste: dalga artmadan önce alınmalı (sonra alınırsa bir sonraki dalganın listesi gelir)
+    const liste = this.kesif().kuyruk.slice();
     this.arayuz.paneliKapat();
     this.dalga++;
+    this.atis = { iska: 0, isabet: 0, kafa: 0 }; // Dalga sonu özeti için (oyuncunun okları)
     this.durum = 'savas';
     // Dalga listesi (keşif raporunda önceden gösterilen liste)
     const n = this.dalga, D = AYAR.dalga;
-    this.kuyruk = this.kesif().kuyruk.slice();
+    this.kuyruk = liste;
     this.sonraki = null;
     const patron = this.kuyruk.includes('patron');
     this.cikisSayaci = D.ilkBekleme;
@@ -316,6 +335,13 @@ class SavasSahnesi extends Phaser.Scene {
     const bonus = Math.round((AYAR.dalga.bitirmeAltini + this.dalga * AYAR.dalga.bitirmeArtisi) * this.zorluk.altin);
     this.altin += bonus;
     this.efekt.yazi(AYAR.en / 2, 420, `Dalga bitti! +${bonus} altın`, '#ffd76a', 44);
+    // Oyuncunun isabet özeti
+    const A = this.atis, toplam = A ? A.isabet + A.iska : 0;
+    if (toplam > 0) {
+      const yuzde = Math.round(100 * A.isabet / toplam);
+      this.time.delayedCall(250, () => this.efekt.yazi(AYAR.en / 2, 480,
+        `İsabet %${yuzde} (${A.isabet}/${toplam})` + (A.kafa ? ` · ${A.kafa} kafa` : ''), yuzde >= 60 ? '#a0e0a0' : '#efe6d2', 32));
+    }
     this.sesCal('level_up', 0.5);
     this.girdi.basili = false;
     this.oyuncu.geriyor = false;
@@ -516,7 +542,7 @@ class SavasSahnesi extends Phaser.Scene {
           break;
         }
         if (!o.sil && !o.sapli && o.y >= AYAR.zemin + 6) {
-          if (o.oyuncudan && !o.yan && !o.vurulan.length) this.seriBoz();
+          if (o.oyuncudan && !o.yan && !o.vurulan.length) { this.seriBoz(); this.iskaSay(); }
           o.y = AYAR.zemin + 6;
           o.sapli = true;
           o.omur = 3;
@@ -524,15 +550,22 @@ class SavasSahnesi extends Phaser.Scene {
         }
       }
       if (o.sil) continue;
-      if (o.x > AYAR.en + 80 || o.x < -80) { o.sprite.destroy(); o.sil = true; continue; }
+      if (o.x > AYAR.en + 80 || o.x < -80) {
+        if (o.oyuncudan && !o.yan && !o.vurulan.length) { this.seriBoz(); this.iskaSay(); }
+        o.sprite.destroy(); o.sil = true; continue;
+      }
       o.sprite.setPosition(o.x, o.y);
       if (!o.sapli) o.sprite.setRotation(Math.atan2(o.vy, o.vx));
     }
     this.oklar = this.oklar.filter(o => !o.sil);
   }
 
+  // Dalga sonu özeti için oyuncunun ıskası
+  iskaSay() { if (this.atis && this.durum === 'savas') this.atis.iska++; }
+
   isabet(o, z, x, y) {
     if (o.ambar && !o.vurulan.length) this.ekonomi.okSaplandi();
+    if (o.oyuncudan && !o.yan && !o.vurulan.length && this.atis) this.atis.isabet++;
     o.vurulan.push(z);
     const kafa = z.kafaMi(y);
     let hasar = o.hasar * (kafa ? AYAR.ok.kafaCarpani : 1);
@@ -549,6 +582,7 @@ class SavasSahnesi extends Phaser.Scene {
     if (o.oyuncudan && !o.yan && o.vurulan.length === 1 && !o.keskin) { if (kafa) this.seriKafa(); else this.seriBoz(); }
     if (kafa && o.oyuncudan) {
       this.kafaVurusu++;
+      if (this.atis) this.atis.kafa++;
       this.altin += AYAR.ok.kafaAltin;
       this.efekt.yazi(x, z.ust - 20, `KAFA! +${AYAR.ok.kafaAltin}`);
     }
@@ -566,6 +600,8 @@ class SavasSahnesi extends Phaser.Scene {
         sp.setDepth(z.sprite.depth + 0.01);
         z.saplananlar.push({ sprite: sp, dx: x - z.x + Math.cos(Math.atan2(o.vy, o.vx)) * 6, dy: y - z.y });
         sp.setPosition(x, y);
+        // Öldüren ok: ceset solarken o da solsun (yoksa birden kaybolur)
+        if (!z.canli) this.tweens.add({ targets: sp, alpha: 0, delay: 2600, duration: 900 });
       } else sp.destroy();
     } else {
       o.sprite.destroy();

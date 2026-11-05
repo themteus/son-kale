@@ -33,6 +33,8 @@ class Arayuz {
     this.okDugmeleri = ['normal', 'ates', 'delici'].map((t, i) =>
       this.dugme(110 + i * 190, AYAR.boy - 56, 176, 76, '', () => sahne.okSec(t), 52, 26));
     this.yagmurDugme = this.dugme(110 + 3 * 190 + 30, AYAR.boy - 56, 210, 76, '', () => sahne.yagmurYagdir(), 52, 26);
+    // Sur çok hasarlıyken ekran kenarı kırmızı nabız atar
+    this.tehlike = sahne.add.graphics().setDepth(43);
     this.panel = null;
   }
 
@@ -54,6 +56,15 @@ class Arayuz {
   ciz(oyun) {
     const g = this.g;
     g.clear();
+    // Başlangıç menüsünde üst bilgi gizli (oyun daha başlamadı)
+    const menude = oyun.durum === 'menu';
+    for (const o of [g, this.surYazi, this.altinYazi, this.ruzgarYazi]) o.setVisible(!menude);
+    this.tehlikeCiz(oyun);
+    if (menude) {
+      for (const b of [...this.okDugmeleri, this.yagmurDugme]) b.setVisible(false);
+      this.dalgaYazi.setText(''); this.kalanYazi.setText(''); this.canlar.clear(); this.odak.clear();
+      return;
+    }
     // Sur canı
     const oran = kis(oyun.surCan / oyun.surEnFazla, 0, 1);
     this.surYazi.setText('Sur');
@@ -138,6 +149,21 @@ class Arayuz {
       o.lineStyle(3, sakin ? 0xffeca8 : 0xf3e7c4, sakin ? 0.85 : 0.4).strokeCircle(oyun.girdi.x, oyun.girdi.y, yar);
       o.fillStyle(0xf3e7c4, 0.6).fillCircle(oyun.girdi.x, oyun.girdi.y, 3);
     }
+  }
+
+  // Sur %25'in altındayken kenarlarda kırmızı nabız (sur azaldıkça hızlanır)
+  tehlikeCiz(oyun) {
+    const t = this.tehlike;
+    t.clear();
+    const oran = oyun.surCan / oyun.surEnFazla;
+    if (oyun.durum !== 'savas' || oran >= 0.25) return;
+    const hiz = 4 + (0.25 - oran) * 24;
+    const a = (0.3 + 0.15 * Math.sin(oyun.time.now / 1000 * hiz)) * (1 - oran * 2);
+    const { en, boy } = AYAR, k = 140, R = 0x9a0a0a;
+    t.fillGradientStyle(R, R, R, R, a, a, 0, 0).fillRect(0, 0, en, k);
+    t.fillGradientStyle(R, R, R, R, 0, 0, a, a).fillRect(0, boy - k, en, k);
+    t.fillGradientStyle(R, R, R, R, a, 0, a, 0).fillRect(0, 0, k, boy);
+    t.fillGradientStyle(R, R, R, R, 0, a, 0, a).fillRect(en - k, 0, k, boy);
   }
 
   // Ortada büyük yazı (dalga başlığı vb.)
@@ -265,7 +291,7 @@ class Arayuz {
       kap.add(s.add.text(0, -60, `Yardım ordusu ufukta göründü.\n${oyun.dalga} dalga · ${oyun.oldurulen} düşman · ${oyun.kafaVurusu} kafa vuruşu`,
         stil('govde', 34, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
       this.panelDugme(kap, -200, 150, 360, 84, 'Savaşmaya devam', () => { s.durum = 'kale'; s.gunuBitir(); }, 32);
-      this.panelDugme(kap, 200, 150, 340, 84, 'Yeni oyun', () => s.scene.restart(), 32);
+      this.panelDugme(kap, 200, 150, 340, 84, 'Yeni oyun', () => { s.kayitSil(); s.scene.restart(); }, 32);
     });
   }
 
