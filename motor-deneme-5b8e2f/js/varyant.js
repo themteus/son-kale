@@ -93,13 +93,20 @@ const Varyant = {
     sahne.tweens.add({ targets: hayalet, alpha: 0, duration: VARYANT_AYAR.gecisMs, onComplete: () => hayalet.destroy() });
   },
 
-  // Zemin, ön surlar ve süsler: kışın soğuk, akşam koyu ton
+  // Zemin, ön surlar ve süsler: kışın soğuk, akşam koyu ton.
+  // Süsün o hâle ait görseli varsa (ks_<ad>_karli / _gece) onu gösterir, yoksa tonlar.
   zemin(sahne) {
     const h = this.hal(sahne);
     const ton = h === 'gece' ? VARYANT_AYAR.ton.gece : h === 'karli' ? VARYANT_AYAR.ton.karli : null;
     for (const c of sahne.children.list) {
       const k = c.texture && c.texture.key;
       if (!k || !(k === 'k_arka' || k === 'k_on' || k.startsWith('ks_'))) continue;
+      if (k.startsWith('ks_')) {
+        c.temelDoku = c.temelDoku || k;
+        const ozel = (h === 'karli' || h === 'gece') ? c.temelDoku + '_' + h : null;
+        if (ozel && sahne.textures.exists(ozel)) { if (k !== ozel) c.setTexture(ozel); c.clearTint(); continue; }
+        if (k !== c.temelDoku) c.setTexture(c.temelDoku);
+      }
       if (ton === null) c.clearTint(); else c.setTint(ton);
     }
   },

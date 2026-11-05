@@ -12,6 +12,7 @@ class YukleSahnesi extends Phaser.Scene {
     this.load.json('kale', 'assets/kale/kale.json');
     this.load.json('efektler', 'assets/gorsel/efekt/efektler.json'); // efekt şeritlerinin kare boyları (yoksa efektler parçacıkla kalır)
     if (typeof Varyant !== 'undefined') Varyant.listeyiYukle(this.load); // iç kale bina varyantlarının listesi
+    if (typeof IcSusler !== 'undefined') IcSusler.listeyiYukle(this.load); // iç kaleye eklenen yapı ve eşyaların yerleşimi
     this.yaziGoster();
   }
 
@@ -55,7 +56,11 @@ class YukleSahnesi extends Phaser.Scene {
     this.load.image('k_on', 'assets/kale/on.png'); // ön surlar (her şeyin önünde)
     for (const ad of Object.keys(KM.binalar)) this.load.image('k_' + ad, 'assets/kale/' + ad + '.png');
     if (typeof Varyant !== 'undefined') Varyant.gorselleriYukle(this); // karlı / gece / yıkık bina görselleri
-    // Avludaki süs eşyaları (ağaç, fıçı, araba...)
+    // Avludaki süs eşyaları (ağaç, fıçı, araba...); ic_susler.js yenilerini listeye ekler
+    if (typeof IcSusler !== 'undefined') {
+      IcSusler.birlestir(KM, this.cache.json.get('kale_ic2'));
+      IcSusler.varyantlariYukle(this, this.cache.json.get('kale_ic2'));
+    }
     for (const ad of new Set((KM.susler || []).map(s => s.ad))) this.load.image('ks_' + ad, 'assets/kale/sus/' + ad + '.png');
     for (const [ad, m] of Object.entries(KM.koylu)) this.load.spritesheet(ad, 'assets/kale/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
     this.load.once('complete', () => this.bitti(K, KM));
