@@ -38,6 +38,8 @@ class YukleSahnesi extends Phaser.Scene {
     if (K.manzaraPl) this.load.image('manzara_pl', g + 'manzara_pl.png');
     if (K.kalePl) { this.load.image('kale_pl', g + 'kale_pl.png'); this.load.image('kale_pl_govde', g + 'kale_pl_govde.png'); }
     for (const ad of ['tas', 'cim', 'toprak', 'tahta']) this.load.image(ad, 'assets/doku/' + ad + '.png');
+    // Piksel sanat efekt dokuları (yoksa kucukDokular() kodla çizer)
+    for (const ad of ['ok', 'kare', 'daire']) this.load.image(ad, g + 'efekt/' + ad + '.png');
     for (const ad of ['shoot', 'hit', 'kill', 'big_kill', 'hurt', 'coin', 'level_up', 'ui', 'impact', 'boss', 'confirm']) {
       this.load.audio(ad, 'assets/ses/' + ad + '.mp3');
     }
@@ -77,6 +79,8 @@ class YukleSahnesi extends Phaser.Scene {
   // Kodla üretilen küçük dokular: ok, kan, toz, kıvılcım, çam
   kucukDokular() {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
+    // Dosyadan yüklenen doku varsa onu kullan, kodla çizileni üretme
+    const ure = (ad, w, h) => { if (!this.textures.exists(ad)) g.generateTexture(ad, w, h); };
     // Ok (sağa bakar, ucu sağda): 60x12
     g.fillStyle(0x1a1410).fillRect(2, 4, 50, 4);
     g.fillStyle(0x7a5530).fillRect(3, 5, 48, 2);
@@ -84,13 +88,13 @@ class YukleSahnesi extends Phaser.Scene {
     g.fillStyle(0xb8ae98).fillTriangle(2, 3, 12, 6, 2, 9);
     g.fillStyle(0x1a1410).fillTriangle(48, 1, 60, 6, 48, 11);
     g.fillStyle(0xbfc4c8).fillTriangle(49, 3, 58, 6, 49, 9);
-    g.generateTexture('ok', 60, 12);
+    ure('ok', 60, 12);
     g.clear();
     g.fillStyle(0xffffff).fillRect(0, 0, 6, 6);
-    g.generateTexture('kare', 6, 6);
+    ure('kare', 6, 6);
     g.clear();
     g.fillStyle(0xffffff).fillCircle(8, 8, 8);
-    g.generateTexture('daire', 16, 16);
+    ure('daire', 16, 16);
     g.clear();
     g.fillStyle(0xffffff).fillCircle(48, 48, 48);
     g.generateTexture('ay', 96, 96);

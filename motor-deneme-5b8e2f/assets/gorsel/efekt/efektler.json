@@ -1,0 +1,27 @@
+{
+ "kivilcim": {
+  "fw": 24,
+  "fh": 24,
+  "kare": 6
+ },
+ "duman": {
+  "fw": 32,
+  "fh": 32,
+  "kare": 8
+ },
+ "patlama": {
+  "fw": 64,
+  "fh": 64,
+  "kare": 8
+ },
+ "ates": {
+  "fw": 24,
+  "fh": 32,
+  "kare": 6
+ },
+ "ok_izi": {
+  "fw": 48,
+  "fh": 6,
+  "kare": 6
+ }
+}
