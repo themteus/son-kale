@@ -270,11 +270,19 @@ class Kale {
       this.mazgallar[i].setVisible(!dus);
     }
     if (asama >= 4) {
-      // Ön yüzde gedik
-      g.fillStyle(0x0a0808, 1);
-      g.fillTriangle(K.onX, K.surUst + 40, K.onX - 70, K.surUst + 110, K.onX, K.surUst + 220);
-      g.fillStyle(0x3a342c, 1);
-      g.fillTriangle(K.onX, K.surUst + 70, K.onX - 44, K.surUst + 112, K.onX, K.surUst + 180);
+      // Ön yüzde gedik: düzensiz kenarlı oyuk, içi gölgeli, dibinde moloz
+      const oyuk = (cx, cy, rx, ry, renk, alfa) => {
+        const n = 14, noktalar = [];
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2, j = 0.7 + rnd() * 0.45;
+          noktalar.push({ x: cx + Math.cos(a) * rx * j, y: cy + Math.sin(a) * ry * j });
+        }
+        g.fillStyle(renk, alfa).fillPoints(noktalar, true);
+      };
+      oyuk(K.onX - 46, K.surUst + 120, 44, 70, 0x14100e, 0.92);
+      oyuk(K.onX - 40, K.surUst + 128, 30, 50, 0x070606, 1);
+      g.fillStyle(0x4a443c, 1);
+      for (let i = 0; i < 6; i++) g.fillRect(K.onX - 80 + rnd() * 60, K.surUst + 176 + rnd() * 18, 8 + rnd() * 10, 6 + rnd() * 6);
       catlak(K.onX - 80, K.surUst + 200, 220, 4);
     }
   }

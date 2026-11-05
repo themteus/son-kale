@@ -45,7 +45,18 @@ class KaleSahnesi extends Phaser.Scene {
     this.alanlariKur();
     this.arayuzKur();
     this.yenile();
-    this.events.on('wake', (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); });
+    // Sahne olayları yeniden başlayınca silinmez: kapanırken çıkar (yoksa her yeni oyunda bir kat daha çalışır)
+    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); };
+    this.events.on('wake', uyan);
+    this.events.once('shutdown', () => this.events.off('wake', uyan));
+    // Klavye: Boşluk savaşa çık, Esc pencereyi kapat, M ses
+    this.input.keyboard.on('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (e.repeat) return;
+      if (k === ' ') this.savasaCik();
+      else if (k === 'escape') this.panelKapat();
+      else if (k === 'm') this.oyun.sesAcKapa();
+    });
     this.raporGoster();
   }
 
@@ -199,7 +210,7 @@ class KaleSahnesi extends Phaser.Scene {
     if (this.panel) this.panel.destroy();
     const W = 560, H = 880, x = AYAR.en - W / 2 - 16, y = 84 + H / 2;
     const kap = this.add.container(x, y).setDepth(110);
-    kap.add(this.add.rectangle(0, 0, W, H, 0x1c1612, 0.96).setStrokeStyle(3, 0xc9a24a).setInteractive());
+    kap.add(this.add.rectangle(0, 0, W, H, 0x1c1612, 1).setStrokeStyle(3, 0xc9a24a).setInteractive()); // tam opak: arkadaki etiketler görünmesin
     kap.add(this.add.text(0, -H / 2 + 46, baslik, stil('baslik', 48)).setOrigin(0.5));
     const kapat = this.dugme(W / 2 - 34, -H / 2 + 34, 48, 48, '×', () => this.panelKapat(), 111, 30);
     kap.add(kapat);
@@ -329,6 +340,14 @@ class KaleSahnesi extends Phaser.Scene {
   // Gün sonu raporu (ortada). zorla = kuleye tıklandı
   raporGoster(zorla) {
     const r = this.E.rapor;
+    if (!r && zorla) {
+      // İlk gün: henüz rapor yok, tıklama boşa gitmesin
+      this.panelKur('Günün raporu', p => {
+        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.', 26);
+        p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+      });
+      return;
+    }
     if (!r || (!this.ilkRapor && !zorla)) return;
     this.ilkRapor = null;
     const ad = k => KAYNAKLAR[k].ad.toLowerCase();
