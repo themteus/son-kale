@@ -10,6 +10,7 @@ class YukleSahnesi extends Phaser.Scene {
   preload() {
     this.load.json('kareler', 'assets/gorsel/kareler.json');
     this.load.json('kale', 'assets/kale/kale.json');
+    this.load.json('efektler', 'assets/gorsel/efekt/efektler.json'); // efekt şeritlerinin kare boyları (yoksa efektler parçacıkla kalır)
     this.yaziGoster();
   }
 
@@ -40,6 +41,9 @@ class YukleSahnesi extends Phaser.Scene {
     for (const ad of ['tas', 'cim', 'toprak', 'tahta']) this.load.image(ad, 'assets/doku/' + ad + '.png');
     // Piksel sanat efekt dokuları (yoksa kucukDokular() kodla çizer)
     for (const ad of ['ok', 'kare', 'daire']) this.load.image(ad, g + 'efekt/' + ad + '.png');
+    // Efekt şeritleri: fx_kivilcim, fx_duman, fx_patlama, fx_ates, fx_ok_izi
+    const E = this.cache.json.get('efektler') || {};
+    for (const [ad, m] of Object.entries(E)) this.load.spritesheet('fx_' + ad, g + 'efekt/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
     for (const ad of ['shoot', 'hit', 'kill', 'big_kill', 'hurt', 'coin', 'level_up', 'ui', 'impact', 'boss', 'confirm']) {
       this.load.audio(ad, 'assets/ses/' + ad + '.mp3');
     }
@@ -65,6 +69,12 @@ class YukleSahnesi extends Phaser.Scene {
         for (let i = 0; i < r.frames; i++) kareler.push({ key: ad, frame: r.row * sutun + i });
         this.anims.create({ key: ad + '_' + anim, frames: kareler, frameRate: r.fps, repeat: r.once ? 0 : -1 });
       }
+    }
+    // Efekt şeritlerinin animasyonları: fx_<ad> (bir kez oynar)
+    const FPS = { kivilcim: 26, duman: 14, patlama: 16, ates: 16, ok_izi: 30 };
+    for (const [ad, m] of Object.entries(this.cache.json.get('efektler') || {})) {
+      if (!this.textures.exists('fx_' + ad)) continue;
+      this.anims.create({ key: 'fx_' + ad, frames: this.anims.generateFrameNumbers('fx_' + ad, { start: 0, end: m.kare - 1 }), frameRate: FPS[ad] || 14, repeat: 0 });
     }
     this.kucukDokular();
     // Yazı tipleri hazır olunca oyuna geç

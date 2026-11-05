@@ -39,6 +39,26 @@ class Efekt {
       alpha: { start: 1, end: 0 }, tint: [0xffe080, 0xff9030, 0xd04020, 0x402a20], blendMode: 'ADD', emitting: false,
     }).setDepth(37);
   }
+  // Piksel efekt şeridi oynatır (fx_<ad>); şerit yoksa ya da ekranda çok efekt varsa hiçbir şey yapmaz
+  serit(ad, x, y, olcek = 3, ayar = {}) {
+    const s = this.s, k = 'fx_' + ad;
+    if (!s.anims.exists(k)) return null;
+    this.seritSayisi = this.seritSayisi || 0;
+    if (this.seritSayisi >= 60) return null;
+    this.seritSayisi++;
+    const sp = s.add.sprite(x, y, k, 0).setScale(olcek).setDepth(ayar.derinlik || 36);
+    if (ayar.aci !== undefined) sp.setRotation(ayar.aci);
+    if (ayar.orijin) sp.setOrigin(ayar.orijin[0], ayar.orijin[1]);
+    if (ayar.renk) sp.setTint(ayar.renk);
+    if (ayar.alfa) sp.setAlpha(ayar.alfa);
+    if (ayar.ayna) sp.setFlipX(true);
+    sp.once('animationcomplete', () => { sp.destroy(); this.seritSayisi--; });
+    sp.play(k);
+    return sp;
+  }
+  kivilcim(x, y, kalkanda) { this.serit('kivilcim', x, y, kalkanda ? 3 : 2.2, { derinlik: 37 }); }
+  duman(x, y, agir) { this.serit('duman', x, y - 10, agir ? 4 : 2.6, { ayna: Math.random() < 0.5 }); }
+  iz(x, y, aci) { this.serit('ok_izi', x, y, 2, { aci, orijin: [1, 0.5], derinlik: 29, alfa: 0.55 }); }
   kan(x, y, n = 8, renk) {
     if (renk) this.kanParca.setParticleTint(renk); else this.kanParca.setParticleTint([0x7a1010, 0x9a1a14, 0x5a0a0a]);
     this.kanParca.explode(n, x, y);
@@ -46,9 +66,12 @@ class Efekt {
   toz(x, y, n = 4) { this.tozParca.explode(n, x, y); }
   tas(x, y, n = 6) { this.tasParca.explode(n, x, y); }
   ates(x, y, n = 1) { this.atesParca.explode(n, x, y); }
+  // Yanan düşmanın gövdesinde kısa alev (dusman.js çağırır)
+  alev(x, y) { if (Math.random() < 0.35) this.serit('ates', x, y, 2, { orijin: [0.5, 0.9], ayna: Math.random() < 0.5 }); }
   sifa(x, y) { this.sifaParca.explode(6, x, y); }
   patlama(x, y) {
-    this.patlamaParca.explode(40, x, y);
+    if (this.serit('patlama', x, y, 3, { derinlik: 38 })) this.patlamaParca.explode(16, x, y);
+    else this.patlamaParca.explode(40, x, y);
     this.tasParca.explode(10, x, y);
     this.kanParca.setParticleTint([0x6a7a20, 0x8a9a30]);
     this.kanParca.explode(16, x, y);
@@ -475,6 +498,7 @@ class SavasSahnesi extends Phaser.Scene {
         continue;
       }
       if (o.tur === 'ates' && Math.random() < dt * 30) this.efekt.ates(o.x, o.y);
+      if (o.oyuncudan && Math.random() < dt * 20) this.efekt.iz(o.x, o.y, Math.atan2(o.vy, o.vx));
       // Hızlı oklar düşmanın içinden geçmesin diye adımı bölüyoruz
       const adim = Math.max(2, Math.ceil(Math.hypot(o.vx, o.vy) * dt / 16));
       for (let k = 0; k < adim && !o.sil && !o.sapli; k++) {
@@ -517,6 +541,7 @@ class SavasSahnesi extends Phaser.Scene {
     if (kalkanda) hasar *= 1 - z.T.kalkan;
     if (o.tur === 'ates') z.tutustur(o.hasar * OK_TURLERI.ates.yanma, OK_TURLERI.ates.yanmaSure);
     const oldu = z.vur(hasar);
+    this.efekt.kivilcim(x, y, kalkanda);
     if (kalkanda) { this.efekt.tas(x, y, 3); this.sesCal('impact', 0.2); }
     else this.efekt.kan(x, y, kafa ? 12 : 6, z.T.kemik ? 0xd8d0bc : null);
     z.it(8);
@@ -570,6 +595,7 @@ class SavasSahnesi extends Phaser.Scene {
     this.kale.parla();
     this.kale.guncelle(this.surCan / this.surEnFazla);
     this.efekt.tas(x, y, agir ? 10 : 4);
+    this.efekt.duman(x, y, agir);
     this.efekt.yazi(x + 10, y - 30, `-${hasar}`, '#ff6a50', 26);
     this.cameras.main.shake(agir ? 220 : 90, agir ? 0.006 : 0.002);
     this.sesCal('impact', agir ? 0.6 : 0.3);

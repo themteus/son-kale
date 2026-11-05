@@ -74,6 +74,7 @@ class Dusman {
       this.yanma -= dt;
       this.can -= this.yanmaHasari * dt;
       if (Math.random() < dt * 12) oyun.efekt.ates(this.x + (Math.random() - 0.5) * this.en, this.y - this.boy * Math.random());
+      if (oyun.efekt.alev && Math.random() < dt * 12) oyun.efekt.alev(this.x + (Math.random() - 0.5) * this.en * 0.7, this.y - this.boy * (0.15 + 0.55 * Math.random()));
       if (this.yanma <= 0) this.sprite.clearTint();
       if (this.can <= 0) { oyun.dusmanOldu(this, false); return; }
     }
