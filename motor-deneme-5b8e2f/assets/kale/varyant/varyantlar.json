@@ -1,5 +1,5 @@
 {
- "aciklama": "İç kale bina varyantları (yerel ComfyUI). Oyunda henüz kullanılmıyor; kale.js'e bağlanmadı. Boyutları orijinal binalarla aynı, aynı konuma konabilir. kalite: iyi / zayif (yeniden çizilmeli).",
+ "aciklama": "İç kale bina varyantları (yerel ComfyUI). Oyunda henüz kullanılmıyor; kale.js'e bağlanmadı. Boyutları orijinal binalarla aynı, aynı konuma konabilir. kalite: iyi / orta (kullanılabilir, küçük kusurlu) / zayif.",
  "dosyalar": {
   "ciftlik1": {
    "gece": {
@@ -8,13 +8,11 @@
    },
    "karli": {
     "dosya": "ciftlik1_karli.png",
-    "kalite": "zayif",
-    "not": "saman çatıda kar tutmadı"
+    "kalite": "iyi"
    },
    "yikik": {
     "dosya": "ciftlik1_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "ciftlik2": {
@@ -28,8 +26,7 @@
    },
    "yikik": {
     "dosya": "ciftlik2_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "ciftlik3": {
@@ -39,13 +36,13 @@
    },
    "karli": {
     "dosya": "ciftlik3_karli.png",
-    "kalite": "zayif",
-    "not": "kırmızı ahır beyazladı"
+    "kalite": "orta",
+    "not": "çatılar karlı; kırmızı ahır koyulaştı"
    },
    "yikik": {
     "dosya": "ciftlik3_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "orta",
+    "not": "tanınıyor ama çok koyu/yanık"
    }
   },
   "demirci1": {
@@ -55,8 +52,8 @@
    },
    "karli": {
     "dosya": "demirci1_karli.png",
-    "kalite": "zayif",
-    "not": "saman çatıda kar tutmadı"
+    "kalite": "orta",
+    "not": "çatı karlı; sol duvarın üstü de biraz beyazladı"
    },
    "yikik": {
     "dosya": "demirci1_yikik.png",
@@ -140,8 +137,7 @@
    },
    "karli": {
     "dosya": "ev1_karli.png",
-    "kalite": "zayif",
-    "not": "saman çatıda kar tutmadı"
+    "kalite": "iyi"
    },
    "yikik": {
     "dosya": "ev1_yikik.png",
@@ -187,8 +183,7 @@
    },
    "yikik": {
     "dosya": "maden1_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "maden2": {
@@ -202,8 +197,7 @@
    },
    "yikik": {
     "dosya": "maden2_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "maden3": {
@@ -217,8 +211,7 @@
    },
    "yikik": {
     "dosya": "maden3_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "oduncu1": {
@@ -228,13 +221,11 @@
    },
    "karli": {
     "dosya": "oduncu1_karli.png",
-    "kalite": "zayif",
-    "not": "kütük duvar beyazladı"
+    "kalite": "iyi"
    },
    "yikik": {
     "dosya": "oduncu1_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "oduncu2": {
@@ -244,13 +235,11 @@
    },
    "karli": {
     "dosya": "oduncu2_karli.png",
-    "kalite": "zayif",
-    "not": "kütük duvar beyazladı"
+    "kalite": "iyi"
    },
    "yikik": {
     "dosya": "oduncu2_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "oduncu3": {
@@ -260,13 +249,11 @@
    },
    "karli": {
     "dosya": "oduncu3_karli.png",
-    "kalite": "zayif",
-    "not": "kütük duvar beyazladı"
+    "kalite": "iyi"
    },
    "yikik": {
     "dosya": "oduncu3_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "tasocagi1": {
@@ -280,8 +267,7 @@
    },
    "yikik": {
     "dosya": "tasocagi1_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "tasocagi2": {
@@ -295,8 +281,7 @@
    },
    "yikik": {
     "dosya": "tasocagi2_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "tasocagi3": {
@@ -310,8 +295,7 @@
    },
    "yikik": {
     "dosya": "tasocagi3_yikik.png",
-    "kalite": "zayif",
-    "not": "bina kimliği kayboldu, genel harabeye döndü"
+    "kalite": "iyi"
    }
   },
   "yayci1": {
@@ -321,8 +305,7 @@
    },
    "karli": {
     "dosya": "yayci1_karli.png",
-    "kalite": "zayif",
-    "not": "saman çatıda kar tutmadı"
+    "kalite": "iyi"
    },
    "yikik": {
     "dosya": "yayci1_yikik.png",
