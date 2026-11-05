@@ -68,7 +68,10 @@ class KaleSahnesi extends Phaser.Scene {
     const m = this.binaMeta(k), sp = this.binaSprite[k];
     const O = this.O;
     // piksel: görselin bir pikseli ekranda kaç piksel (yoksa O). PixelLab çizimleri daha sık pikselli.
-    sp.setTexture('k_' + k + this.E.bina[k].seviye).setScale(m.piksel || O)
+    // Mevsim / hasar / akşam görünümü (varyant.js); yoksa normal görsel
+    if (typeof Varyant !== 'undefined') Varyant.uygula(this, sp, 'k_' + k + this.E.bina[k].seviye);
+    else sp.setTexture('k_' + k + this.E.bina[k].seviye);
+    sp.setScale(m.piksel || O)
       .setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
     const B = BINALAR[k], b = this.E.bina[k];
     const yazi = k === 'ev' ? `${B.ad}  ${this.E.nufus}/${this.E.barinak}` : `${B.ad}  ${b.isci}/${this.E.yerSayisi(k)}`;
@@ -144,6 +147,7 @@ class KaleSahnesi extends Phaser.Scene {
   yenile() {
     const E = this.E, o = this.oyun;
     for (const k of Object.keys(BINALAR)) { this.binaGorsel(k); this.etiketVurgu(k, false); }
+    if (typeof Varyant !== 'undefined') Varyant.zemin(this);
     const t = E.gunuHesapla(o, false);
     for (const k in this.kaynakYazi) {
       const net = (t.yapilan[k] || 0) - (t.harcanan[k] || 0);
@@ -151,7 +155,7 @@ class KaleSahnesi extends Phaser.Scene {
       this.kaynakYazi[k].setColor(net < 0 && E.kaynak[k] + net < 0 ? '#ff9a7a' : '#efe6d2');
     }
     this.altinYazi.setText(`Altın ${o.altin}`);
-    this.gunYazi.setText(`${o.dalga + 1}. Gün`);
+    this.gunYazi.setText(`${o.dalga + 1}. Gün` + (typeof Varyant !== 'undefined' ? ` · ${Varyant.sezon(o).ad}` : ''));
     this.halkYazi.setText(`Halk ${E.nufus}/${E.barinak}  ·  İşçi ${E.isci}  ·  Asker ${E.asker}  ·  Boşta ${E.bosta}`);
     this.halkYazi.setColor(E.bosta > 0 ? '#ffe08a' : '#efe6d2');
     const sonraki = o.dalga + 1;
@@ -440,8 +444,11 @@ class KaleSahnesi extends Phaser.Scene {
   }
 
   savasaCik() {
+    if (this.cikiyor) return;
     this.panelKapat();
-    this.scene.sleep();
-    this.oyun.iceridenCik();
+    const cik = () => { this.cikiyor = false; this.scene.sleep(); this.oyun.iceridenCik(); };
+    this.cikiyor = true;
+    // Akşam olur (binalar gece görünür), sonra savaş başlar
+    if (typeof Varyant !== 'undefined') Varyant.aksam(this, cik); else cik();
   }
 }
