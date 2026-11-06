@@ -1,0 +1,232 @@
+{
+ "bolgeler": {
+  "askeri": "batı suru: kışla + talim alanı",
+  "ciftlik": "arka sur: ahır, atlar, kümes, saman arabası, çiftlik",
+  "pazar": "orta meydan: kuyu, tezgâhlar, araba, fıçı/sandık",
+  "cadde": "kapıdan pazara taş cadde: çeşme, mangal, köpek",
+  "dini": "kale burcunun yanında şapel"
+ },
+ "susler": [
+  {
+   "ad": "kisla",
+   "x": 330,
+   "y": 568,
+   "piksel": 0.75,
+   "oncelik": 1
+  },
+  {
+   "ad": "manken",
+   "x": 425,
+   "y": 596,
+   "oncelik": 1
+  },
+  {
+   "ad": "manken",
+   "x": 478,
+   "y": 616,
+   "ayna": true,
+   "oncelik": 2
+  },
+  {
+   "ad": "silahrafi",
+   "x": 392,
+   "y": 611,
+   "oncelik": 2
+  },
+  {
+   "ad": "bayrak",
+   "x": 268,
+   "y": 525,
+   "oncelik": 2
+  },
+  {
+   "ad": "mesale",
+   "x": 402,
+   "y": 559,
+   "oncelik": 3
+  },
+  {
+   "ad": "ahir",
+   "x": 612,
+   "y": 359,
+   "piksel": 0.8,
+   "oncelik": 1
+  },
+  {
+   "ad": "at_kahve",
+   "x": 585,
+   "y": 423,
+   "oncelik": 1
+  },
+  {
+   "ad": "at_beyaz",
+   "x": 648,
+   "y": 439,
+   "ayna": true,
+   "oncelik": 2
+  },
+  {
+   "ad": "tavuk",
+   "x": 992,
+   "y": 392,
+   "oncelik": 3
+  },
+  {
+   "ad": "domuz",
+   "x": 1215,
+   "y": 810,
+   "oncelik": 3
+  },
+  {
+   "ad": "kuyu",
+   "x": 806,
+   "y": 607,
+   "oncelik": 1
+  },
+  {
+   "ad": "tezgah2",
+   "x": 708,
+   "y": 659,
+   "oncelik": 1
+  },
+  {
+   "ad": "tezgah3",
+   "x": 640,
+   "y": 647,
+   "oncelik": 2
+  },
+  {
+   "ad": "fici2",
+   "x": 748,
+   "y": 575,
+   "oncelik": 2
+  },
+  {
+   "ad": "sandik",
+   "x": 668,
+   "y": 594,
+   "oncelik": 3
+  },
+  {
+   "ad": "araba",
+   "x": 1012,
+   "y": 621,
+   "oncelik": 2
+  },
+  {
+   "ad": "cesme",
+   "x": 1165,
+   "y": 722,
+   "oncelik": 1
+  },
+  {
+   "ad": "mesale",
+   "x": 1396,
+   "y": 695,
+   "oncelik": 2
+  },
+  {
+   "ad": "kopek",
+   "x": 1368,
+   "y": 719,
+   "ayna": true,
+   "oncelik": 3
+  },
+  {
+   "ad": "bayrak",
+   "x": 1420,
+   "y": 615,
+   "oncelik": 2
+  },
+  {
+   "ad": "sapel",
+   "x": 1300,
+   "y": 423,
+   "piksel": 0.8,
+   "oncelik": 1
+  },
+  {
+   "ad": "saman",
+   "x": 742,
+   "y": 358,
+   "oncelik": 3
+  }
+ ],
+ "varyantlar": {
+  "kisla": [
+   "karli",
+   "gece"
+  ],
+  "manken": [
+   "karli",
+   "gece"
+  ],
+  "silahrafi": [
+   "karli",
+   "gece"
+  ],
+  "bayrak": [
+   "karli",
+   "gece"
+  ],
+  "mesale": [
+   "karli",
+   "gece"
+  ],
+  "ahir": [
+   "karli",
+   "gece"
+  ],
+  "at_kahve": [
+   "gece"
+  ],
+  "at_beyaz": [
+   "gece"
+  ],
+  "tavuk": [
+   "gece"
+  ],
+  "domuz": [
+   "gece"
+  ],
+  "kuyu": [
+   "karli",
+   "gece"
+  ],
+  "tezgah2": [
+   "karli",
+   "gece"
+  ],
+  "tezgah3": [
+   "karli",
+   "gece"
+  ],
+  "fici2": [
+   "karli",
+   "gece"
+  ],
+  "sandik": [
+   "karli",
+   "gece"
+  ],
+  "araba": [
+   "karli",
+   "gece"
+  ],
+  "cesme": [
+   "karli",
+   "gece"
+  ],
+  "kopek": [
+   "gece"
+  ],
+  "sapel": [
+   "karli",
+   "gece"
+  ],
+  "saman": [
+   "karli",
+   "gece"
+  ]
+ }
+}

@@ -29,6 +29,7 @@ class KaleSahnesi extends Phaser.Scene {
     this.O = this.M.olcek;
     // arkaPiksel / on.piksel: PixelLab ile yeniden çizilen zemin daha sık pikselli (yoksa O)
     this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.M.arkaPiksel || this.O);
+    if (typeof IcSusler !== 'undefined') IcSusler.zeminKatmani(this); // patikalar, ezilmiş toprak (ic_susler.js)
     const on = this.M.on;
     // Süs eşyaları: x, y = alt orta (ekran pikseli); aşağıdaki öndedir
     for (const su of this.M.susler || []) {
@@ -45,7 +46,18 @@ class KaleSahnesi extends Phaser.Scene {
     this.alanlariKur();
     this.arayuzKur();
     this.yenile();
-    this.events.on('wake', (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); });
+    // Sahne olayları yeniden başlayınca silinmez: kapanırken çıkar (yoksa her yeni oyunda bir kat daha çalışır)
+    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); };
+    this.events.on('wake', uyan);
+    this.events.once('shutdown', () => this.events.off('wake', uyan));
+    // Klavye: Boşluk savaşa çık, Esc pencereyi kapat, M ses
+    this.input.keyboard.on('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (e.repeat) return;
+      if (k === ' ') this.savasaCik();
+      else if (k === 'escape') this.panelKapat();
+      else if (k === 'm') this.oyun.sesAcKapa();
+    });
     this.raporGoster();
   }
 
@@ -68,7 +80,10 @@ class KaleSahnesi extends Phaser.Scene {
     const m = this.binaMeta(k), sp = this.binaSprite[k];
     const O = this.O;
     // piksel: görselin bir pikseli ekranda kaç piksel (yoksa O). PixelLab çizimleri daha sık pikselli.
-    sp.setTexture('k_' + k + this.E.bina[k].seviye).setScale(m.piksel || O)
+    // Mevsim / hasar / akşam görünümü (varyant.js); yoksa normal görsel
+    if (typeof Varyant !== 'undefined') Varyant.uygula(this, sp, 'k_' + k + this.E.bina[k].seviye);
+    else sp.setTexture('k_' + k + this.E.bina[k].seviye);
+    sp.setScale(m.piksel || O)
       .setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
     const B = BINALAR[k], b = this.E.bina[k];
     const yazi = k === 'ev' ? `${B.ad}  ${this.E.nufus}/${this.E.barinak}` : `${B.ad}  ${b.isci}/${this.E.yerSayisi(k)}`;
@@ -144,6 +159,7 @@ class KaleSahnesi extends Phaser.Scene {
   yenile() {
     const E = this.E, o = this.oyun;
     for (const k of Object.keys(BINALAR)) { this.binaGorsel(k); this.etiketVurgu(k, false); }
+    if (typeof Varyant !== 'undefined') Varyant.zemin(this);
     const t = E.gunuHesapla(o, false);
     for (const k in this.kaynakYazi) {
       const net = (t.yapilan[k] || 0) - (t.harcanan[k] || 0);
@@ -151,7 +167,7 @@ class KaleSahnesi extends Phaser.Scene {
       this.kaynakYazi[k].setColor(net < 0 && E.kaynak[k] + net < 0 ? '#ff9a7a' : '#efe6d2');
     }
     this.altinYazi.setText(`Altın ${o.altin}`);
-    this.gunYazi.setText(`${o.dalga + 1}. Gün`);
+    this.gunYazi.setText(`${o.dalga + 1}. Gün` + (typeof Varyant !== 'undefined' ? ` · ${Varyant.sezon(o).ad}` : ''));
     this.halkYazi.setText(`Halk ${E.nufus}/${E.barinak}  ·  İşçi ${E.isci}  ·  Asker ${E.asker}  ·  Boşta ${E.bosta}`);
     this.halkYazi.setColor(E.bosta > 0 ? '#ffe08a' : '#efe6d2');
     const sonraki = o.dalga + 1;
@@ -199,7 +215,7 @@ class KaleSahnesi extends Phaser.Scene {
     if (this.panel) this.panel.destroy();
     const W = 560, H = 880, x = AYAR.en - W / 2 - 16, y = 84 + H / 2;
     const kap = this.add.container(x, y).setDepth(110);
-    kap.add(this.add.rectangle(0, 0, W, H, 0x1c1612, 0.96).setStrokeStyle(3, 0xc9a24a).setInteractive());
+    kap.add(this.add.rectangle(0, 0, W, H, 0x1c1612, 1).setStrokeStyle(3, 0xc9a24a).setInteractive()); // tam opak: arkadaki etiketler görünmesin
     kap.add(this.add.text(0, -H / 2 + 46, baslik, stil('baslik', 48)).setOrigin(0.5));
     const kapat = this.dugme(W / 2 - 34, -H / 2 + 34, 48, 48, '×', () => this.panelKapat(), 111, 30);
     kap.add(kapat);
@@ -329,6 +345,14 @@ class KaleSahnesi extends Phaser.Scene {
   // Gün sonu raporu (ortada). zorla = kuleye tıklandı
   raporGoster(zorla) {
     const r = this.E.rapor;
+    if (!r && zorla) {
+      // İlk gün: henüz rapor yok, tıklama boşa gitmesin
+      this.panelKur('Günün raporu', p => {
+        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.', 26);
+        p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+      });
+      return;
+    }
     if (!r || (!this.ilkRapor && !zorla)) return;
     this.ilkRapor = null;
     const ad = k => KAYNAKLAR[k].ad.toLowerCase();
@@ -440,8 +464,11 @@ class KaleSahnesi extends Phaser.Scene {
   }
 
   savasaCik() {
+    if (this.cikiyor) return;
     this.panelKapat();
-    this.scene.sleep();
-    this.oyun.iceridenCik();
+    const cik = () => { this.cikiyor = false; this.scene.sleep(); this.oyun.iceridenCik(); };
+    this.cikiyor = true;
+    // Akşam olur (binalar gece görünür), sonra savaş başlar
+    if (typeof Varyant !== 'undefined') Varyant.aksam(this, cik); else cik();
   }
 }

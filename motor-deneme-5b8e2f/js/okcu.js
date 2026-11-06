@@ -20,7 +20,7 @@ class Okcu {
     this.tutma = 0;        // Tam gerili kaç saniyedir tutuluyor
     this.otoBirak = false; // Kısa dokunuş: tam gerilince kendiliğinden at
     this.sprite = sahne.add.sprite(x, ayakY, this.anahtar, 0)
-      .setOrigin(0.5, this.M.footY / this.M.fh).setDepth(oyuncu ? 26 : 25);
+      .setOrigin(0.5, this.M.footY / this.M.fh).setScale(this.M.olcek || 1).setDepth(oyuncu ? 26 : 25);
     this.takiliOk = sahne.add.image(0, 0, 'ok').setOrigin(0, 0.5).setDepth(oyuncu ? 27 : 25.5);
     if (!oyuncu) this.bekleme = Math.random() * AYAR.asker.beklemeSn;
     this.kareyiAyarla();
@@ -28,7 +28,8 @@ class Okcu {
 
   // Şeritteki bir noktayı sahne koordinatına çevirir
   nokta(p) {
-    return { x: this.x - this.M.fw / 2 + p.x, y: this.ayakY - this.M.footY + p.y };
+    const o = this.M.olcek || 1; // 2 kat detaylı şeritte olcek 0.5
+    return { x: this.x + (p.x - this.M.fw / 2) * o, y: this.ayakY + (p.y - this.M.footY) * o };
   }
   get omuz() {
     const sifir = this.M.kareler[this.M.acilar.indexOf(0)];

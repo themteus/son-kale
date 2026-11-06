@@ -10,6 +10,9 @@ class YukleSahnesi extends Phaser.Scene {
   preload() {
     this.load.json('kareler', 'assets/gorsel/kareler.json');
     this.load.json('kale', 'assets/kale/kale.json');
+    this.load.json('efektler', 'assets/gorsel/efekt/efektler.json'); // efekt şeritlerinin kare boyları (yoksa efektler parçacıkla kalır)
+    if (typeof Varyant !== 'undefined') Varyant.listeyiYukle(this.load); // iç kale bina varyantlarının listesi
+    if (typeof IcSusler !== 'undefined') IcSusler.listeyiYukle(this.load); // iç kaleye eklenen yapı ve eşyaların yerleşimi
     this.yaziGoster();
   }
 
@@ -38,6 +41,11 @@ class YukleSahnesi extends Phaser.Scene {
     if (K.manzaraPl) this.load.image('manzara_pl', g + 'manzara_pl.png');
     if (K.kalePl) { this.load.image('kale_pl', g + 'kale_pl.png'); this.load.image('kale_pl_govde', g + 'kale_pl_govde.png'); }
     for (const ad of ['tas', 'cim', 'toprak', 'tahta']) this.load.image(ad, 'assets/doku/' + ad + '.png');
+    // Piksel sanat efekt dokuları (yoksa kucukDokular() kodla çizer)
+    for (const ad of ['ok', 'kare', 'daire']) this.load.image(ad, g + 'efekt/' + ad + '.png');
+    // Efekt şeritleri: fx_kivilcim, fx_duman, fx_patlama, fx_ates, fx_ok_izi
+    const E = this.cache.json.get('efektler') || {};
+    for (const [ad, m] of Object.entries(E)) this.load.spritesheet('fx_' + ad, g + 'efekt/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
     for (const ad of ['shoot', 'hit', 'kill', 'big_kill', 'hurt', 'coin', 'level_up', 'ui', 'impact', 'boss', 'confirm']) {
       this.load.audio(ad, 'assets/ses/' + ad + '.mp3');
     }
@@ -47,7 +55,12 @@ class YukleSahnesi extends Phaser.Scene {
     this.load.image('k_arka', 'assets/kale/arka.png');
     this.load.image('k_on', 'assets/kale/on.png'); // ön surlar (her şeyin önünde)
     for (const ad of Object.keys(KM.binalar)) this.load.image('k_' + ad, 'assets/kale/' + ad + '.png');
-    // Avludaki süs eşyaları (ağaç, fıçı, araba...)
+    if (typeof Varyant !== 'undefined') Varyant.gorselleriYukle(this); // karlı / gece / yıkık bina görselleri
+    // Avludaki süs eşyaları (ağaç, fıçı, araba...); ic_susler.js yenilerini listeye ekler
+    if (typeof IcSusler !== 'undefined') {
+      IcSusler.birlestir(KM, this.cache.json.get('kale_ic2'));
+      IcSusler.varyantlariYukle(this, this.cache.json.get('kale_ic2'));
+    }
     for (const ad of new Set((KM.susler || []).map(s => s.ad))) this.load.image('ks_' + ad, 'assets/kale/sus/' + ad + '.png');
     for (const [ad, m] of Object.entries(KM.koylu)) this.load.spritesheet(ad, 'assets/kale/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
     this.load.once('complete', () => this.bitti(K, KM));
@@ -64,6 +77,12 @@ class YukleSahnesi extends Phaser.Scene {
         this.anims.create({ key: ad + '_' + anim, frames: kareler, frameRate: r.fps, repeat: r.once ? 0 : -1 });
       }
     }
+    // Efekt şeritlerinin animasyonları: fx_<ad> (bir kez oynar)
+    const FPS = { kivilcim: 26, duman: 14, patlama: 16, ates: 16, ok_izi: 30 };
+    for (const [ad, m] of Object.entries(this.cache.json.get('efektler') || {})) {
+      if (!this.textures.exists('fx_' + ad)) continue;
+      this.anims.create({ key: 'fx_' + ad, frames: this.anims.generateFrameNumbers('fx_' + ad, { start: 0, end: m.kare - 1 }), frameRate: FPS[ad] || 14, repeat: 0 });
+    }
     this.kucukDokular();
     // Yazı tipleri hazır olunca oyuna geç
     const yazilar = document.fonts ? Promise.all([
@@ -77,6 +96,8 @@ class YukleSahnesi extends Phaser.Scene {
   // Kodla üretilen küçük dokular: ok, kan, toz, kıvılcım, çam
   kucukDokular() {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
+    // Dosyadan yüklenen doku varsa onu kullan, kodla çizileni üretme
+    const ure = (ad, w, h) => { if (!this.textures.exists(ad)) g.generateTexture(ad, w, h); };
     // Ok (sağa bakar, ucu sağda): 60x12
     g.fillStyle(0x1a1410).fillRect(2, 4, 50, 4);
     g.fillStyle(0x7a5530).fillRect(3, 5, 48, 2);
@@ -84,13 +105,13 @@ class YukleSahnesi extends Phaser.Scene {
     g.fillStyle(0xb8ae98).fillTriangle(2, 3, 12, 6, 2, 9);
     g.fillStyle(0x1a1410).fillTriangle(48, 1, 60, 6, 48, 11);
     g.fillStyle(0xbfc4c8).fillTriangle(49, 3, 58, 6, 49, 9);
-    g.generateTexture('ok', 60, 12);
+    ure('ok', 60, 12);
     g.clear();
     g.fillStyle(0xffffff).fillRect(0, 0, 6, 6);
-    g.generateTexture('kare', 6, 6);
+    ure('kare', 6, 6);
     g.clear();
     g.fillStyle(0xffffff).fillCircle(8, 8, 8);
-    g.generateTexture('daire', 16, 16);
+    ure('daire', 16, 16);
     g.clear();
     g.fillStyle(0xffffff).fillCircle(48, 48, 48);
     g.generateTexture('ay', 96, 96);
