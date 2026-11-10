@@ -168,6 +168,8 @@ class KaleSahnesi extends Phaser.Scene {
     }
     this.altinYazi.setText(`Altın ${o.altin}`);
     this.gunYazi.setText(`${o.dalga + 1}. Gün` + (typeof Varyant !== 'undefined' ? ` · ${Varyant.sezon(o).ad}` : ''));
+    // Altın yazısı gün yazısının solunda dursun (mevsim adı uzayınca üst üste binmesin)
+    this.altinYazi.setX(this.gunYazi.x - this.gunYazi.width - 36);
     this.halkYazi.setText(`Halk ${E.nufus}/${E.barinak}  ·  İşçi ${E.isci}  ·  Asker ${E.asker}  ·  Boşta ${E.bosta}`);
     this.halkYazi.setColor(E.bosta > 0 ? '#ffe08a' : '#efe6d2');
     const sonraki = o.dalga + 1;

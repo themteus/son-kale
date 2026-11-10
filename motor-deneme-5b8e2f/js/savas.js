@@ -222,7 +222,7 @@ class SavasSahnesi extends Phaser.Scene {
       surum: 1, zorluk: this.zorlukAdi, dalga: this.dalga, altin: this.altin, seviye: this.seviye, stok: this.stok,
       surCan: Math.round(this.surCan), kurtuldu: this.kurtuldu, oldurulen: this.oldurulen, kafaVurusu: this.kafaVurusu,
       gorulen: this.gorulen, keskinHazir: this.keskinHazir, sonraki: this.kesif(),
-      ekonomi: { kaynak: E.kaynak, nufus: E.nufus, bina: E.bina, asker: E.asker, surSeviye: E.surSeviye, pazar: E.pazar, rapor: E.rapor },
+      ekonomi: { kaynak: E.kaynak, nufus: E.nufus, bina: E.bina, asker: E.asker, surSeviye: E.surSeviye, pazar: E.pazar, rapor: E.rapor, acilOnarildi: E.acilOnarildi },
     };
     Kayit.yaz('kayit', JSON.stringify(veri));
   }
