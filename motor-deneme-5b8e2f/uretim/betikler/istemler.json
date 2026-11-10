@@ -1,0 +1,62 @@
+{
+ "zombi": {
+  "pos": "pixel art sprite, side view facing left, full body, a rotting medieval zombie, pale mint green skin with purple bruises, bald head, torn off-white linen shirt, dark charcoal purple vest, bright orange leather belt with gold buckle, dark trousers, brown boots, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, monochrome, desaturated, green clothes"
+ },
+ "kosucu": {
+  "pos": "pixel art sprite, side view facing left, full body, a fast lean running zombie, messy shaggy brown hair, pale gray-green skin, sunken white eyes, tight dark navy blue torn clothes with light gray sleeves, dark boots, athletic sprinting pose, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, monochrome, fat, armor"
+ },
+ "iskelet": {
+  "pos": "pixel art sprite, side view facing left, full body, an undead skeleton warrior, bleached bone skull and ribcage, rusty iron kettle helmet, dented steel shoulder and arm plates, tattered black cloth loincloth, bony white legs, small brown leather boots, high contrast, game asset, crisp pixels, dark outline, detailed metal shading, plain flat gray background",
+  "neg": "cute, chibi, front view, flesh, skin, cartoon"
+ },
+ "dev": {
+  "pos": "pixel art sprite, side view facing left, full body, a huge hulking ogre brute, gray-blue skin with scars, bald head, carrying a giant wooden club with iron cap on his shoulder, torn brown leather loincloth, leather wrist wraps and shin straps, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, armor"
+ },
+ "yarasa": {
+  "pos": "pixel art sprite, side view facing left, a giant flying vampire bat, dusky purple-pink fur, wide leathery wings with dark membrane veins, big pointed ears, glowing red eyes, small fangs, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, cartoon, front view, bird, feathers"
+ },
+ "kurt": {
+  "pos": "pixel art sprite, side view, full 90 degree side profile, facing left, quadruped side view, an undead zombie wolf, dark teal-gray matted fur with a spiky mane, exposed pale bone ribcage on its flank, bony pale legs, glowing red eye, snarling jaws, bushy tail, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "front view, three-quarter view, facing camera, rear view, back view, cute, puppy, healthy dog, multiple animals"
+ },
+ "kalkanli": {
+  "pos": "pixel art sprite, side view facing left, full body, an undead zombie knight, polished steel plate armor with rust-orange accents, round dented helmet, green rotting face, large dark round wooden shield with iron rim, brown leather straps, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, cartoon"
+ },
+ "okcuiskelet": {
+  "pos": "pixel art sprite, side view, full 90 degree side profile, facing left, full body, a skeleton archer, bone skull face under a dark olive green hood, tattered gray-green cloak flowing behind, exposed bone ribcage, leather belt, dark blue trousers, brown boots, wooden recurve bow, leather quiver with arrows on the back, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "front view, three-quarter view, facing camera, back view, cute, chibi, flesh, multiple characters"
+ },
+ "tirmanici": {
+  "pos": "pixel art sprite, side view facing left, full body, a crawling ghoul climber, pale gray-white skin with purple sores, bald misshapen head, very long thin white arms with claws, hunched on all fours, dark ragged clothes, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, standing upright"
+ },
+ "patlayan": {
+  "pos": "pixel art sprite, side view facing left, full body, a bloated exploding zombie, swollen green skin with glowing toxic green pustules, purple bruises, torn dark clothes stretched over the belly, toxic green glow, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, thin"
+ },
+ "sifaci": {
+  "pos": "pixel art sprite, side view facing left, full body, an undead necromancer healer, long dark slate blue hooded robe, gaunt pale green face in shadow, wooden staff, thin hands, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, armor"
+ },
+ "kalkanlidev": {
+  "pos": "pixel art sprite, side view facing left, full body, a tall armored skeleton knight, full steel plate armor, closed visor helmet, rust red tunic underneath, tall dark red tower shield with iron rim, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view"
+ },
+ "patron": {
+  "pos": "pixel art sprite, side view facing left, full body, an undead lich king boss, heavy dark steel plate armor with gold trim, golden spiked crown, long tattered blue-gray cape, huge double-headed battle axe, leather straps, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "cute, chibi, front view, cartoon"
+ },
+ "okcu": {
+  "pos": "pixel art sprite, side view, full 90 degree side profile, facing right, full body, a hooded ranger archer drawing a wooden longbow, deep forest green hooded cloak, brown leather jerkin and bracers, small steel shoulder guard, face visible in profile under the hood, dark trousers, brown leather boots, quiver on back, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "front view, three-quarter view, facing camera, back view, cute, chibi, front view, crossbow"
+ },
+ "asker": {
+  "pos": "pixel art sprite, side view, full 90 degree side profile, facing right, full body, a castle guard archer drawing a wooden bow, closed steel great helm, steel pauldrons, deep crimson red tabard with gold trim, dark trousers, brown leather boots, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background",
+  "neg": "front view, three-quarter view, facing camera, back view, cute, chibi, front view, crossbow"
+ }
+}

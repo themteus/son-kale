@@ -1,0 +1,167 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sd_xl_base_1.0.safetensors"
+  }
+ },
+ "2": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "clip": [
+    "1",
+    1
+   ],
+   "lora_name": "pixel-art-xl.safetensors",
+   "strength_model": 1.0,
+   "strength_clip": 1.0
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "sdxl_vae_fp16_fix.safetensors"
+  }
+ },
+ "4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    1
+   ],
+   "text": "pixel art sprite, side view facing left, full body, a huge hulking ogre brute, gray-blue skin with scars, bald head, carrying a giant wooden club with iron cap on his shoulder, torn brown leather loincloth, leather wrist wraps and shin straps, high contrast, game asset, crisp pixels, dark outline, detailed shading, plain flat gray background"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    1
+   ],
+   "text": "blurry, photo, 3d render, realistic, text, watermark, multiple characters, background scenery, cropped, smooth gradient, jpeg artifacts, cute, chibi, front view, armor"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "v2_dev_00.png"
+  },
+  "is_changed": [
+   "d92c5cd9a4b152f5fa5e2ea7511d4e92f50c0ac54a547ce9057c9b1a2d65f0cd"
+  ]
+ },
+ "11": {
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "10",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "12": {
+  "class_type": "Canny",
+  "inputs": {
+   "image": [
+    "10",
+    0
+   ],
+   "low_threshold": 0.3,
+   "high_threshold": 0.6
+  }
+ },
+ "13": {
+  "class_type": "ControlNetLoader",
+  "inputs": {
+   "control_net_name": "xinsir_canny_sdxl.safetensors"
+  }
+ },
+ "14": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "13",
+    0
+   ],
+   "image": [
+    "12",
+    0
+   ],
+   "strength": 0.7,
+   "start_percent": 0.0,
+   "end_percent": 0.85,
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "7": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "2",
+    0
+   ],
+   "positive": [
+    "14",
+    0
+   ],
+   "negative": [
+    "14",
+    1
+   ],
+   "latent_image": [
+    "11",
+    0
+   ],
+   "seed": 22,
+   "steps": 25,
+   "cfg": 6.0,
+   "sampler_name": "dpmpp_2m",
+   "scheduler": "karras",
+   "denoise": 0.55
+  }
+ },
+ "8": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "7",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "9": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "8",
+    0
+   ],
+   "filename_prefix": "son-kale-v2/dev/ham/v1_s22_00"
+  }
+ }
+}
