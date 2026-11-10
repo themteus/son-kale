@@ -10,6 +10,7 @@ on.png keeps its alpha mask exactly (1.5x NEAREST of the original mask).
   python arka_hd.py tam arka --t 512 --denoise 0.45 --cn 0.5 [--kis]
 """
 import argparse
+import glob
 import json
 import os
 import sys
@@ -52,7 +53,9 @@ def buyuk(ad, kis=False):
     hd = f"{OUT}/{ad}.png"
     if kis and os.path.exists(hd):  # winter starts from the finished 1x summer image (same layout)
         alfa = big.getchannel("A")
-        big = Image.open(hd).convert("RGBA")
+        import kar
+        yaz = Image.open(hd).convert("RGB")
+        big = kar.karla(yaz, np.asarray(alfa) > 0).convert("RGBA")  # code-painted snow, then a light redraw
         big.putalpha(alfa)
     rgb = Image.new("RGBA", (W, H), BG + (255,))
     rgb.alpha_composite(big)
@@ -152,6 +155,53 @@ def deneme(a):
     print(p, [lab for _, lab in tiles])
 
 
+# small props baked into the background, original (1280x720) coords: they melt at the tile settings,
+# so each gets its own pass: 4x zoom, low denoise, sharp canny
+KORU = {
+    "arka": {"kuyu_tezgah": (486, 296, 548, 380), "tezgah2": (558, 334, 606, 382),
+             "fici": (566, 292, 594, 322), "araba": (774, 314, 828, 372), "fener": (700, 340, 726, 392),
+             "saman": (770, 496, 884, 560), "burc": (936, 214, 1256, 456)},
+    "on": {},
+}
+
+
+def koru(res, rgb, a):
+    kutular = KORU.get(a.ad, {}) if not a.koruma_yok else {}
+    if not kutular:
+        return res
+    kis = "_kis" if a.kis else ""
+    jobs, meta = [], []
+    for ad, (x0, y0, x1, y1) in kutular.items():
+        X0, Y0, X1, Y1 = [round(v * 1.5) for v in (x0 - 6, y0 - 6, x1 + 6, y1 + 6)]
+        s = max(X1 - X0, Y1 - Y0)
+        k = max(2, 1024 // s)
+        c = rgb.crop((X0, Y0, X0 + s, Y0 + s))
+        inp = Image.new("RGB", (1024, 1024), BG)
+        inp.paste(c.resize((s * k, s * k), Image.Resampling.NEAREST), (0, 0))
+        fa = f"hdk_{a.ad}{kis}_{ad}.png"
+        inp.save(f"{B.COMFY}/input/{fa}")
+        pre = f"son-kale-v2/arka_hd/koru_{a.ad}{kis}_{ad}_d{int(a.koru_d * 100)}"
+        wf = workflow(fa, fa, pre, a.seed, a.koru_d, 0.8, POS_KIS if a.kis else POS, NEG_KIS if a.kis else NEG)
+        wf["12"]["inputs"].update(low_threshold=0.3, high_threshold=0.6)
+        jobs.append((pre, wf))
+        meta.append((pre, X0, Y0, s, k))
+    out = {}
+    for pre, _ in jobs:
+        done = sorted(glob.glob(f"{B.COMFY}/output/{pre}_*.png"))
+        if done:
+            out[pre] = done[-1]
+    todo = [(p, w) for p, w in jobs if p not in out]
+    out.update(B.run_jobs(todo) if todo else {})
+    res = res.copy()
+    for pre, X0, Y0, s, k in meta:
+        g = Image.open(out[pre]).convert("RGB").crop((0, 0, s * k, s * k)).resize((s, s), Image.Resampling.BOX)
+        g = g.filter(ImageFilter.UnsharpMask(radius=1.0, percent=a.keskin, threshold=2))
+        m = Image.new("L", (s, s), 0)
+        m.paste(255, (6, 6, s - 6, s - 6))
+        res.paste(g, (X0, Y0), m.filter(ImageFilter.GaussianBlur(3)))
+    return res
+
+
 def tam(a):
     rgb, alfa = buyuk(a.ad, a.kis)
     W, H = rgb.size
@@ -166,18 +216,45 @@ def tam(a):
         pre = f"son-kale-v2/arka_hd/{a.ad}{kis}_{x}_{y}"
         jobs.append((pre, workflow(inp, ctrl, pre, a.seed, d, cn, POS_KIS if a.kis else POS, NEG_KIS if a.kis else NEG)))
         meta.append((pre, x, y))
-    print(f"{len(jobs)} parca", flush=True)
-    out = B.run_jobs(jobs)
+    out = {}
+    for pre, _ in jobs:  # resume: reuse tiles already drawn
+        done = sorted(glob.glob(f"{B.COMFY}/output/{pre}_*.png"))
+        if done:
+            out[pre] = done[-1]
+    todo = [(p, w) for p, w in jobs if p not in out]
+    print(f"{len(todo)} parca kuyruga ({len(out)} hazir)", flush=True)
+    out.update(B.run_jobs(todo) if todo else {})
     acc = np.zeros((H, W, 3), np.float32)
     wsum = np.zeros((H, W, 1), np.float32)
-    w = agirlik(t, ov)[..., None]
+    # steep weights: the tile whose centre is nearest wins, ~24 px cross-fade at seams
+    # (wide averaging of two different drawings gives ghosted, muddy stones)
+    w = (agirlik(t, ov) ** 6)[..., None]
     for pre, x, y in meta:
         g = np.asarray(Image.open(out[pre]).convert("RGB").resize((t, t), Image.Resampling.BOX), np.float32)
+        # match the tile's colour spread to the original tile, so neighbouring tiles share one tone
+        o = np.asarray(rgb.crop((x, y, x + t, y + t)), np.float32)
+        if not a.kis:  # winter must move away from the summer tones
+            g = (g - g.mean((0, 1))) / (g.std((0, 1)) + 1e-3) * o.std((0, 1)) + o.mean((0, 1))
         acc[y:y + t, x:x + t] += g * w
         wsum[y:y + t, x:x + t] += w
     base = np.asarray(rgb, np.float32)
     res = np.where(wsum > 0, acc / np.maximum(wsum, 1e-6), base)
-    im = kuantala(Image.fromarray(res.clip(0, 255).astype(np.uint8)), palet(a.ad, a.kis))
+    res = Image.fromarray(res.clip(0, 255).astype(np.uint8))
+    res = res.filter(ImageFilter.UnsharpMask(radius=1.0, percent=a.keskin, threshold=2))
+    res = koru(res, rgb, a)
+    if alfa.getextrema()[0] < 255:
+        # silhouette band: where the redraw painted the grey padding inside the kept mask, use the old pixel
+        from scipy import ndimage
+        m = np.asarray(alfa) > 0
+        band = m & ~ndimage.binary_erosion(m, iterations=8)
+        r = np.asarray(res).astype(np.int16)
+        gri = np.abs(r - np.array(BG)).max(axis=2) <= 22
+        koyu = (r.max(axis=2) < 40) & ~(np.asarray(rgb).astype(np.int16).max(axis=2) < 60)
+        yer = band & (gri | koyu)
+        r = r.astype(np.uint8)
+        r[yer] = np.asarray(rgb)[yer]
+        res = Image.fromarray(r)
+    im = kuantala(res, palet(a.ad, a.kis))
     im = im.convert("RGBA")
     im.putalpha(alfa)
     adi = a.ad + ("_karli" if a.kis else "")
@@ -199,5 +276,8 @@ if __name__ == "__main__":
     ap.add_argument("--cn", type=float, nargs="+", default=[0.5])
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--kis", action="store_true")
+    ap.add_argument("--keskin", type=int, default=80, help="UnsharpMask yuzdesi (0 = kapali)")
+    ap.add_argument("--koru-d", type=float, default=0.3, help="gomulu esyalar icin denoise")
+    ap.add_argument("--koruma-yok", action="store_true")
     a = ap.parse_args()
     deneme(a) if a.mod == "deneme" else tam(a)
