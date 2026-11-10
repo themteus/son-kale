@@ -49,7 +49,8 @@ class Okcu {
     this.kiris = this.nokta(k['nock' + sira]);
     this.tutamak = this.nokta(k.grip);
     // Kirişe takılı ok: kuyruğu kirişte, ucu nişan yönünde
-    const hazir = this.bekleme <= 0 && (this.oyuncu || this.germe > 0.5);
+    // Gevşek karede okçu çiziminde ok zaten var; ikinci ok görünmesin
+    const hazir = this.bekleme <= 0 && (this.oyuncu || this.germe > 0.5) && !(this.M.germe.length === 3 && sira === 0);
     this.takiliOk.setVisible(hazir);
     if (hazir) this.takiliOk.setPosition(this.kiris.x, this.kiris.y).setRotation(Phaser.Math.DegToRad(A[i]));
     if (hazir && this.oyuncu) {

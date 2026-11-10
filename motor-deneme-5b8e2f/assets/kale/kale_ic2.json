@@ -11,7 +11,6 @@
    "ad": "kisla",
    "x": 330,
    "y": 568,
-   "piksel": 0.75,
    "oncelik": 1
   },
   {
@@ -49,21 +48,22 @@
    "ad": "ahir",
    "x": 612,
    "y": 359,
-   "piksel": 0.8,
    "oncelik": 1
   },
   {
    "ad": "at_kahve",
    "x": 585,
    "y": 423,
-   "oncelik": 1
+   "oncelik": 1,
+   "piksel": 0.7
   },
   {
    "ad": "at_beyaz",
    "x": 648,
    "y": 439,
    "ayna": true,
-   "oncelik": 2
+   "oncelik": 2,
+   "piksel": 0.7
   },
   {
    "ad": "tavuk",
@@ -73,8 +73,8 @@
   },
   {
    "ad": "domuz",
-   "x": 1215,
-   "y": 810,
+   "x": 1180,
+   "y": 830,
    "oncelik": 3
   },
   {
@@ -142,7 +142,6 @@
    "ad": "sapel",
    "x": 1300,
    "y": 423,
-   "piksel": 0.8,
    "oncelik": 1
   },
   {
