@@ -100,8 +100,8 @@ const Yapilar = {
         .on('pointerover', () => sahne.etiket[k].setColor('#ffe08a'))
         .on('pointerout', () => sahne.etiket[k].setColor(sahne.secili === k ? '#ffe08a' : '#efe6d2'))
         .on('pointerdown', () => sahne.sec(k));
-      // Kışlanın üstünde oduncunun adı var: onun adı binanın altına yazılır
-      const alta = k === 'kisla';
+      // Ad binanın üstüne yazılır (kışla eskiden oduncunun altında kaldığı için alta yazılıyordu)
+      const alta = false;
       sahne.etiket[k] = sahne.add.text(sp.x - (alta ? 40 : 0), alta ? sp.y + 6 : sp.y - sp.displayHeight + 24, '',
         stil('govde', DOKUNMATIK ? 28 : 22, { fontStyle: 'bold', backgroundColor: '#1a1410cc', padding: { x: 8, y: 3 } }))
         .setOrigin(0.5, alta ? 0 : 1).setDepth(90);

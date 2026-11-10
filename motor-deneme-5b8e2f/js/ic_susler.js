@@ -5,6 +5,8 @@
 //  Bunlar kale.js'in mevcut süs çizimiyle gelir: tıklanmaz, y'ye
 //  göre sıralanır, varyant.js'in kış/gece tonunu alır.
 //  Görseller: assets/kale/sus/ic2/<ad>.png
+//  Yerleşim: araçla ölçülüp düzenlendi (binalar sura binmez, şapel/ahır/kışla
+//  avlunun içinde). Patikalar kapıdan meydana ve her binanın kapısına gider.
 //  Yoğunluk: IC_AYAR.yogunluk (1 = hepsi, 0.66 = önemliler,
 //  0.33 = yalnız temel olanlar). Deneme: ?yogunluk=0.5
 // =============================================================
@@ -33,14 +35,15 @@ const IcSusler = {
   // kale.js create: zemin katmanı (patikalar, ezilmiş toprak, ot, saman), arka planın hemen üstünde
   zeminKatmani(sahne) {
     if (!sahne.textures.exists('ks_ic2/zemin')) return;
-    const p = (sahne.M && sahne.M.arkaPiksel) || 1.5;
+    // Patika katmanı ekran boyunda (1920 genişlik → 1x); eski 1280'lik katman 1.5x büyütülür
+    const p = AYAR.en / sahne.textures.get('ks_ic2/zemin').getSourceImage().width;
     sahne.add.image(0, 0, 'ks_ic2/zemin').setOrigin(0).setScale(p).setDepth(1);
   },
 
   // yukle.js create: zemin katmanı ve kış/gece görselleri (ks_ic2/<ad>_karli, _gece); varyant.js bunları kullanır
   varyantlariYukle(sahne, L) {
+    // Patikaların ayrı kış/gece görseli yok: arka planla aynı tonu alır (yoksa gece mavi kalıyordu)
     sahne.load.image('ks_ic2/zemin', 'assets/kale/sus/ic2/zemin.png');
-    for (const v of ['karli', 'gece']) sahne.load.image(`ks_ic2/zemin_${v}`, `assets/kale/sus/ic2/zemin_${v}.png`);
     if (!L || !L.varyantlar) return;
     for (const [ad, liste] of Object.entries(L.varyantlar)) {
       for (const v of liste) sahne.load.image(`ks_ic2/${ad}_${v}`, `assets/kale/sus/ic2/${ad}_${v}.png`);
