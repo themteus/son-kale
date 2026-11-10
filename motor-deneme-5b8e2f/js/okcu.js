@@ -146,9 +146,10 @@ class Okcu {
     if (this.bekleme <= 0) {
       // Okçu Eğitimi: hasar +%15, sapma -%12 (her seviye)
       const egitim = oyun.seviye.egitim || 0;
+      const kisla = Yapilar.asker(oyun); // kışla: daha hızlı ve sert
       this.at(oyun, this.aci + gaussRastgele() * A.sapma * Math.pow(0.88, egitim), oyun.okHizi(),
-        oyun.okHasari() * A.hasarOrani * oyun.ekonomi.yayKalite.hasar * (1 + 0.15 * egitim), 1);
-      this.bekleme = A.beklemeSn * (0.9 + Math.random() * 0.2);
+        oyun.okHasari() * A.hasarOrani * oyun.ekonomi.yayKalite.hasar * (1 + 0.15 * egitim) * kisla.hasar, 1);
+      this.bekleme = A.beklemeSn * kisla.bekleme * (0.9 + Math.random() * 0.2);
       this.onu = undefined;
     }
   }

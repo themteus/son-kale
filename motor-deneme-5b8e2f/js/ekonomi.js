@@ -19,12 +19,19 @@ class Ekonomi {
     this.pazar = {};        // Bugünkü fiyat çarpanları
     this.acilOnarildi = false;
     this.rapor = null;
+    // Şapel, kışla, ahır (yapilar.js)
+    this.yapi = {};
+    for (const k in YAPILAR) this.yapi[k] = { seviye: YAPILAR[k].bas.seviye, isci: YAPILAR[k].bas.isci || 0 };
+    this.moral = MORAL.baslangic;
+    this.solenYapildi = false;
+    this.sefer = 0;         // Seferdeki kişi (gün sonunda döner)
   }
 
   // ---------- Kişiler ----------
-  get isci() { let n = 0; for (const k in this.bina) n += this.bina[k].isci; return n; }
-  get bosta() { return this.nufus - this.isci - this.asker; }
-  get barinak() { return BINALAR.ev.barinak[this.bina.ev.seviye - 1]; }
+  get isci() { let n = this.yapi.sapel.isci; for (const k in this.bina) n += this.bina[k].isci; return n; }
+  get bosta() { return this.nufus - this.isci - this.asker - this.sefer; }
+  // Evler + kışla yatakları
+  get barinak() { return BINALAR.ev.barinak[this.bina.ev.seviye - 1] + this.yapi.kisla.seviye * KISLA.yatak; }
   yerSayisi(k) { const B = BINALAR[k]; return B.yer ? B.yer[this.bina[k].seviye - 1] : 0; }
   get askerYeri() { return SUR.askerYeri[this.surSeviye - 1]; }
 
@@ -113,7 +120,9 @@ class Ekonomi {
   }
 
   // Seviyeye göre işçi verimi
-  verim(k) { return 1 + (this.bina[k].seviye - 1) * EKONOMI.seviyeBonus; }
+  verim(k) { return (1 + (this.bina[k].seviye - 1) * EKONOMI.seviyeBonus) * this.moralCarpani; }
+  // Moral 50'de 1; 0'da 0.85, 100'de 1.15
+  get moralCarpani() { return 1 + (this.moral - 50) / 100 * MORAL.etki; }
   get ucKalite() { return BINALAR.demirci.kalite[this.bina.demirci.seviye - 1]; }
   get yayKalite() { return BINALAR.yayci.kalite[this.bina.yayci.seviye - 1]; }
 
@@ -212,7 +221,8 @@ class Ekonomi {
     } else {
       const yer = this.barinak - this.nufus;
       gelen = Math.max(0, Math.min(EKONOMI.enFazlaGelen, yer, Math.floor(r.yiyecek / EKONOMI.gelenBasiYiyecek)));
-      if (yer <= 0) notlar.push('Evlerde yer yok, sığınmacılar geri döndü.');
+      if (this.moral < MORAL.siginmaciAlt) { gelen = 0; notlar.push('Moral çok düşük: sığınmacılar kaleye güvenmiyor.'); }
+      else if (yer <= 0) notlar.push('Evlerde yer yok, sığınmacılar geri döndü.');
       else if (gelen === 0) notlar.push('Ambarda yiyecek az, sığınmacı gelmedi.');
     }
     // 6) Savaş alanından ok toplama
@@ -220,8 +230,19 @@ class Ekonomi {
     const toplanan = Math.floor((this.atilan - saplanan) * EKONOMI.iskaToplama + saplanan * EKONOMI.isabetToplama);
     kazan('ok', toplanan);
 
-    const rapor = { yapilan, harcanan, notlar, onarim, olen, gelen, toplanan, atilan: this.atilan, yenen, ihtiyac };
+    // 7) Sefer ve moral (yapilar.js)
+    const sefer = Yapilar.seferSonu(this, oyun, uygula);
+    if (sefer) {
+      for (const k in sefer.ganimet) if (k !== 'altin') kazan(k, sefer.ganimet[k]);
+      notlar.push(sefer.yazi);
+    }
+    const moral = Yapilar.moralDegisimi(this, oyun, { aclik: yenen < ihtiyac, olen: olen + (sefer ? sefer.olen : 0) });
+    const rapor = { yapilan, harcanan, notlar, onarim, olen, gelen, toplanan, atilan: this.atilan, yenen, ihtiyac, sefer, moral };
     if (!uygula) return rapor;
+    if (sefer) { oyun.altin += sefer.ganimet.altin || 0; this.nufus -= sefer.olen; }
+    this.sefer = 0; // seferdekiler döndü (ya da az kişi olduğu için hiç gitmedi)
+    this.moral = kis(this.moral + moral, 0, 100);
+    this.solenYapildi = false;
 
     this.kaynak = r;
     for (const k in r) r[k] = Math.max(0, Math.round(r[k]));
@@ -244,6 +265,7 @@ class Ekonomi {
     for (const k of ['maden', 'tasocagi', 'oduncu', 'duvarci', 'demirci', 'yayci', 'ciftlik']) {
       while (fazla > 0 && this.bina[k].isci > 0) { this.bina[k].isci--; fazla--; }
     }
+    while (fazla > 0 && this.yapi.sapel.isci > 0) { this.yapi.sapel.isci--; fazla--; }
     while (fazla > 0 && this.asker > 0) { this.asker--; fazla--; }
   }
 

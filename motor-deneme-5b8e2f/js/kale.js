@@ -44,6 +44,7 @@ class KaleSahnesi extends Phaser.Scene {
     this.koyluler = { };   // grup adı → köylü listesi
     this.binalariKur();
     this.alanlariKur();
+    Yapilar.kur(this); // şapel, kışla, ahır tıklanır
     this.arayuzKur();
     this.yenile();
     // Sahne olayları yeniden başlayınca silinmez: kapanırken çıkar (yoksa her yeni oyunda bir kat daha çalışır)
@@ -117,12 +118,14 @@ class KaleSahnesi extends Phaser.Scene {
     this.ust.lineStyle(2, 0x6a5430).lineBetween(0, 64, AYAR.en, 64);
     this.kaynakYazi = {};
     // Kaynak adı küçük, sayı büyük; yanında yarınki değişim
+    // Telefonda adlar ve sayılar büyük yazılır (ekran küçülünce okunsun)
+    const T = DOKUNMATIK;
     let x = 20;
     for (const k of ['odun', 'tas', 'demir', 'yiyecek', 'uc', 'ok', 'yay']) {
       this.ust.fillStyle(KAYNAKLAR[k].renk, 1).fillRect(x, 10, 14, 14);
-      this.add.text(x + 20, 17, KAYNAKLAR[k].ad, stil('govde', 18, { color: '#b8ac94' })).setOrigin(0, 0.5).setDepth(D + 1);
-      this.kaynakYazi[k] = this.add.text(x, 44, '', stil('govde', 24, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
-      x += 196;
+      this.add.text(x + 20, T ? 16 : 17, KAYNAKLAR[k].ad, stil('govde', T ? 22 : 18, { color: '#b8ac94' })).setOrigin(0, 0.5).setDepth(D + 1);
+      this.kaynakYazi[k] = this.add.text(x, T ? 46 : 44, '', stil('govde', T ? 30 : 24, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
+      x += T ? 186 : 196;
     }
     this.altinYazi = this.add.text(AYAR.en - 230, 32, '', stil('govde', 28, { fontStyle: 'bold', color: '#ffd76a' })).setOrigin(1, 0.5).setDepth(D + 1);
     this.gunYazi = this.add.text(AYAR.en - 24, 32, '', stil('baslik', 34)).setOrigin(1, 0.5).setDepth(D + 1);
@@ -130,7 +133,8 @@ class KaleSahnesi extends Phaser.Scene {
     this.alt = this.add.graphics().setDepth(D);
     this.alt.fillStyle(0x120e0c, 0.88).fillRect(0, AYAR.boy - 96, AYAR.en, 96);
     this.alt.lineStyle(2, 0x6a5430).lineBetween(0, AYAR.boy - 96, AYAR.en, AYAR.boy - 96);
-    this.halkYazi = this.add.text(30, AYAR.boy - 48, '', stil('govde', 26, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
+    this.halkYazi = this.add.text(30, AYAR.boy - 66, '', stil('govde', T ? 28 : 26, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
+    this.moralYazi = this.add.text(30, AYAR.boy - 28, '', stil('govde', T ? 28 : 24, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
     this.uyari = this.add.text(AYAR.en / 2, AYAR.boy - 166, '', stil('govde', 26, { color: '#ffb080', stroke: '#120e0c', strokeThickness: 6 }))
       .setOrigin(0.5).setDepth(D + 1);
     // Gözcü raporu (yarınki dalga) alt şeridin hemen üstünde, solda
@@ -170,7 +174,9 @@ class KaleSahnesi extends Phaser.Scene {
     this.gunYazi.setText(`${o.dalga + 1}. Gün` + (typeof Varyant !== 'undefined' ? ` · ${Varyant.sezon(o).ad}` : ''));
     // Altın yazısı gün yazısının solunda dursun (mevsim adı uzayınca üst üste binmesin)
     this.altinYazi.setX(this.gunYazi.x - this.gunYazi.width - 36);
-    this.halkYazi.setText(`Halk ${E.nufus}/${E.barinak}  ·  İşçi ${E.isci}  ·  Asker ${E.asker}  ·  Boşta ${E.bosta}`);
+    this.halkYazi.setText(`Halk ${E.nufus}/${E.barinak}  ·  İşçi ${E.isci}  ·  Asker ${E.asker}` + (E.sefer ? `  ·  Sefer ${E.sefer}` : '') + `  ·  Boşta ${E.bosta}`);
+    this.moralYazi.setText(`Moral ${Math.round(E.moral)}`).setColor(E.moral < MORAL.siginmaciAlt ? '#ff9a7a' : E.moral >= 70 ? '#a0e0a0' : '#c8bca4');
+    Yapilar.etiketYenile(this);
     this.halkYazi.setColor(E.bosta > 0 ? '#ffe08a' : '#efe6d2');
     const sonraki = o.dalga + 1;
     this.savasDugme.yazi.setText(sonraki % PATRON_ARASI === 0 ? `Savaşa çık ▶ (Ak Dev!)` : `Savaşa çık ▶ ${sonraki}. dalga`);
@@ -186,6 +192,8 @@ class KaleSahnesi extends Phaser.Scene {
     if (E.kaynak.ok < Math.max(80, dun * 1.2)) u.push(`Ambarda ok az: dün ${dun} ok atıldı!`);
     if (o.surCan < o.surEnFazla * 0.4) u.push('Sur ağır hasarlı: duvarcıya işçi ver ya da altınla onar.');
     if (E.bosta > 0) u.push(`${E.bosta} kişi boşta.`);
+    if (E.moral < 35) u.push('Moral düşük: şapele rahip ver ya da şölen yap.');
+    if (E.sefer > 0 && E.sefer < SEFER.enAz) u.push(`Sefere en az ${SEFER.enAz} kişi gider.`);
     this.uyari.setText(u.join('   '));
     this.ilkDizilis = !this.koyluler || !Object.values(this.koyluler).some(l => l.length);
     this.koyluleriDiz();
@@ -201,6 +209,7 @@ class KaleSahnesi extends Phaser.Scene {
     if (ad === 'sur') this.panelKur('Sur ve Askerler', p => this.surPaneli(p));
     else if (ad === 'pazar') this.panelKur('Pazar', p => this.pazarPaneli(p));
     else if (ad === 'rapor') this.raporGoster(true);
+    else if (YAPILAR[ad]) this.panelKur(YAPILAR[ad].ad, p => Yapilar.panel(this, p, ad));
     else this.panelKur(BINALAR[ad].ad, p => this.binaPaneli(p, ad));
   }
 
@@ -215,8 +224,11 @@ class KaleSahnesi extends Phaser.Scene {
   // Sağda pencere. icerik(p) satırları ekler; p.satir(y, metin) vb.
   panelKur(baslik, icerik) {
     if (this.panel) this.panel.destroy();
-    const W = 560, H = 880, x = AYAR.en - W / 2 - 16, y = 84 + H / 2;
-    const kap = this.add.container(x, y).setDepth(110);
+    const W = 560, H = 880;
+    // Telefonda panel biraz büyür (alt şeridin üstüne taşar, kapatınca açılır)
+    const olcek = DOKUNMATIK ? 1.13 : 1;
+    const x = AYAR.en - W * olcek / 2 - 12, y = (DOKUNMATIK ? 70 : 84) + H * olcek / 2;
+    const kap = this.add.container(x, y).setDepth(110).setScale(olcek);
     kap.add(this.add.rectangle(0, 0, W, H, 0x1c1612, 1).setStrokeStyle(3, 0xc9a24a).setInteractive()); // tam opak: arkadaki etiketler görünmesin
     kap.add(this.add.text(0, -H / 2 + 46, baslik, stil('baslik', 48)).setOrigin(0.5));
     const kapat = this.dugme(W / 2 - 34, -H / 2 + 34, 48, 48, '×', () => this.panelKapat(), 111, 30);
@@ -365,6 +377,7 @@ class KaleSahnesi extends Phaser.Scene {
       `Oklar: ${r.atilan} atıldı, ${r.toplanan} toplandı` + (okYapilan > 0 ? `, yaycı ${okYapilan} yaptı` : ''),
       r.onarim > 0 ? `Duvarcılar suru ${r.onarim} can onardı.` : '',
       `Halk ${r.yenen} yiyecek yedi.` + (r.gelen ? ` ${r.gelen} sığınmacı geldi.` : ''),
+      r.moral !== undefined ? `Moral ${r.moral >= 0 ? '+' : ''}${r.moral} (şimdi ${Math.round(this.E.moral)}).` : '',
       ...r.notlar,
     ].filter(Boolean);
     this.panelKur(`${this.oyun.dalga}. günün raporu`, p => {

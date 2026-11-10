@@ -166,7 +166,7 @@ const PATRON_ARASI = 10;
 // -------------------------------------------------------------
 const ZORLUKLAR = {
   kolay:  { ad: 'Kolay',  can: 0.7, hiz: 0.9, cikis: 1.3, altin: 1.25, kurtulus: 25 },
-  normal: { ad: 'Normal', can: 1,   hiz: 1,   cikis: 1,   altin: 1,    kurtulus: 30 },
+  normal: { ad: 'Normal', can: 1.08, hiz: 1,  cikis: 0.95,   altin: 1,    kurtulus: 30 },
   kabus:  { ad: 'Kabus',  can: 1.25, hiz: 1.1, cikis: 0.85, altin: 0.9, kurtulus: 30 },
 };
 
@@ -280,6 +280,51 @@ const PAZAR = {
   artis: 0.15,  // Her alışta fiyat %15 artar (her gün yarı yarıya geri iner)
 };
 
+
+// =============================================================
+//  YAPILAR (yapilar.js): iç kaledeki şapel, kışla ve ahır
+//  Görselleri assets/kale/sus/ic2 içinde; tıklanınca paneli açılır.
+// =============================================================
+const YAPILAR = {
+  sapel: { ad: 'Şapel', is: 'rahip', aciklama: 'Rahipler halkın moralini yükseltir. Moral yüksekse bütün binalar daha çok üretir.',
+    yer: [1, 2, 3], bas: { seviye: 1, isci: 0 },
+    yukselt: [{ odun: 30, tas: 50, altin: 180 }, { odun: 60, tas: 100, demir: 10, altin: 450 }] },
+  kisla: { ad: 'Kışla', aciklama: 'Askerler burada talim yapar ve yatar. Her seviye: askerler daha hızlı ve sert atar, 4 kişilik yatak.',
+    bas: { seviye: 0 },
+    yukselt: [{ odun: 40, tas: 60, altin: 150 }, { odun: 70, tas: 110, demir: 15, altin: 420 }, { odun: 100, tas: 160, demir: 30, altin: 900 }] },
+  ahir: { ad: 'Ahır', aciklama: 'Atlılar boştaki halkla sefere çıkar: ertesi gün ganimetle döner. Ahır büyüdükçe ganimet artar, kayıp azalır.',
+    bas: { seviye: 1 },
+    yukselt: [{ odun: 50, tas: 30, altin: 200 }, { odun: 90, tas: 60, demir: 10, altin: 550 }] },
+};
+
+// Kışla: seviye başına
+const KISLA = { hiz: 0.1, hasar: 0.1, yatak: 4 };
+
+// Moral (0-100). Üretim çarpanı: moral 50'de 1, 0'da 0.85, 100'de 1.15
+const MORAL = {
+  baslangic: 60, etki: 0.3,
+  tok: 2,            // Herkes doyunca günde (moral tavanın altındaysa)
+  tavan: 60,
+  aclik: -15,        // Yiyecek yetmezse
+  olum: -4,          // Açlıktan ya da seferde ölen her kişi
+  barikat: -10,      // Sur yıkılıp barikat kurulduysa
+  hasarliSur: -5,    // Gün sonunda sur %40'ın altındaysa
+  rahip: 3,          // Rahip başına günde (şapel seviyesiyle artar)
+  siginmaciAlt: 25,  // Moral bunun altındaysa sığınmacı gelmez
+  solen: { yiyecek: 30, altin: 20, moral: 15 }, // Şölen: günde bir kez
+};
+
+// Sefer (ahır): boştaki kişiler bir gün yağmaya gider
+const SEFER = {
+  enAz: 2, enCok: 8, ilkGun: 3,       // ilkGun: bu günden önce gönderilemez
+  risk: 0.16, riskAzalma: 0.05,       // kişi başı ölüm olasılığı, ahır seviyesi başına azalır
+  riskArtisi: 1 / 40,                 // her dalga riski biraz artırır
+  ganimet: { odun: 6, tas: 4, demir: 1.5, yiyecek: 8, altin: 9 }, // kişi başı ortalama
+  seviyeBonus: 0.3, gunBonus: 0.04,
+};
+
+// Telefon/tablet (dokunmatik): yazılar ve paneller büyür
+const DOKUNMATIK = (() => { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();
 
 // Küçük yardımcılar
 const kis = (v, a, b) => Math.max(a, Math.min(b, v));
