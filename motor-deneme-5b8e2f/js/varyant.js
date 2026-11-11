@@ -113,8 +113,8 @@ const Varyant = {
     for (const c of sahne.children.list) {
       const k = c.texture && c.texture.key;
       if (k && /^(koylu|nobetci)/.test(k)) { this.koyluTonu(sahne, c); continue; }
-      if (!k || !(k === 'k_arka' || k === 'k_on' || k.startsWith('ks_'))) continue;
-      if (k.startsWith('ks_')) {
+      if (!k || !(/^k_(arka|on)(_|$)/.test(k) || k.startsWith('ks_'))) continue;
+      if (k.startsWith('ks_') || /^k_(arka|on)/.test(k)) { // k_arka_karli / k_on_karli varsa onu göster
         c.temelDoku = c.temelDoku || k;
         const ozel = (h === 'karli' || h === 'gece') ? c.temelDoku + '_' + h : null;
         if (ozel && sahne.textures.exists(ozel)) { if (k !== ozel) c.setTexture(ozel); this.geceTonu(c, ozel); continue; }

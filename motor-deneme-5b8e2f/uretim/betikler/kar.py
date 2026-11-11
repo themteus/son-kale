@@ -43,8 +43,11 @@ def karla(im, alfa=None, kalinlik=4):
     # ground is smooth (low local contrast), walls and towers have mortar lines (high contrast)
     m = ndimage.uniform_filter(lum, 9)
     sd = np.sqrt(np.maximum(ndimage.uniform_filter(lum ** 2, 9) - m ** 2, 0))
-    toprak &= r > g * 1.3
+    toprak &= (r > g * 1.3) & (g > r * 0.52)                               # dirt, not red roof tiles
     golge_cimen = (g >= r) & (g > b) & (lum <= 55) & (sd < 12)            # smooth grass in tree shadow
+    if alfa is not None:  # front walls: no real ground, only the lit grass strip at the wall foot
+        toprak[:] = False
+        golge_cimen[:] = False
     zemin = (cimen & (sd < 34)) | (toprak & (sd < 18)) | golge_cimen
     zemin = ndimage.binary_closing(ndimage.binary_opening(zemin, np.ones((3, 3))), np.ones((5, 5)))
     lab, n = ndimage.label(zemin)
@@ -76,6 +79,8 @@ def karla(im, alfa=None, kalinlik=4):
         # only lit pixels, ragged lower edge so it reads as snow, not a painted line
         if maske is agac_m:
             ust &= lum > 45
+        if alfa is not None:
+            ust &= alfa
         out[ust] = kar_rengi(lum[ust] * 0.4 + 150)
         if maske is yapi:
             # dark wall walk / shadowed tops a little further down: shaded snow
@@ -85,12 +90,16 @@ def karla(im, alfa=None, kalinlik=4):
                 yukari[d:] = zem[:-d]
                 yol |= m & yukari
             yol &= (lum < 75) & ~ust
+            if alfa is not None:
+                yol &= alfa
             out[yol] = kar_rengi(lum[yol] * 0.5 + 85)
             kar_m = ust | yol
             # 1 px cold outline under the snow so it reads as snow lying on the stone
             alt = np.zeros_like(kar_m)
             alt[1:] = kar_m[:-1]
             alt &= ~kar_m & ~zemin & m
+            if alfa is not None:
+                alt &= alfa
             out[alt] = (58, 62, 82)
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
 

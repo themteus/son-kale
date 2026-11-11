@@ -191,7 +191,7 @@ KORU = {
              # stronger ControlNet
              "burc2": ((936, 214, 1256, 456), 0.25, 0.9), "kule_sol": ((250, 105, 315, 200), 0.25, 0.9),
              "bayrak_sol": ((342, 100, 378, 145), 0.25, 0.9), "bayrak_sag": ((745, 100, 781, 145), 0.25, 0.9),
-             "yol": ((488, 370, 556, 412), 0.25, 0.9)},
+             "yol": ((488, 370, 556, 412), 0.25, 0.9), "mesale": ((660, 140, 692, 192), 0.25, 0.9)},
     "on": {},
 }
 
@@ -247,12 +247,23 @@ def tam(a):
     t, ov = a.t[0], a.ov
     d, cn = a.denoise[0], a.cn[0]
     kis = "_kis" if a.kis else ""
+    # opaque image: mirror-pad P px on every side, so no tile touches the real border
+    # (SDXL paints a dark rounded frame on tiles that touch it)
+    P = a.pad if a.ad == "arka" else 0
+    rgb0 = rgb
+    if P:
+        rgb = Image.fromarray(np.pad(np.asarray(rgb0), ((P, P), (P, P), (0, 0)), mode="reflect"))
+        alfa_p = Image.new("L", rgb.size, 255)
+    else:
+        alfa_p = alfa
+    Wp, Hp = rgb.size
+    etk = f"_p{P}" if P else ""
     jobs, meta = [], []
-    for (x, y) in izgara(W, H, t, ov):
-        if alfa.crop((x, y, x + t, y + t)).getbbox() is None:
+    for (x, y) in izgara(Wp, Hp, t, ov):
+        if alfa_p.crop((x, y, x + t, y + t)).getbbox() is None:
             continue  # fully transparent (on.png)
-        inp, ctrl = parca(rgb, x, y, t, a.ad + kis)
-        pre = f"son-kale-v2/arka_hd/{a.ad}{kis}_{x}_{y}"
+        inp, ctrl = parca(rgb, x, y, t, a.ad + kis + etk)
+        pre = f"son-kale-v2/arka_hd/{a.ad}{kis}{etk}_{x}_{y}"
         jobs.append((pre, workflow(inp, ctrl, pre, a.seed, d, cn, POS_KIS if a.kis else POS, NEG_KIS if a.kis else NEG)))
         meta.append((pre, x, y))
     out = {}
@@ -263,8 +274,8 @@ def tam(a):
     todo = [(p, w) for p, w in jobs if p not in out]
     print(f"{len(todo)} parca kuyruga ({len(out)} hazir)", flush=True)
     out.update(B.run_jobs(todo) if todo else {})
-    acc = np.zeros((H, W, 3), np.float32)
-    wsum = np.zeros((H, W, 1), np.float32)
+    acc = np.zeros((Hp, Wp, 3), np.float32)
+    wsum = np.zeros((Hp, Wp, 1), np.float32)
     # steep weights: the tile whose centre is nearest wins, ~24 px cross-fade at seams
     # (wide averaging of two different drawings gives ghosted, muddy stones)
     w = (agirlik(t, ov) ** 6)[..., None]
@@ -278,18 +289,21 @@ def tam(a):
         wsum[y:y + t, x:x + t] += w
     base = np.asarray(rgb, np.float32)
     res = np.where(wsum > 0, acc / np.maximum(wsum, 1e-6), base)
+    res = res[P:P + H, P:P + W]
+    rgb = rgb0
     res = Image.fromarray(res.clip(0, 255).astype(np.uint8))
     res = res.filter(ImageFilter.UnsharpMask(radius=1.0, percent=a.keskin, threshold=2))
     res = koru(res, rgb, a)
     kirmizi = None
-    if not a.kis:
+    if True:  # summer and winter (winter input = summer image + painted snow, its reds are the summer ones)
         o = np.asarray(rgb, np.float32)
         r = np.asarray(res, np.float32)
-        # large-scale tone: follow the old art's local brightness/colour (dark north wall, dark forest,
-        # cream blotches), keep the new small-scale detail
         from scipy import ndimage
-        yum = lambda x: np.stack([ndimage.gaussian_filter(x[..., c], 18) for c in range(3)], -1)
-        r = r + (yum(o) - yum(r))
+        if not a.kis:
+            # large-scale tone: follow the old art's local brightness/colour (dark north wall, dark forest,
+            # cream blotches), keep the new small-scale detail. Off in winter: it would pull back to summer.
+            yum = lambda x: np.stack([ndimage.gaussian_filter(x[..., c], 18) for c in range(3)], -1)
+            r = r + (yum(o) - yum(r))
         # strong reds of the old art (banners, doors, roofs' red trims) come back pixel for pixel
         kirmizi = (o[..., 0] > 100) & (o[..., 0] > o[..., 1] * 1.6) & (o[..., 0] > o[..., 2] * 1.6)
         lab, n = ndimage.label(kirmizi)
@@ -312,17 +326,15 @@ def tam(a):
         res = Image.fromarray(r)
     else:
         # SD paints a dark frame along the outer edge of edge tiles: take the outer band from the
-        # input (old pixels), cross-faded over 8 px
-        K = 16
+        # input (old pixels)
+        K = 0 if P else 12
         yy, xx = np.mgrid[0:H, 0:W]
         kenar = np.minimum(np.minimum(yy, H - 1 - yy), np.minimum(xx, W - 1 - xx)).astype(np.float32)
-        w2 = np.clip((K + 8 - kenar) / 8, 0, 1)
-        # the frame is rounded: corners need a bigger square
-        kose = np.maximum(np.minimum(yy, H - 1 - yy), np.minimum(xx, W - 1 - xx)).astype(np.float32)
-        w2 = np.maximum(w2, np.clip((100 - kose) / 20, 0, 1))[..., None]
+        w2 = (kenar < K).astype(np.float32)  # hard cut: a soft band reads as a frame
+        w2 = w2[..., None]
         res = Image.fromarray((np.asarray(res, np.float32) * (1 - w2) + np.asarray(rgb, np.float32) * w2).astype(np.uint8))
     im = kuantala(res, palet(a.ad, a.kis))
-    if not a.kis:
+    if kirmizi is not None:
         im = tek_piksel(im, kirmizi)
         # the shared palette has no bright banner red: put those pixels back exactly
         ia = np.asarray(im).copy()
@@ -352,5 +364,6 @@ if __name__ == "__main__":
     ap.add_argument("--keskin", type=int, default=80, help="UnsharpMask yuzdesi (0 = kapali)")
     ap.add_argument("--koru-d", type=float, default=0.3, help="gomulu esyalar icin denoise")
     ap.add_argument("--koruma-yok", action="store_true")
+    ap.add_argument("--pad", type=int, default=64, help="arka: kenarlara aynalanmis dolgu (px)")
     a = ap.parse_args()
     deneme(a) if a.mod == "deneme" else tam(a)
