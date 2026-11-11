@@ -98,7 +98,7 @@ python arka_hd.py tam arka --t 512 --ov 128 --denoise 0.4 --cn 0.5 --seed 7   # 
 python arka_hd.py tam on   --t 512 --ov 128 --denoise 0.4 --cn 0.5 --seed 7
 python tas_desen.py on        # surlara kodla düzenli taş deseni -> on_desen.png
 python tas_desen.py arka      # aynı + ana kale sarmaşık/kırmızı, meşale, ön sur halesi -> arka_desen.png
-python kis_yap.py on arka     # kodla kar + kış paleti -> on_karli.png, arka_karli.png
+python kar2.py arka on       # kış: nesneler bütün, kar yalnız üst kenarlarda + 4-5 tonlu zemin karı -> *_karli.png
 ```
 Oyuna: `arka_desen.png -> assets/kale/arka.png`, `on_desen.png -> on.png`, `*_karli.png` aynı adla.
 Yüz poligonları `tas_desen.py` içinde (orijinal 1280x720 / 1240x482 koordinatları), koruma kutuları `arka_hd.py KORU`.

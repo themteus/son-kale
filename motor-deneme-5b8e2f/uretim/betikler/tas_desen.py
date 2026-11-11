@@ -27,6 +27,9 @@ CIKTI = "D:/AI/son-kale-cikti"
 S = 1.5
 BW, BH = 7, 4   # stone length / height in screen px
 
+GENEL = {}
+KALE_YUZ = {"arka": 7}   # faces from this index on are the keep (contrast matched to the old keep)
+
 # boxes (original coords) the pattern must not touch: small red-roofed tower and door in front of the keep
 HARIC = {"on": [], "arka": [(1000, 380, 1056, 450)]}
 
@@ -106,43 +109,70 @@ def tas_maskesi(o):
 
 
 def desen(H, W, poli, kind, par, isik, ramp, tohum=1):
-    """Pattern (colour per pixel) + mask for one face, in HD coords."""
+    """Pattern (colour per pixel) + mask for one face, in HD coords.
+
+    Irregular courses: every row is 3 or 4 px high, every stone 5, 7 or 9 px long, rows start at a
+    random offset; per stone a tone step of -2..+2, now and then a dark or mossy stone."""
     rng = np.random.default_rng(tohum)
-    yy, xx = np.mgrid[0:H, 0:W]
+    m = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(m).polygon([(x * S, y * S) for x, y in poli], fill=255)
+    m = np.asarray(m) > 0
+    yy, xx = np.nonzero(m)
     if kind == "duz":
-        # rows parallel to the wall: v = y - slope * x, in 2:1 pixel steps
         v = yy - np.floor(xx * par).astype(int) if par > 0 else yy + np.floor(xx * -par).astype(int)
         u = xx.astype(np.float64)
-        isik_kenar = 0.0
+        kenar_k = np.zeros(len(xx))
+        dx = None
     else:
         cx, r = par[0] * S, par[1] * S
         dx = np.clip((xx + 0.5 - cx) / r, -0.999, 0.999)
-        v = (yy - np.round(0.5 * r * np.sqrt(1 - dx ** 2))).astype(int)   # rows bend with the ellipse
-        u = np.arcsin(dx) * r                                              # arc length along the row
-        isik_kenar = np.abs(dx)
-    sira = np.floor_divide(v, BH)
-    vi = v - sira * BH
-    kay = (sira % 2) * (BW // 2)
-    tas = np.floor((u + kay) / BW).astype(int)
-    ui = (u + kay) - tas * BW
-    # per-stone tone step (-1, 0, +1) from a hash of (row, stone)
-    h = (sira * 73856093) ^ (tas * 19349663) ^ tohum
-    adim = (np.abs(h) % 7)
-    adim = np.where(adim < 2, -1, np.where(adim > 4, 1, 0))
-    # base index from the old art's brightness (and darker towards a tower's edges)
-    taban = isik + isik_kenar ** 3 * 2.2
-    idx = np.round(taban).astype(int) + adim
-    derz = (vi == BH - 1) | (ui >= BW - 1)
-    kenar = ((vi == 0) | (ui < 1)) & ~derz
-    idx = np.where(kenar, idx - 2, idx)
+        v = (yy - np.round(0.5 * r * np.sqrt(1 - dx ** 2))).astype(int)
+        u = np.arcsin(dx) * r
+        kenar_k = np.abs(dx)
+    renk = np.zeros((H, W, 3), np.float32)
+    if len(xx) == 0:
+        return renk, m
+    # courses
+    v0, v1 = v.min(), v.max() + 1
+    yuk = rng.choice([3, 4, 4, 4], size=(v1 - v0) // 3 + 2)
+    bas = np.concatenate([[0], np.cumsum(yuk)])
+    sira = np.searchsorted(bas, v - v0, side="right") - 1
+    vi = (v - v0) - bas[sira]
+    sh = yuk[sira]
+    # stones along each course
+    u0 = u.min() - 10
+    tas = np.zeros(len(xx), int)
+    ui = np.zeros(len(xx))
+    boy = np.zeros(len(xx))
+    for s_ in np.unique(sira):
+        k = sira == s_
+        uu = u[k] - u0
+        L = rng.choice([5, 7, 7, 9], size=int(uu.max() // 5) + 3)
+        sb = np.concatenate([[0], np.cumsum(L)]) - rng.integers(0, 8)
+        t = np.searchsorted(sb, uu, side="right") - 1
+        tas[k] = t + s_ * 10000
+        ui[k] = uu - sb[t]
+        boy[k] = L[t]
+    hsh = (tas * 2654435761 + tohum * 97531) % 1000
+    adim = np.select([hsh < 120, hsh < 330, hsh < 670, hsh < 880], [-2, -1, 0, 1], 2)
+    koyu_tas = (hsh % 37) == 0
+    yosun = (hsh % 53) == 1
+    taban = isik[yy, xx] + kenar_k ** 3 * 2.2
+    idx = np.round(taban).astype(int) + adim + koyu_tas * 3
+    derz = (vi == sh - 1) | (ui >= boy - 1)
+    ust_k = (vi == 0) & ~derz
+    sol_k = (ui < 1) & ~derz & ~ust_k
+    idx = np.where(ust_k, idx - 2, idx)
+    idx = np.where(sol_k, idx - 1, idx)
     idx = np.where(derz, idx + 4, idx)
-    if kind == "kule":
-        idx = np.where(np.abs(dx) > 0.96, len(ramp) + 2, idx)   # tower silhouette against the wall
+    if dx is not None:
+        idx = np.where(np.abs(dx) > 0.96, len(ramp) + 2, idx)
     idx = np.clip(idx, 0, len(ramp) - 1)
-    renk = ramp[idx]
-    m = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(m).polygon([(x * S, y * S) for x, y in poli], fill=255)
-    return renk, np.asarray(m) > 0
+    c = ramp[idx].astype(np.float32)
+    c[ust_k] += np.array([10, 6, -3], np.float32)          # warm light on the top edge (sun top left)
+    c[yosun & ~derz] = c[yosun & ~derz] * 0.6 + np.array([70, 86, 46], np.float32) * 0.4
+    renk[yy, xx] = np.clip(c, 0, 255)
+    return renk, m
 
 
 def uygula(ad, hd_img, yuzler=None):
@@ -152,19 +182,31 @@ def uygula(ad, hd_img, yuzler=None):
     ramp = tas_rampasi(ad=ad)
     rl = ramp @ [0.299, 0.587, 0.114]
     # brightness of the old art -> ramp index (blurred: face shading, not the old stones)
-    lum = ndimage.gaussian_filter(o[..., :3].astype(np.float32) @ [0.299, 0.587, 0.114], 3.0)
+    # old mortar lines removed (grey closing) before measuring the light, else dark walls stay dark
+    lum0 = ndimage.grey_closing(o[..., :3].astype(np.float32) @ [0.299, 0.587, 0.114], size=(3, 3))
+    lum = ndimage.gaussian_filter(lum0, 2.5)
     isik = np.interp(-lum, -rl, np.arange(len(ramp)))
     tas_m = tas_maskesi(o)
+    GENEL[ad] = o[tas_m & (lum0 > 60), :3].astype(np.float32).mean(0)
     for x0, y0, x1, y1 in HARIC.get(ad, []):
         tas_m[int(y0 * S):int(y1 * S), int(x0 * S):int(x1 * S)] = False
     out = np.asarray(hd_img.convert("RGBA")).copy()
     for i, (kind, poli, par) in enumerate(yuzler if yuzler is not None else YUZLER[ad]):
         renk, m = desen(H, W, poli, kind, par, isik, ramp, tohum=i + 1)
         m &= tas_m
-        # same average brightness as the old stones of this face
+        # brightness of the old STONES of this face (mortar left out), pulled half way to the whole
+        # image so towers and walls do not change tone at the seam; keep faces also get the old contrast
         if m.any():
-            eski = o[m, :3].astype(np.float32).mean(0)
-            renk = np.clip(renk + (eski - renk[m].mean(0)) * 0.9, 0, 255)
+            ta = m & (lum0 > 60)
+            eski = o[ta if ta.any() else m, :3].astype(np.float32).mean(0)
+            eski = eski * 0.5 + GENEL[ad] * 0.5
+            renk = np.clip(renk + (eski - renk[m].mean(0)), 0, 255)
+            if i >= KALE_YUZ.get(ad, 99):
+                lo = o[m, :3].astype(np.float32) @ [0.299, 0.587, 0.114]
+                ln = renk[m] @ [0.299, 0.587, 0.114]
+                k = np.clip(lo.std() / max(ln.std(), 1), 1.0, 1.6)
+                mm = renk[m].mean(0)
+                renk[m] = np.clip((renk[m] - mm) * k + mm * 1.06, 0, 255)
         out[m, :3] = renk[m].astype(np.uint8)
         # 1 px dark outline where the patterned stone meets sky / ground / transparency (merlons, edges)
         acik = ~tas_m if o.shape[-1] != 4 else (~tas_m | (o[..., 3] == 0))
@@ -212,6 +254,16 @@ def arka_son(im):
     kirmizi = (r > 100) & (r > g * 1.6) & (r > b * 1.6)
     geri = kale & (yesil | kirmizi)
     a[geri] = o[geri]
+    # bottom-left rubble / rocks, stones and vines at the wall foot, bushes: the redraw turned them to
+    # mud; the old art comes back there, except plain smooth grass
+    lum_o = of @ [0.299, 0.587, 0.114]
+    mo = ndimage.uniform_filter(lum_o, 7)
+    sd = np.sqrt(np.maximum(ndimage.uniform_filter(lum_o ** 2, 7) - mo ** 2, 0))
+    duz_cimen = (g > r * 1.02) & (g > b * 1.15) & (lum_o > 55) & (sd < 14)
+    for x0, y0, x1, y1 in ((330, 700, 560, 830), (130, 620, 480, 760)):     # screen coords
+        kut = np.zeros((H, W), bool); kut[y0:y1, x0:x1] = True
+        al = kut & ~ndimage.binary_opening(duz_cimen, np.ones((3, 3)))
+        a[al] = o[al]
     # torch / lamp flames: small bright yellow spots of the old art
     alev = (r > 170) & (g > 140) & (b < 120) & (r - b > 90)
     lab, n = ndimage.label(ndimage.binary_dilation(alev, iterations=1))

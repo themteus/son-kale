@@ -118,6 +118,10 @@ const Varyant = {
         c.temelDoku = c.temelDoku || k;
         const ozel = (h === 'karli' || h === 'gece') ? c.temelDoku + '_' + h : null;
         if (ozel && sahne.textures.exists(ozel)) { if (k !== ozel) c.setTexture(ozel); this.geceTonu(c, ozel); continue; }
+        // kış gecesi: zemin ve ön surlar karlı kalır, üstüne gece tonu (yoksa karsız yaz zemini görünürdü)
+        const kisDoku = c.temelDoku + '_karli';
+        if (h === 'gece' && /^k_(arka|on)$/.test(c.temelDoku) && this.sezon(sahne.oyun).varyant === 'karli'
+            && sahne.textures.exists(kisDoku)) { if (k !== kisDoku) c.setTexture(kisDoku); c.setTint(ton); continue; }
         if (k !== c.temelDoku) c.setTexture(c.temelDoku);
       }
       if (ton === null) c.clearTint(); else c.setTint(ton);
