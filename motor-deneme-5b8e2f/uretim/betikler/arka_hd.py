@@ -254,6 +254,17 @@ def tam(a):
         r = r.astype(np.uint8)
         r[yer] = np.asarray(rgb)[yer]
         res = Image.fromarray(r)
+    else:
+        # SD paints a dark frame along the outer edge of edge tiles: take the outer band from the
+        # input (old pixels), cross-faded over 8 px
+        K = 16
+        yy, xx = np.mgrid[0:H, 0:W]
+        kenar = np.minimum(np.minimum(yy, H - 1 - yy), np.minimum(xx, W - 1 - xx)).astype(np.float32)
+        w2 = np.clip((K + 8 - kenar) / 8, 0, 1)
+        # the frame is rounded: corners need a bigger square
+        kose = np.maximum(np.minimum(yy, H - 1 - yy), np.minimum(xx, W - 1 - xx)).astype(np.float32)
+        w2 = np.maximum(w2, np.clip((100 - kose) / 20, 0, 1))[..., None]
+        res = Image.fromarray((np.asarray(res, np.float32) * (1 - w2) + np.asarray(rgb, np.float32) * w2).astype(np.uint8))
     im = kuantala(res, palet(a.ad, a.kis))
     im = im.convert("RGBA")
     im.putalpha(alfa)
