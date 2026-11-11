@@ -63,7 +63,11 @@ class YukleSahnesi extends Phaser.Scene {
       IcSusler.birlestir(KM, this.cache.json.get('kale_ic2'));
       IcSusler.varyantlariYukle(this, this.cache.json.get('kale_ic2'));
     }
-    for (const ad of new Set((KM.susler || []).map(s => s.ad))) this.load.image('ks_' + ad, 'assets/kale/sus/' + ad + '.png');
+    for (const ad of new Set((KM.susler || []).map(s => s.ad))) {
+      this.load.image('ks_' + ad, 'assets/kale/sus/' + ad + '.png');
+      // eski süslerin kış / gece görselleri (ic2 olanlar IcSusler.varyantlariYukle ile gelir)
+      if (!ad.startsWith('ic2/')) for (const v of ['karli', 'gece']) this.load.image('ks_' + ad + '_' + v, 'assets/kale/sus/' + ad + '_' + v + '.png');
+    }
     for (const [ad, m] of Object.entries(KM.koylu)) this.load.spritesheet(ad, 'assets/kale/' + ad + '.png', { frameWidth: m.fw, frameHeight: m.fh });
     this.load.once('complete', () => this.bitti(K, KM));
     this.load.start();
