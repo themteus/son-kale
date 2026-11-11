@@ -29,7 +29,7 @@ def kar_rengi(lum, soguk=1.0):
     return golge + (isik - golge) * t ** 0.8
 
 
-def karla(im, alfa=None, kalinlik=3):
+def karla(im, alfa=None, kalinlik=4):
     a = np.asarray(im.convert("RGB")).astype(np.float32)
     mx, mn, s, r, g, b = hsv(a)
     lum = 0.299 * r + 0.587 * g + 0.114 * b
@@ -44,13 +44,14 @@ def karla(im, alfa=None, kalinlik=3):
     m = ndimage.uniform_filter(lum, 9)
     sd = np.sqrt(np.maximum(ndimage.uniform_filter(lum ** 2, 9) - m ** 2, 0))
     toprak &= r > g * 1.3
-    zemin = (cimen & (sd < 34)) | (toprak & (sd < 18))
+    golge_cimen = (g >= r) & (g > b) & (lum <= 55) & (sd < 12)            # smooth grass in tree shadow
+    zemin = (cimen & (sd < 34)) | (toprak & (sd < 18)) | golge_cimen
     zemin = ndimage.binary_closing(ndimage.binary_opening(zemin, np.ones((3, 3))), np.ones((5, 5)))
     lab, n = ndimage.label(zemin)
     if n:
         boy = np.bincount(lab.ravel()); boy[0] = 0
         zemin = (boy >= 300)[lab]
-    zemin &= (cimen | toprak | (sd < 10))
+    zemin &= (cimen | toprak | golge_cimen | (sd < 10))
     if alfa is not None:
         zemin &= alfa
     # ground: snow keeping the texture (local luminance) but compressed into bright tones
@@ -60,8 +61,12 @@ def karla(im, alfa=None, kalinlik=3):
     nesne = ~zemin
     nesne = ndimage.binary_opening(ndimage.binary_closing(nesne, np.ones((5, 5))), np.ones((3, 3)))
     zem = ndimage.binary_opening(zemin, np.ones((3, 3)))
-    for maske, kal in ((tas | cati, kalinlik), (agac, 2)):
-        m = nesne & ndimage.binary_closing(maske, np.ones((5, 5)))
+    if alfa is not None:
+        zem |= ~alfa  # on.png: empty space above the wall tops counts as open sky for the caps
+    agac_m = ndimage.binary_closing(agac & ~zemin, np.ones((5, 5)))
+    yapi = ~agac_m                                                        # walls, towers, roofs, their shadows
+    for maske, kal in ((yapi, kalinlik), (agac_m, 2)):
+        m = nesne & maske
         # ground within (kal + 3) px above: skips the dark outline row between wall top and ground
         ust = np.zeros_like(m)
         for d in range(1, kal + 4):
@@ -69,8 +74,24 @@ def karla(im, alfa=None, kalinlik=3):
             yukari[d:] = zem[:-d]
             ust |= m & yukari
         # only lit pixels, ragged lower edge so it reads as snow, not a painted line
-        ust &= lum > 45
+        if maske is agac_m:
+            ust &= lum > 45
         out[ust] = kar_rengi(lum[ust] * 0.4 + 150)
+        if maske is yapi:
+            # dark wall walk / shadowed tops a little further down: shaded snow
+            yol = np.zeros_like(m)
+            for d in range(kal + 4, 16):
+                yukari = np.zeros_like(m)
+                yukari[d:] = zem[:-d]
+                yol |= m & yukari
+            yol &= (lum < 75) & ~ust
+            out[yol] = kar_rengi(lum[yol] * 0.5 + 85)
+            kar_m = ust | yol
+            # 1 px cold outline under the snow so it reads as snow lying on the stone
+            alt = np.zeros_like(kar_m)
+            alt[1:] = kar_m[:-1]
+            alt &= ~kar_m & ~zemin & m
+            out[alt] = (58, 62, 82)
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
 
 

@@ -90,6 +90,10 @@ def parca(rgb, x, y, t, ad):
 def palet(ad, kis=False):
     """Palette image (max 256 colours) from the original, plus snow colours for winter."""
     src = [np.asarray(kaynak(ad))]
+    for b in ("ev", "demirci", "duvarci", "oduncu"):  # shared palette with the buildings
+        for n in (1, 2, 3):
+            if os.path.exists(f"{KALE}/{b}{n}.png"):
+                src.append(np.asarray(Image.open(f"{KALE}/{b}{n}.png").convert("RGBA")))
     if kis:
         for f in ("demirci1_karli", "ev2_karli", "oduncu2_karli", "kisla_karli"):
             for d in (f"{KALE}/varyant", f"{KALE}/sus/ic2"):
@@ -98,12 +102,34 @@ def palet(ad, kis=False):
     px = np.concatenate([s.reshape(-1, 4) for s in src])
     px = px[px[:, 3] > 200][:, :3]
     strip = Image.fromarray(px.reshape(1, -1, 3).astype(np.uint8))
-    q = strip.quantize(colors=96 if kis else 64, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    q = strip.quantize(colors=96 if kis else 48, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
     return q
 
 
 def kuantala(im, pal):
     return im.convert("RGB").quantize(palette=pal, dither=Image.Dither.NONE).convert("RGB")
+
+
+def tek_piksel(im, koru_m=None):
+    """3x3 mode filter only for lone pixels: a pixel whose colour has no 8-neighbour of the same colour
+    takes the colour most of its neighbours share (salt-and-pepper dots, 1 px brick crumbs)."""
+    a = np.asarray(im.convert("RGB")).astype(np.int32)
+    kod = (a[..., 0] << 16) | (a[..., 1] << 8) | a[..., 2]
+    H, W = kod.shape
+    p = np.pad(kod, 1, mode="edge")
+    komsu = [p[1 + dy:1 + dy + H, 1 + dx:1 + dx + W] for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]
+    komsu = np.stack(komsu)                                   # 8 x H x W
+    yalniz = ~(komsu == kod).any(0)
+    say = (komsu[None] == komsu[:, None]).sum(1)              # how many neighbours share each neighbour's colour
+    en = komsu[say.argmax(0), np.arange(H)[:, None], np.arange(W)[None]]
+    cogunluk = say.max(0) >= 4
+    yer = yalniz & cogunluk
+    if koru_m is not None:
+        from scipy import ndimage
+        yer &= ~ndimage.binary_dilation(koru_m, iterations=2)
+    kod = np.where(yer, en, kod)
+    out = np.stack([(kod >> 16) & 255, (kod >> 8) & 255, kod & 255], -1).astype(np.uint8)
+    return Image.fromarray(out)
 
 
 def izgara(W, H, t, ov):
@@ -160,7 +186,12 @@ def deneme(a):
 KORU = {
     "arka": {"kuyu_tezgah": (486, 296, 548, 380), "tezgah2": (558, 334, 606, 382),
              "fici": (566, 292, 594, 322), "araba": (774, 314, 828, 372), "fener": (700, 340, 726, 392),
-             "saman": (770, 496, 884, 560), "burc": (936, 214, 1256, 456)},
+             "saman": (770, 496, 884, 560),
+             # second round (review): keep, left back tower and the two back-wall banners, lower denoise,
+             # stronger ControlNet
+             "burc2": ((936, 214, 1256, 456), 0.25, 0.9), "kule_sol": ((250, 105, 315, 200), 0.25, 0.9),
+             "bayrak_sol": ((342, 100, 378, 145), 0.25, 0.9), "bayrak_sag": ((745, 100, 781, 145), 0.25, 0.9),
+             "yol": ((488, 370, 556, 412), 0.25, 0.9)},
     "on": {},
 }
 
@@ -171,17 +202,20 @@ def koru(res, rgb, a):
         return res
     kis = "_kis" if a.kis else ""
     jobs, meta = [], []
-    for ad, (x0, y0, x1, y1) in kutular.items():
+    for ad, kutu in kutular.items():
+        (x0, y0, x1, y1), kd, kcn = kutu if len(kutu) == 3 else (kutu, a.koru_d, 0.8)
         X0, Y0, X1, Y1 = [round(v * 1.5) for v in (x0 - 6, y0 - 6, x1 + 6, y1 + 6)]
         s = max(X1 - X0, Y1 - Y0)
         k = max(2, 1024 // s)
+        if len(kutu) == 3:
+            k = min(4, k)  # small boxes: do not zoom past 4x (first-round boxes keep their cached scale)
         c = rgb.crop((X0, Y0, X0 + s, Y0 + s))
         inp = Image.new("RGB", (1024, 1024), BG)
         inp.paste(c.resize((s * k, s * k), Image.Resampling.NEAREST), (0, 0))
         fa = f"hdk_{a.ad}{kis}_{ad}.png"
         inp.save(f"{B.COMFY}/input/{fa}")
-        pre = f"son-kale-v2/arka_hd/koru_{a.ad}{kis}_{ad}_d{int(a.koru_d * 100)}"
-        wf = workflow(fa, fa, pre, a.seed, a.koru_d, 0.8, POS_KIS if a.kis else POS, NEG_KIS if a.kis else NEG)
+        pre = f"son-kale-v2/arka_hd/koru_{a.ad}{kis}_{ad}_d{int(kd * 100)}"
+        wf = workflow(fa, fa, pre, a.seed, kd, kcn, POS_KIS if a.kis else POS, NEG_KIS if a.kis else NEG)
         wf["12"]["inputs"].update(low_threshold=0.3, high_threshold=0.6)
         jobs.append((pre, wf))
         meta.append((pre, X0, Y0, s, k))
@@ -196,6 +230,11 @@ def koru(res, rgb, a):
     for pre, X0, Y0, s, k in meta:
         g = Image.open(out[pre]).convert("RGB").crop((0, 0, s * k, s * k)).resize((s, s), Image.Resampling.BOX)
         g = g.filter(ImageFilter.UnsharpMask(radius=1.0, percent=a.keskin, threshold=2))
+        if not a.kis:  # keep the tone of the old art in this box (the redraw drifts to yellow-cream)
+            o = np.asarray(rgb.crop((X0, Y0, X0 + s, Y0 + s)), np.float32)
+            gg = np.asarray(g, np.float32)
+            gg = (gg - gg.mean((0, 1))) / (gg.std((0, 1)) + 1e-3) * o.std((0, 1)) + o.mean((0, 1))
+            g = Image.fromarray(gg.clip(0, 255).astype(np.uint8))
         m = Image.new("L", (s, s), 0)
         m.paste(255, (6, 6, s - 6, s - 6))
         res.paste(g, (X0, Y0), m.filter(ImageFilter.GaussianBlur(3)))
@@ -242,6 +281,23 @@ def tam(a):
     res = Image.fromarray(res.clip(0, 255).astype(np.uint8))
     res = res.filter(ImageFilter.UnsharpMask(radius=1.0, percent=a.keskin, threshold=2))
     res = koru(res, rgb, a)
+    kirmizi = None
+    if not a.kis:
+        o = np.asarray(rgb, np.float32)
+        r = np.asarray(res, np.float32)
+        # large-scale tone: follow the old art's local brightness/colour (dark north wall, dark forest,
+        # cream blotches), keep the new small-scale detail
+        from scipy import ndimage
+        yum = lambda x: np.stack([ndimage.gaussian_filter(x[..., c], 18) for c in range(3)], -1)
+        r = r + (yum(o) - yum(r))
+        # strong reds of the old art (banners, doors, roofs' red trims) come back pixel for pixel
+        kirmizi = (o[..., 0] > 100) & (o[..., 0] > o[..., 1] * 1.6) & (o[..., 0] > o[..., 2] * 1.6)
+        lab, n = ndimage.label(kirmizi)
+        if n:  # only small red parts (banners, flags, doors); roofs are redrawn, not pasted back
+            boy = np.bincount(lab.ravel()); boy[0] = 0
+            kirmizi = (boy < 1500)[lab] & kirmizi
+        r[kirmizi] = o[kirmizi]
+        res = Image.fromarray(r.clip(0, 255).astype(np.uint8))
     if alfa.getextrema()[0] < 255:
         # silhouette band: where the redraw painted the grey padding inside the kept mask, use the old pixel
         from scipy import ndimage
@@ -266,6 +322,12 @@ def tam(a):
         w2 = np.maximum(w2, np.clip((100 - kose) / 20, 0, 1))[..., None]
         res = Image.fromarray((np.asarray(res, np.float32) * (1 - w2) + np.asarray(rgb, np.float32) * w2).astype(np.uint8))
     im = kuantala(res, palet(a.ad, a.kis))
+    if not a.kis:
+        im = tek_piksel(im, kirmizi)
+        # the shared palette has no bright banner red: put those pixels back exactly
+        ia = np.asarray(im).copy()
+        ia[kirmizi] = np.asarray(rgb)[kirmizi]
+        im = Image.fromarray(ia)
     im = im.convert("RGBA")
     im.putalpha(alfa)
     adi = a.ad + ("_karli" if a.kis else "")
