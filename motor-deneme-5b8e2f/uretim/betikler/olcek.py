@@ -55,6 +55,21 @@ def ham(unit, etiket, idx):
     return d[-1] if d else None
 
 
+KESKIN = {"tirmanici", "patlayan", "okcuiskelet"}      # sharp (nearest) resample + hard dark outline
+SADE = {"patron": 0.8}                                   # patron: slightly less fine detail
+VURGU_KIS = {"patron", "kalkanlidev"}
+
+
+def son_ayar(unit, box):
+    a = np.asarray(box).astype(np.float32)
+    if unit == "kurt":                                   # pale teal blends into the fog: more contrast
+        m = a.mean((0, 1))
+        a = (a - m) * 1.18 + m
+    if unit == "kosucu":
+        a = a * 1.1
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
 YER = {}
 
 
@@ -91,10 +106,21 @@ def hizala(unit, idx, row, col, g, cur, L):
     return ox + dx, oy + dy, k
 
 
-def palet_of(sheet):
+def palet_of(sheet, kis=False, unit=None):
     a = np.asarray(sheet)
     px = a[a[..., 3] > 200][:, :3]
     renk = np.unique(px, axis=0)
+    if unit in ("kurt", "kosucu"):        # the palette follows the brightness / contrast change
+        m = px.astype(np.float32).mean(0)
+        r_ = renk.astype(np.float32)
+        r_ = (r_ - m) * 1.18 + m if unit == "kurt" else r_ * 1.1
+        renk = np.unique(np.clip(r_, 0, 255).astype(np.uint8), axis=0)
+    if kis:   # the lightest metal highlights one step down
+        lum = renk.astype(np.float32) @ [0.299, 0.587, 0.114]
+        ust = lum >= np.sort(lum)[-3]
+        renk = renk.astype(np.float32)
+        renk[ust] = renk[ust] * 0.88
+        renk = np.clip(renk, 0, 255).astype(np.uint8)
     pal = Image.new("P", (1, 1))
     flat = renk[:256].reshape(-1).tolist()
     pal.putpalette(flat + flat[:3] * (256 - len(renk[:256])))
@@ -113,7 +139,7 @@ def kur(unit, etiket=None, kaydet=False):
     sutun = min(sutun0, MAKS // nfw)
     satir_say = max(r["row"] for r in K["rows"].values()) + 1
     toplam = satir_say * sutun0
-    pal, nrenk = palet_of(sheet)
+    pal, nrenk = palet_of(sheet, kis=unit in VURGU_KIS, unit=unit)
     etiketler = [etiket] if etiket else ETIKET.get(unit, ["v1_s22"])
     hata = []
     yedek_say = [0]
@@ -138,19 +164,24 @@ def kur(unit, etiket=None, kaydet=False):
                 p = None
                 yedek_say[0] += 1
         if not p:                                      # no raw redraw: smooth resample of the sheet
-            box = Image.fromarray(np.asarray(cur)[..., :3]).resize((nfw, nfh), Image.Resampling.BOX if s < 1 else Image.Resampling.LANCZOS)
+            yontem = Image.Resampling.BOX if s < 1 else (Image.Resampling.NEAREST if unit in KESKIN else Image.Resampling.LANCZOS)
+            box = Image.fromarray(np.asarray(cur)[..., :3]).resize((nfw, nfh), yontem)
+        if unit in SADE:                                 # a little less fine detail (patron)
+            box = box.resize((max(1, int(nfw * SADE[unit])), max(1, int(nfh * SADE[unit]))), Image.Resampling.BOX).resize((nfw, nfh), Image.Resampling.NEAREST)
+        box = son_ayar(unit, box)
         # silhouette and fades from the current frame
-        ca = np.asarray(cur.getchannel("A").resize((nfw, nfh), Image.Resampling.BOX))
+        ca = np.asarray(cur.getchannel("A").resize((nfw, nfh), Image.Resampling.NEAREST if unit in KESKIN else Image.Resampling.BOX))
         tam = ca >= 128
         rgb = np.asarray(box.quantize(palette=pal, dither=Image.Dither.NONE).convert("RGB")).copy()
         # outline: where the current frame has a dark silhouette edge, keep it dark
         cur_a = np.asarray(cur)
         kenar_eski = (cur_a[..., 3] > 200) & ~ndimage.binary_erosion(cur_a[..., 3] > 200)
         koyu_kenar = kenar_eski.any() and (cur_a[kenar_eski][:, :3].astype(int).sum(1) < 150).mean() > 0.6
-        if koyu_kenar:
+        if koyu_kenar or unit in KESKIN:
             e = tam & ~ndimage.binary_erosion(tam)
             koyu = cur_a[kenar_eski][:, :3].astype(int)
-            rgb[e] = np.median(koyu[koyu.sum(1) < 150], 0).astype(np.uint8)
+            koyu = koyu[koyu.sum(1) < 150]
+            rgb[e] = (np.median(koyu, 0) if len(koyu) else np.array([22, 17, 20])).astype(np.uint8)
         oa = cur_a[..., 3]
         seviye = int(np.median(oa[oa > 0])) if (oa > 0).any() else 255
         alfa = np.where(tam, min(seviye, 255) if seviye < 250 else 255, 0).astype(np.uint8)
