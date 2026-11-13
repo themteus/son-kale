@@ -19,6 +19,7 @@ class Arayuz {
     this.altinYazi = sahne.add.text(40, 100, '', stil('govde', 32, { fontStyle: 'bold', color: '#ffd76a' })).setDepth(d + 1);
     this.dalgaYazi = sahne.add.text(AYAR.en / 2, 24, '', stil('baslik', 44)).setOrigin(0.5, 0).setDepth(d + 1);
     this.kalanYazi = sahne.add.text(AYAR.en / 2, 78, '', stil('govde', 24, { color: '#c8bca4' })).setOrigin(0.5, 0).setDepth(d + 1);
+    this.gorevYazi = sahne.add.text(40, 150, '', stil('govde', 22, { color: '#c8bca4', stroke: '#120e0c', strokeThickness: 5 })).setDepth(d + 1);
     this.ruzgarYazi = sahne.add.text(AYAR.en - 250, 112, '', stil('govde', 22, { color: '#c8bca4' })).setOrigin(0.5, 0).setDepth(d + 1);
     this.duyuru = sahne.add.text(AYAR.en / 2, 300, '', stil('baslik', 84, { stroke: '#120e0c', strokeThickness: 10 }))
       .setOrigin(0.5).setDepth(d + 2).setAlpha(0);
@@ -26,10 +27,11 @@ class Arayuz {
       .setOrigin(0.5).setDepth(d + 2).setAlpha(0);
     this.odak = sahne.add.graphics().setDepth(45);
     // Kombo sayacı: sağda, art arda öldürünce büyüyüp söner
-    this.komboYazi = sahne.add.text(AYAR.en - 250, 200, '', stil('baslik', 54, { color: '#ffd76a', stroke: '#120e0c', strokeThickness: 8 }))
+    this.komboYazi = sahne.add.text(AYAR.en - 250, 230, '', stil('baslik', 54, { color: '#ffd76a', stroke: '#120e0c', strokeThickness: 8 }))
       .setOrigin(0.5).setDepth(d + 1).setAlpha(0);
     this.canlar = sahne.add.graphics().setDepth(44);
     // Sağ üst düğmeler
+    this.hizDugme = this.dugme(AYAR.en - 260, 50, 110, 64, '×1', () => sahne.hizDegistir(), 52, 30);
     this.sesDugme = this.dugme(AYAR.en - 150, 50, 90, 64, '♪', () => sahne.sesAcKapa(), 52, 30);
     this.duraklatDugme = this.dugme(AYAR.en - 50, 50, 64, 64, 'II', () => sahne.duraklat(), 52, 30);
     // Sol alt: ok türü ve Ok Yağmuru düğmeleri (telefonda klavye yok)
@@ -61,7 +63,7 @@ class Arayuz {
     g.clear();
     // Başlangıç menüsünde üst bilgi gizli (oyun daha başlamadı)
     const menude = oyun.durum === 'menu';
-    for (const o of [g, this.surYazi, this.altinYazi, this.ruzgarYazi]) o.setVisible(!menude);
+    for (const o of [g, this.surYazi, this.altinYazi, this.ruzgarYazi, this.hizDugme, this.gorevYazi]) o.setVisible(!menude);
     this.tehlikeCiz(oyun);
     if (menude) {
       for (const b of [...this.okDugmeleri, this.yagmurDugme]) b.setVisible(false);
@@ -92,11 +94,14 @@ class Arayuz {
     this.altinYazi.setPosition(80, 100).setText(`${oyun.altin}    Ok ${oyun.ekonomi.kaynak.ok}`);
     this.altinYazi.setColor(oyun.ekonomi.kaynak.ok < 30 ? '#ff9a7a' : '#ffd76a');
     this.dalgaYazi.setText(oyun.dalga > 0 ? 'Dalga ' + oyun.dalga : '');
+    // Savaşta geçerli görev (kafa, kombo ya da günün görevi)
+    const gv = oyun.gorev && Gorevler.simdiki(oyun);
+    this.gorevYazi.setText(oyun.durum === 'savas' && gv && !gv.hedef ? '◆ ' + gv.ad : '');
     const kalan = oyun.kalanDusman();
     this.kalanYazi.setText(oyun.durum === 'savas' ? (kalan > 0 ? kalan + ' düşman kaldı' : '') : '');
     // Rüzgâr oku
     const r = oyun.ruzgar / AYAR.ruzgar.enFazla;
-    const rx = AYAR.en - 250, ry = 100;
+    const rx = AYAR.en - 250, ry = 122; // hız düğmesinin altında
     g.fillStyle(0x120e0c, 0.7).fillRoundedRect(rx - 110, ry - 22, 220, 40, 10);
     if (Math.abs(r) < 0.05) this.ruzgarYazi.setText('Rüzgâr yok');
     else {
@@ -218,7 +223,7 @@ class Arayuz {
   }
 
   baslangic() {
-    this.panelAc(1000, 700, (kap) => {
+    this.panelAc(1000, 800, (kap) => {
       const s = this.s;
       kap.add(s.add.text(0, -250, 'SON KALE', stil('baslik', 120)).setOrigin(0.5));
       kap.add(s.add.text(0, -165, 'Sis vadiyi yuttu. Ayakta kalan son kale bu.', stil('govde', 30, { color: '#c9a24a' })).setOrigin(0.5));
@@ -250,6 +255,45 @@ class Arayuz {
         this.panelDugme(kap, 200, 250, 340, 84, 'Yeni oyun', () => { s.kayitSil(); s.oyunuBaslat(); }, 32);
         kap.add(s.add.text(0, 312, `Kayıtlı oyun: ${ZORLUKLAR[kayit.zorluk].ad}. Yeni oyun kaydı siler.`, stil('govde', 22, { color: '#8a806c' })).setOrigin(0.5));
       } else this.panelDugme(kap, 0, 250, 360, 84, 'Başla', () => s.oyunuBaslat(), 40);
+      this.panelDugme(kap, 0, 355, 420, 60, `Şan Salonu  ·  ${San.toplam()} Şan`, () => this.sanSalonu(), 26);
+    });
+  }
+
+  // Şan Salonu: kalıcı ödüller (solda) ve başarımlar (sağda)
+  sanSalonu() {
+    this.panelAc(1700, 900, (kap) => {
+      const s = this.s;
+      kap.add(s.add.text(0, -385, 'Şan Salonu', stil('baslik', 64)).setOrigin(0.5));
+      const toplam = s.add.text(0, -322, '', stil('govde', 30, { fontStyle: 'bold', color: '#ffd76a' })).setOrigin(0.5);
+      kap.add(toplam);
+      kap.add(s.add.text(0, -280, 'Her oyunun sonunda dayandığın gecelere göre Şan kazanırsın. Ödüller bütün yeni oyunlarda geçerlidir.',
+        stil('govde', 22, { color: '#b8ac94' })).setOrigin(0.5));
+      const satirlar = [];
+      const yenile = () => { toplam.setText(`${San.toplam()} Şan`); satirlar.forEach(f => f()); };
+      kap.add(s.add.text(-790, -250, 'Ödüller', stil('baslik', 40)));
+      SAN_ODULLERI.forEach((u, i) => {
+        const y = -140 + i * 96;
+        const ad = s.add.text(-790, y - 20, '', stil('govde', 30, { fontStyle: 'bold' })).setOrigin(0, 0.5);
+        const ac = s.add.text(-790, y + 16, u.aciklama, stil('govde', 22, { color: '#b8ac94' })).setOrigin(0, 0.5);
+        kap.add([ad, ac]);
+        const b = this.panelDugme(kap, -130, y, 200, 62, '', () => { if (San.satinAl(u)) { s.sesCal('coin', 0.5); yenile(); } }, 26);
+        satirlar.push(() => {
+          const sv = San.seviye(u.id), bitti = sv >= u.enFazla;
+          ad.setText(`${u.ad}  ${'●'.repeat(sv)}${'○'.repeat(u.enFazla - sv)}`);
+          b.yazi.setText(bitti ? 'Tamam' : `${u.fiyat[sv]} Şan`);
+          const alir = !bitti && San.toplam() >= u.fiyat[sv];
+          b.yazi.setColor(alir ? '#ffd76a' : '#7a7060');
+          b.arka.setStrokeStyle(3, alir ? 0xc9a24a : 0x4a4030);
+        });
+      });
+      kap.add(s.add.text(60, -250, 'Başarımlar', stil('baslik', 40)));
+      BASARIMLAR.forEach((b, i) => {
+        const y = -160 + i * 56, k = San.kazanildi(b.id);
+        kap.add(s.add.text(60, y, `${k ? '✔' : '○'}  ${b.ad}`, stil('govde', 26, { fontStyle: 'bold', color: k ? '#a0e0a0' : '#efe6d2' })).setOrigin(0, 0.5));
+        kap.add(s.add.text(400, y, `${b.aciklama}  ·  ${b.san} Şan`, stil('govde', 21, { color: k ? '#7a9a7a' : '#b8ac94' })).setOrigin(0, 0.5));
+      });
+      this.panelDugme(kap, 0, 385, 340, 72, '◀ Geri', () => this.baslangic(), 30);
+      yenile();
     });
   }
 
@@ -307,6 +351,7 @@ class Arayuz {
     this.panelAc(1000, 560, (kap) => {
       const s = this.s;
       kap.add(s.add.text(0, -190, 'Kale kurtuldu!', stil('baslik', 96, { color: '#ffe08a' })).setOrigin(0.5));
+      kap.add(s.add.text(0, 60, `+${oyun.sanOyunSonu || 0} Şan kazandın (toplam ${San.toplam()})`, stil('govde', 28, { color: '#ffd76a' })).setOrigin(0.5));
       kap.add(s.add.text(0, -60, `Yardım ordusu ufukta göründü.\n${oyun.dalga} dalga · ${oyun.oldurulen} düşman · ${oyun.kafaVurusu} kafa vuruşu`,
         stil('govde', 34, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
       this.panelDugme(kap, -200, 150, 360, 84, 'Savaşmaya devam', () => { s.durum = 'kale'; s.gunuBitir(); }, 32);
@@ -315,23 +360,27 @@ class Arayuz {
   }
 
   oyunSonu(oyun) {
-    this.panelAc(1100, 680, (kap) => {
+    this.panelAc(1100, 740, (kap) => {
       const s = this.s;
       kap.add(s.add.text(0, -240, oyun.neden || 'Kale düştü', stil('baslik', 96, { color: '#e07060' })).setOrigin(0.5));
       kap.add(s.add.text(0, -125, `${oyun.dalga}. dalgaya kadar dayandın\n${oyun.oldurulen} düşman öldü · ${oyun.kafaVurusu} kafa vuruşu`,
         stil('govde', 34, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
       // Hikâyenin acı sonu
       kap.add(s.add.text(0, 45, HIKAYE.yenilgi(oyun), stil('govde', 28, { color: '#b8ac94', fontStyle: 'italic', align: 'center', lineSpacing: 8, wordWrap: { width: 920 } })).setOrigin(0.5));
-      this.panelDugme(kap, 0, 220, 360, 90, 'Yeniden Dene', () => s.scene.restart(), 40);
+      kap.add(s.add.text(0, 150, `+${oyun.sanOyunSonu || 0} Şan kazandın · Şan Salonu'nda yeni oyunu güçlendir`, stil('govde', 26, { color: '#ffd76a' })).setOrigin(0.5));
+      this.panelDugme(kap, 0, 240, 360, 80, 'Yeniden Dene', () => s.scene.restart(), 36);
     });
   }
 
   duraklatPaneli() {
-    this.panelAc(700, 420, (kap) => {
+    this.panelAc(700, 480, (kap) => {
       const s = this.s;
-      kap.add(s.add.text(0, -120, 'Duraklatıldı', stil('baslik', 80)).setOrigin(0.5));
-      this.panelDugme(kap, 0, 20, 340, 80, 'Devam', () => s.duraklat(), 36);
-      this.panelDugme(kap, 0, 120, 340, 70, 'Baştan Başla', () => s.scene.restart(), 30);
+      kap.add(s.add.text(0, -140, 'Duraklatıldı', stil('baslik', 80)).setOrigin(0.5));
+      this.panelDugme(kap, 0, 0, 340, 80, 'Devam', () => s.duraklat(), 36);
+      const sars = this.panelDugme(kap, 0, 95, 340, 64, '', () => { s.sarsintiAcik = !s.sarsintiAcik; Kayit.yaz('sarsinti', s.sarsintiAcik ? 'acik' : 'kapali'); yaz(); }, 26);
+      const yaz = () => sars.yazi.setText('Ekran sarsıntısı: ' + (s.sarsintiAcik ? 'açık' : 'kapalı'));
+      yaz();
+      this.panelDugme(kap, 0, 175, 340, 64, 'Baştan Başla', () => s.scene.restart(), 28);
     });
   }
 }

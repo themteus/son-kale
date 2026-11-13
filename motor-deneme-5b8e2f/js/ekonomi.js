@@ -145,6 +145,7 @@ class Ekonomi {
       this.kaynak[k] -= P.parti;
       this.pazar[k] = Math.max(0.5, m / (1 + PAZAR.artis));
     }
+    this.ticaretSayisi = (this.ticaretSayisi || 0) + 1; // görevler.js
     return true;
   }
 
