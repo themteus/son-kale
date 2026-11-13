@@ -1,0 +1,344 @@
+{
+ "aciklama": "İç kale bina varyantları (yerel ComfyUI). Oyunda henüz kullanılmıyor; kale.js'e bağlanmadı. Boyutları orijinal binalarla aynı, aynı konuma konabilir. kalite: iyi / orta (kullanılabilir, küçük kusurlu) / zayif.",
+ "dosyalar": {
+  "ciftlik1": {
+   "gece": {
+    "dosya": "ciftlik1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "ciftlik1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "ciftlik1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "ciftlik2": {
+   "gece": {
+    "dosya": "ciftlik2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "ciftlik2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "ciftlik2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "ciftlik3": {
+   "gece": {
+    "dosya": "ciftlik3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "ciftlik3_karli.png",
+    "kalite": "orta",
+    "not": "çatılar karlı; kırmızı ahır koyulaştı"
+   },
+   "yikik": {
+    "dosya": "ciftlik3_yikik.png",
+    "kalite": "orta",
+    "not": "tanınıyor ama çok koyu/yanık"
+   }
+  },
+  "demirci1": {
+   "gece": {
+    "dosya": "demirci1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "demirci1_karli.png",
+    "kalite": "orta",
+    "not": "çatı karlı; sol duvarın üstü de biraz beyazladı"
+   },
+   "yikik": {
+    "dosya": "demirci1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "demirci2": {
+   "gece": {
+    "dosya": "demirci2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "demirci2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "demirci2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "demirci3": {
+   "gece": {
+    "dosya": "demirci3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "demirci3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "demirci3_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "duvarci1": {
+   "gece": {
+    "dosya": "duvarci1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "duvarci1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "duvarci1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "duvarci2": {
+   "gece": {
+    "dosya": "duvarci2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "duvarci2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "duvarci2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "duvarci3": {
+   "gece": {
+    "dosya": "duvarci3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "duvarci3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "duvarci3_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "ev1": {
+   "gece": {
+    "dosya": "ev1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "ev1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "ev1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "ev2": {
+   "gece": {
+    "dosya": "ev2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "ev2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "ev2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "ev3": {
+   "gece": {
+    "dosya": "ev3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "ev3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "ev3_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "maden1": {
+   "gece": {
+    "dosya": "maden1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "maden1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "maden1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "maden2": {
+   "gece": {
+    "dosya": "maden2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "maden2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "maden2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "maden3": {
+   "gece": {
+    "dosya": "maden3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "maden3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "maden3_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "oduncu1": {
+   "gece": {
+    "dosya": "oduncu1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "oduncu1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "oduncu1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "oduncu2": {
+   "gece": {
+    "dosya": "oduncu2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "oduncu2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "oduncu2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "oduncu3": {
+   "gece": {
+    "dosya": "oduncu3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "oduncu3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "oduncu3_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "tasocagi1": {
+   "gece": {
+    "dosya": "tasocagi1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "tasocagi1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "tasocagi1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "tasocagi2": {
+   "gece": {
+    "dosya": "tasocagi2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "tasocagi2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "tasocagi2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "tasocagi3": {
+   "gece": {
+    "dosya": "tasocagi3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "tasocagi3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "tasocagi3_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "yayci1": {
+   "gece": {
+    "dosya": "yayci1_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "yayci1_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "yayci1_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "yayci2": {
+   "gece": {
+    "dosya": "yayci2_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "yayci2_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "yayci2_yikik.png",
+    "kalite": "iyi"
+   }
+  },
+  "yayci3": {
+   "gece": {
+    "dosya": "yayci3_gece.png",
+    "kalite": "iyi"
+   },
+   "karli": {
+    "dosya": "yayci3_karli.png",
+    "kalite": "iyi"
+   },
+   "yikik": {
+    "dosya": "yayci3_yikik.png",
+    "kalite": "iyi"
+   }
+  }
+ }
+}

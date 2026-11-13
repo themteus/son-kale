@@ -1,0 +1,489 @@
+// =============================================================
+//  İÇ KALE (kale.js)
+//  Dalgalar arasında açılan sahne: binalar, köylüler, ambar.
+//  Binaya tıkla → sağda paneli açılır (işçi, yükseltme).
+//  Kapı kulesi = sur ve askerler, kuyu meydanı = pazar,
+//  arkadaki büyük kule = günün raporu.
+//  Görseller izometrik piksel sanat: 640x360 çizilip 3 kat büyütülür
+//  (assets/kale, kale.json içindeki yerler küçük boydadır).
+//  Katmanlar: zemin + arka surlar → binalar ve köylüler → ön surlar
+//  → sur dışındaki binalar (maden, taş ocağı) ve oradaki işçiler.
+// =============================================================
+
+// Tıklanabilir yerlerin adları (yerleri kale.json → alanlar)
+const KALE_ALANLARI = { sur: 'Sur ve Kapı', pazar: 'Pazar', rapor: 'Günün raporu' };
+// Sur dışındaki binalar: ön surun önünde çizilir, işçileri içeri girmez
+const DIS_BINALAR = ['maden', 'tasocagi'];
+
+class KaleSahnesi extends Phaser.Scene {
+  constructor() { super('kale'); }
+
+  init(veri) {
+    this.oyun = veri.oyun;
+    this.ilkRapor = veri.rapor || null;
+  }
+
+  create() {
+    this.E = this.oyun.ekonomi;
+    this.M = this.cache.json.get('kale');
+    this.O = this.M.olcek;
+    // arkaPiksel / on.piksel: PixelLab ile yeniden çizilen zemin daha sık pikselli (yoksa O)
+    this.add.image(0, 0, 'k_arka').setOrigin(0).setScale(this.M.arkaPiksel || this.O);
+    if (typeof IcSusler !== 'undefined') IcSusler.zeminKatmani(this); // patikalar, ezilmiş toprak (ic_susler.js)
+    const on = this.M.on;
+    // Süs eşyaları: x, y = alt orta (ekran pikseli); aşağıdaki öndedir
+    for (const su of this.M.susler || []) {
+      this.add.image(su.x, su.y, 'ks_' + su.ad).setOrigin(0.5, 1).setScale(su.piksel || 1).setFlipX(!!su.ayna)
+        .setDepth(this.derinlik(su.y, su.disari));
+    }
+    this.add.image(on.x * this.O, on.y * this.O, 'k_on').setOrigin(0).setScale(on.piksel || this.O).setDepth(20);
+    this.secili = null;
+    this.panel = null;
+    this.binaSprite = {};
+    this.etiket = {};
+    this.koyluler = { };   // grup adı → köylü listesi
+    this.binalariKur();
+    this.alanlariKur();
+    Yapilar.kur(this); // şapel, kışla, ahır tıklanır
+    this.arayuzKur();
+    this.yenile();
+    // Sahne olayları yeniden başlayınca silinmez: kapanırken çıkar (yoksa her yeni oyunda bir kat daha çalışır)
+    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); };
+    this.events.on('wake', uyan);
+    this.events.once('shutdown', () => this.events.off('wake', uyan));
+    // Klavye: Boşluk savaşa çık, Esc pencereyi kapat, M ses
+    this.input.keyboard.on('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (e.repeat) return;
+      if (k === ' ') this.savasaCik();
+      else if (k === 'escape') this.panelKapat();
+      else if (k === 'm') this.oyun.sesAcKapa();
+    });
+    this.raporGoster();
+  }
+
+  // ---------------- Binalar ----------------
+  binalariKur() {
+    for (const k of Object.keys(BINALAR)) {
+      const sp = this.add.image(0, 0, 'k_' + k + '1').setOrigin(0).setScale(this.O);
+      sp.setInteractive({ pixelPerfect: true, useHandCursor: true })
+        .on('pointerover', () => this.etiketVurgu(k, true))
+        .on('pointerout', () => this.etiketVurgu(k, false))
+        .on('pointerdown', () => this.sec(k));
+      this.binaSprite[k] = sp;
+      const t = this.add.text(0, 0, '', stil('govde', 22, { fontStyle: 'bold', backgroundColor: '#1a1410cc', padding: { x: 8, y: 3 } }))
+        .setOrigin(0.5, 1).setDepth(90);
+      this.etiket[k] = t;
+    }
+  }
+  binaMeta(k) { return this.M.binalar[k + this.E.bina[k].seviye]; }
+  binaGorsel(k) {
+    const m = this.binaMeta(k), sp = this.binaSprite[k];
+    const O = this.O;
+    // piksel: görselin bir pikseli ekranda kaç piksel (yoksa O). PixelLab çizimleri daha sık pikselli.
+    // Mevsim / hasar / akşam görünümü (varyant.js); yoksa normal görsel
+    if (typeof Varyant !== 'undefined') Varyant.uygula(this, sp, 'k_' + k + this.E.bina[k].seviye);
+    else sp.setTexture('k_' + k + this.E.bina[k].seviye);
+    sp.setScale(m.piksel || O)
+      .setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
+    const B = BINALAR[k], b = this.E.bina[k];
+    const yazi = k === 'ev' ? `${B.ad}  ${this.E.nufus}/${this.E.barinak}` : `${B.ad}  ${b.isci}/${this.E.yerSayisi(k)}`;
+    this.etiket[k].setText(yazi).setPosition(m.merkez[0] * O, Math.max(96, m.y * O + 30));
+  }
+  // Çizim sırası: ekranda aşağıda olan önde. Sur dışı her zaman ön surun önünde.
+  derinlik(y, disari) { return (disari ? 30 : 10) + y / 2000; }
+  etiketVurgu(k, acik) {
+    this.etiket[k].setColor(acik || this.secili === k ? '#ffe08a' : '#efe6d2');
+  }
+
+  alanlariKur() {
+    const O = this.O, L = this.M.alanlar;
+    for (const [ad, isim] of Object.entries(KALE_ALANLARI)) {
+      const A = { ...L[ad] };
+      if (ad === 'rapor') A.h = L.sur.y - A.y; // kapı kulesiyle çakışmasın
+      const z = this.add.zone(A.x * O, A.y * O, A.w * O, A.h * O).setOrigin(0).setInteractive({ useHandCursor: true }).setDepth(25);
+      const t = this.add.text((A.x + A.w / 2) * O, Math.max(96, (A.y + (ad === 'pazar' ? 0 : 16)) * O), isim,
+        stil('govde', 22, { fontStyle: 'bold', backgroundColor: '#1a1410cc', padding: { x: 8, y: 3 } })).setOrigin(0.5, 1).setDepth(90);
+      z.on('pointerover', () => t.setColor('#ffe08a')).on('pointerout', () => t.setColor(this.secili === ad ? '#ffe08a' : '#efe6d2'))
+        .on('pointerdown', () => this.sec(ad));
+      this.etiket[ad] = t;
+    }
+  }
+
+  // ---------------- Arayüz ----------------
+  arayuzKur() {
+    const D = 100;
+    this.ust = this.add.graphics().setDepth(D);
+    this.ust.fillStyle(0x120e0c, 0.88).fillRect(0, 0, AYAR.en, 64);
+    this.ust.lineStyle(2, 0x6a5430).lineBetween(0, 64, AYAR.en, 64);
+    this.kaynakYazi = {};
+    // Kaynak adı küçük, sayı büyük; yanında yarınki değişim
+    // Telefonda adlar ve sayılar büyük yazılır (ekran küçülünce okunsun)
+    const T = DOKUNMATIK;
+    let x = 20;
+    for (const k of ['odun', 'tas', 'demir', 'yiyecek', 'uc', 'ok', 'yay']) {
+      this.ust.fillStyle(KAYNAKLAR[k].renk, 1).fillRect(x, 10, 14, 14);
+      this.add.text(x + 20, T ? 16 : 17, KAYNAKLAR[k].ad, stil('govde', T ? 22 : 18, { color: '#b8ac94' })).setOrigin(0, 0.5).setDepth(D + 1);
+      this.kaynakYazi[k] = this.add.text(x, T ? 46 : 44, '', stil('govde', T ? 30 : 24, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
+      x += T ? 186 : 196;
+    }
+    this.altinYazi = this.add.text(AYAR.en - 230, 32, '', stil('govde', 28, { fontStyle: 'bold', color: '#ffd76a' })).setOrigin(1, 0.5).setDepth(D + 1);
+    this.gunYazi = this.add.text(AYAR.en - 24, 32, '', stil('baslik', 34)).setOrigin(1, 0.5).setDepth(D + 1);
+    // Alt şerit
+    this.alt = this.add.graphics().setDepth(D);
+    this.alt.fillStyle(0x120e0c, 0.88).fillRect(0, AYAR.boy - 96, AYAR.en, 96);
+    this.alt.lineStyle(2, 0x6a5430).lineBetween(0, AYAR.boy - 96, AYAR.en, AYAR.boy - 96);
+    this.halkYazi = this.add.text(30, AYAR.boy - 66, '', stil('govde', T ? 28 : 26, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
+    this.moralYazi = this.add.text(30, AYAR.boy - 28, '', stil('govde', T ? 28 : 24, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
+    this.uyari = this.add.text(AYAR.en / 2, AYAR.boy - 166, '', stil('govde', 26, { color: '#ffb080', stroke: '#120e0c', strokeThickness: 6 }))
+      .setOrigin(0.5).setDepth(D + 1);
+    // Gözcü raporu (yarınki dalga) alt şeridin hemen üstünde, solda
+    this.kesifYazi = this.add.text(30, AYAR.boy - 118, '', stil('govde', 24, { fontStyle: 'bold', stroke: '#120e0c', strokeThickness: 6 }))
+      .setOrigin(0, 0.5).setDepth(D + 1);
+    this.dugme(890, AYAR.boy - 48, 270, 70, 'Otomatik dağıt', () => { this.E.otomatikDagit(this.oyun); this.yenile(); }, D + 1, 26);
+    this.dugme(1180, AYAR.boy - 48, 270, 70, 'Silah ustası', () => this.dukkanaGit(), D + 1, 26);
+    this.savasDugme = this.dugme(1620, AYAR.boy - 48, 520, 76, '', () => this.savasaCik(), D + 1, 32);
+  }
+
+  dugme(x, y, w, h, metin, fn, derinlik = 101, boyut = 28) {
+    const kap = this.add.container(x, y).setDepth(derinlik);
+    const arka = this.add.rectangle(0, 0, w, h, 0x2a211a, 0.95).setStrokeStyle(3, 0xc9a24a);
+    const yazi = this.add.text(0, 0, metin, stil('govde', boyut, { fontStyle: 'bold' })).setOrigin(0.5);
+    kap.add([arka, yazi]);
+    arka.setInteractive({ useHandCursor: true })
+      .on('pointerover', () => arka.setFillStyle(0x4a3a28, 0.95))
+      .on('pointerout', () => arka.setFillStyle(0x2a211a, 0.95))
+      .on('pointerdown', (p, lx, ly, e) => { e && e.stopPropagation(); this.oyun.sesCal('ui', 0.4); fn(); });
+    kap.arka = arka;
+    kap.yazi = yazi;
+    return kap;
+  }
+
+  // Her değişiklikten sonra: binalar, köylüler, şeritler, panel
+  yenile() {
+    const E = this.E, o = this.oyun;
+    for (const k of Object.keys(BINALAR)) { this.binaGorsel(k); this.etiketVurgu(k, false); }
+    if (typeof Varyant !== 'undefined') Varyant.zemin(this);
+    const t = E.gunuHesapla(o, false);
+    for (const k in this.kaynakYazi) {
+      const net = (t.yapilan[k] || 0) - (t.harcanan[k] || 0);
+      this.kaynakYazi[k].setText(`${E.kaynak[k]}` + (net ? ` (${net > 0 ? '+' : ''}${net})` : ''));
+      this.kaynakYazi[k].setColor(net < 0 && E.kaynak[k] + net < 0 ? '#ff9a7a' : '#efe6d2');
+    }
+    this.altinYazi.setText(`Altın ${o.altin}`);
+    this.gunYazi.setText(`${o.dalga + 1}. Gün` + (typeof Varyant !== 'undefined' ? ` · ${Varyant.sezon(o).ad}` : ''));
+    // Altın yazısı gün yazısının solunda dursun (mevsim adı uzayınca üst üste binmesin)
+    this.altinYazi.setX(this.gunYazi.x - this.gunYazi.width - 36);
+    this.halkYazi.setText(`Halk ${E.nufus}/${E.barinak}  ·  İşçi ${E.isci}  ·  Asker ${E.asker}` + (E.sefer ? `  ·  Sefer ${E.sefer}` : '') + `  ·  Boşta ${E.bosta}`);
+    this.moralYazi.setText(`Moral ${Math.round(E.moral)}`).setColor(E.moral < MORAL.siginmaciAlt ? '#ff9a7a' : E.moral >= 70 ? '#a0e0a0' : '#c8bca4');
+    Yapilar.etiketYenile(this);
+    this.halkYazi.setColor(E.bosta > 0 ? '#ffe08a' : '#efe6d2');
+    const sonraki = o.dalga + 1;
+    this.savasDugme.yazi.setText(sonraki % PATRON_ARASI === 0 ? `Savaşa çık ▶ (Ak Dev!)` : `Savaşa çık ▶ ${sonraki}. dalga`);
+    // Keşif: yarın kim geliyor
+    const kesif = o.kesif();
+    this.kesifYazi.setText(`Gözcüler: ${kesif.ozet}`);
+    this.kesifYazi.setColor(['#c8bca4', '#c8bca4', '#ffb080', '#ff7a6a'][kesif.tehlike]);
+    // Uyarılar
+    const u = [];
+    if (t.yenen < t.ihtiyac) u.push('Yiyecek yetmeyecek: çiftliğe işçi ver!');
+    // Dünkü kadar ok atılırsa yeter mi? (her dalga biraz daha çok ister)
+    const dun = E.rapor ? E.rapor.atilan : 0;
+    if (E.kaynak.ok < Math.max(80, dun * 1.2)) u.push(`Ambarda ok az: dün ${dun} ok atıldı!`);
+    if (o.surCan < o.surEnFazla * 0.4) u.push('Sur ağır hasarlı: duvarcıya işçi ver ya da altınla onar.');
+    if (E.bosta > 0) u.push(`${E.bosta} kişi boşta.`);
+    if (E.moral < 35) u.push('Moral düşük: şapele rahip ver ya da şölen yap.');
+    if (E.sefer > 0 && E.sefer < SEFER.enAz) u.push(`Sefere en az ${SEFER.enAz} kişi gider.`);
+    this.uyari.setText(u.join('   '));
+    this.ilkDizilis = !this.koyluler || !Object.values(this.koyluler).some(l => l.length);
+    this.koyluleriDiz();
+    this.ilkDizilis = false;
+    if (this.panelYenile) this.panelYenile();
+  }
+
+  // ---------------- Seçim paneli (sağda) ----------------
+  sec(ad) {
+    this.oyun.sesCal('ui', 0.3);
+    this.secili = ad;
+    for (const k in this.etiket) this.etiket[k].setColor(k === ad ? '#ffe08a' : '#efe6d2');
+    if (ad === 'sur') this.panelKur('Sur ve Askerler', p => this.surPaneli(p));
+    else if (ad === 'pazar') this.panelKur('Pazar', p => this.pazarPaneli(p));
+    else if (ad === 'rapor') this.raporGoster(true);
+    else if (YAPILAR[ad]) this.panelKur(YAPILAR[ad].ad, p => Yapilar.panel(this, p, ad));
+    else this.panelKur(BINALAR[ad].ad, p => this.binaPaneli(p, ad));
+  }
+
+  panelKapat() {
+    if (this.panel) this.panel.destroy();
+    this.panel = null;
+    this.panelYenile = null;
+    this.secili = null;
+    for (const k in this.etiket) this.etiket[k].setColor('#efe6d2');
+  }
+
+  // Sağda pencere. icerik(p) satırları ekler; p.satir(y, metin) vb.
+  panelKur(baslik, icerik) {
+    if (this.panel) this.panel.destroy();
+    const W = 560, H = 880;
+    // Telefonda panel biraz büyür (alt şeridin üstüne taşar, kapatınca açılır)
+    const olcek = DOKUNMATIK ? 1.13 : 1;
+    const x = AYAR.en - W * olcek / 2 - 12, y = (DOKUNMATIK ? 70 : 84) + H * olcek / 2;
+    const kap = this.add.container(x, y).setDepth(110).setScale(olcek);
+    kap.add(this.add.rectangle(0, 0, W, H, 0x1c1612, 1).setStrokeStyle(3, 0xc9a24a).setInteractive()); // tam opak: arkadaki etiketler görünmesin
+    kap.add(this.add.text(0, -H / 2 + 46, baslik, stil('baslik', 48)).setOrigin(0.5));
+    const kapat = this.dugme(W / 2 - 34, -H / 2 + 34, 48, 48, '×', () => this.panelKapat(), 111, 30);
+    kap.add(kapat);
+    const p = {
+      kap, sol: -W / 2 + 30, en: W - 60, ust: -H / 2 + 110,
+      yazi: (yy, metin, boyut = 26, renk = '#efe6d2', ek = {}) => {
+        const t = this.add.text(-W / 2 + 30, yy, metin, stil('govde', boyut, { color: renk, wordWrap: { width: W - 60 }, ...ek }));
+        kap.add(t); return t;
+      },
+      dugme: (xx, yy, w, h, metin, fn, boyut = 26) => {
+        const b = this.dugme(xx, yy, w, h, metin, () => { fn(); this.yenile(); }, 111, boyut);
+        kap.add(b); return b;
+      },
+    };
+    this.panelYenile = null;
+    icerik(p);
+    this.panel = kap;
+    if (this.panelYenile) this.panelYenile();
+  }
+
+  bedelYazi(b) {
+    return Object.entries(b).map(([k, v]) => `${v} ${k === 'altin' ? 'altın' : KAYNAKLAR[k].ad.toLowerCase()}`).join(', ');
+  }
+
+  // Yükseltme satırı (bina ya da sur)
+  // fn(tamamla): tamamla = true ise eksik malzeme altınla alınır
+  yukseltSatiri(p, yy, bedelFn, fn) {
+    const t = p.yazi(yy, '', 24, '#c8bca4');
+    const b = p.dugme(-110, yy + 92, 300, 64, 'Yükselt', () => fn(false), 28);
+    const tb = p.dugme(-110, yy + 166, 300, 56, '', () => fn(true), 22);
+    return () => {
+      const bedel = bedelFn();
+      if (!bedel) { t.setText('En yüksek seviyede.'); b.setVisible(false); tb.setVisible(false); return; }
+      const yeter = this.E.yeter(bedel, this.oyun);
+      t.setText('Yükseltme: ' + this.bedelYazi(bedel));
+      t.setColor(yeter ? '#c8bca4' : '#d08070');
+      b.setVisible(true);
+      b.yazi.setColor(yeter ? '#ffd76a' : '#7a7060');
+      // Malzeme eksikse: eksiği pazardan biraz pahalıya altınla tamamla
+      const altin = yeter ? null : this.E.tamamlaAltini(bedel, this.oyun);
+      tb.setVisible(altin !== null);
+      if (altin !== null) {
+        tb.yazi.setText(`Eksiği altınla al · ${altin}`);
+        tb.yazi.setColor(this.oyun.altin >= altin ? '#ffd76a' : '#7a7060');
+      }
+    };
+  }
+
+  binaPaneli(p, k) {
+    const E = this.E, B = BINALAR[k];
+    const sv = p.yazi(p.ust, '', 30, '#c9a24a', { fontStyle: 'bold' });
+    p.yazi(p.ust + 44, B.aciklama, 24, '#c8bca4');
+    const satirlar = [];
+    if (k !== 'ev') {
+      const isci = p.yazi(p.ust + 150, '', 30, '#efe6d2', { fontStyle: 'bold' });
+      p.dugme(-190, p.ust + 240, 110, 64, '−', () => E.isciEkle(k, -1), 40);
+      p.dugme(-60, p.ust + 240, 110, 64, '+', () => E.isciEkle(k, 1), 40);
+      const uretim = p.yazi(p.ust + 300, '', 26);
+      satirlar.push(() => {
+        isci.setText(`${B.is[0].toUpperCase() + B.is.slice(1)}: ${E.bina[k].isci} / ${E.yerSayisi(k)}   (boşta ${E.bosta})`);
+        uretim.setText(this.uretimMetni(k));
+      });
+    } else {
+      const n = p.yazi(p.ust + 150, '', 30, '#efe6d2', { fontStyle: 'bold' });
+      const g = p.yazi(p.ust + 200, '', 24, '#c8bca4');
+      satirlar.push(() => {
+        n.setText(`Halk ${E.nufus} / ${E.barinak}`);
+        g.setText('Ambarda yiyecek ve evde yer varsa her gün en çok 3 sığınmacı gelir.');
+      });
+    }
+    satirlar.push(this.yukseltSatiri(p, p.ust + 470, () => E.yukseltBedeli(k), t => E.yukselt(k, this.oyun, t) && this.oyun.sesCal('level_up', 0.4)));
+    this.panelYenile = () => {
+      sv.setText(`Seviye ${E.bina[k].seviye}` + (B.kalite ? ` · ${B.kalite[E.bina[k].seviye - 1].ad}` : ''));
+      for (const f of satirlar) f();
+    };
+  }
+
+  uretimMetni(k) {
+    const E = this.E, B = BINALAR[k], w = E.bina[k].isci, v = E.verim(k);
+    if (k === 'duvarci') return `Günde en çok ${Math.floor(w * B.onarim * v)} sur canı onarır\n(her 40 can için 3 taş, 1 odun).\nSur: ${Math.round(this.oyun.surCan)}/${this.oyun.surEnFazla}`;
+    if (k === 'demirci') return `Günde ${w * B.tuketim.demir} demirden ${Math.floor(w * B.tuketim.demir * B.uretim.uc * v)} ok ucu.\nOk hasarı ×${E.ucKalite.hasar}`;
+    if (k === 'yayci') return `Günde en çok ${Math.floor(w * B.uretim.ok * v)} ok (her ok 1 uç ister).\nÖnce eksik yayları yapar (yay: ${E.kaynak.yay}).\nAsker oku hasarı ×${E.yayKalite.hasar}`;
+    const [m, n] = Object.entries(B.uretim)[0];
+    return `Günde +${Math.floor(w * n * v)} ${KAYNAKLAR[m].ad.toLowerCase()}` + (k === 'ciftlik' ? `\nHalk günde ${E.nufus} yiyecek yer.` : '');
+  }
+
+  surPaneli(p) {
+    const E = this.E, o = this.oyun;
+    const can = p.yazi(p.ust, '', 30, '#efe6d2', { fontStyle: 'bold' });
+    const onarB = p.dugme(-40, p.ust + 90, 440, 64, '', () => E.acilOnar(o) && o.sesCal('coin', 0.5), 24);
+    const yuk = this.yukseltSatiri(p, p.ust + 150, () => E.surBedeli(), t => E.surYukselt(o, t) && o.sesCal('level_up', 0.4));
+    p.yazi(p.ust + 400, 'Okçu askerler', 30, '#c9a24a', { fontStyle: 'bold' });
+    const ask = p.yazi(p.ust + 444, '', 28, '#efe6d2', { fontStyle: 'bold' });
+    p.dugme(-190, p.ust + 530, 110, 64, '−', () => { E.askerEkle(-1); }, 40);
+    p.dugme(-60, p.ust + 530, 110, 64, '+', () => { E.askerEkle(1); }, 40);
+    p.yazi(p.ust + 580, 'Sur her yükseldiğinde bir okçu yeri daha açılır. Her asker bir kişi ve bir yay ister. Yaycı boş kalan vaktinde yay yapar. Askerler de ambardan ok harcar.', 22, '#c8bca4');
+    this.panelYenile = () => {
+      can.setText(`Sur canı ${Math.round(o.surCan)} / ${o.surEnFazla}  ·  Seviye ${E.surSeviye}`);
+      const b = E.acilOnarimBilgi(o);
+      if (E.acilOnarildi) onarB.yazi.setText('Bugün onarıldı').setColor('#7a7060');
+      else if (b.can <= 0) onarB.yazi.setText('Sur sağlam').setColor('#7a7060');
+      else onarB.yazi.setText(`Altınla onar: +${b.can} can · ${b.altin} altın`).setColor(o.altin >= b.altin ? '#ffd76a' : '#7a7060');
+      yuk();
+      ask.setText(`Asker: ${E.asker} / ${E.askerYeri}   ·   Yay: ${E.kaynak.yay}`);
+    };
+  }
+
+  pazarPaneli(p) {
+    const E = this.E, o = this.oyun;
+    p.yazi(p.ust, 'Bir parti al ya da sat. Aldıkça fiyat o gün artar.', 24, '#c8bca4');
+    const satirlar = [];
+    Object.keys(PAZAR).filter(k => KAYNAKLAR[k]).forEach((k, i) => {
+      const yy = p.ust + 70 + i * 120;
+      const t = p.yazi(yy, '', 28, '#efe6d2', { fontStyle: 'bold' });
+      const al = p.dugme(-110, yy + 70, 220, 58, '', () => E.ticaret(k, true, o) && o.sesCal('coin', 0.4), 24);
+      const sat = p.dugme(120, yy + 70, 200, 58, '', () => E.ticaret(k, false, o) && o.sesCal('coin', 0.3), 24);
+      satirlar.push(() => {
+        t.setText(`${KAYNAKLAR[k].ad} ×${PAZAR[k].parti}   (ambarda ${E.kaynak[k]})`);
+        const fa = E.fiyat(k, true), fs = E.fiyat(k, false);
+        al.yazi.setText(`Al · ${fa} altın`).setColor(o.altin >= fa ? '#ffd76a' : '#7a7060');
+        sat.yazi.setText(`Sat · ${fs}`).setColor(E.kaynak[k] >= PAZAR[k].parti ? '#efe6d2' : '#7a7060');
+      });
+    });
+    this.panelYenile = () => satirlar.forEach(f => f());
+  }
+
+  // Gün sonu raporu (ortada). zorla = kuleye tıklandı
+  raporGoster(zorla) {
+    const r = this.E.rapor;
+    if (!r && zorla) {
+      // İlk gün: henüz rapor yok, tıklama boşa gitmesin
+      this.panelKur('Günün raporu', p => {
+        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.', 26);
+        p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+      });
+      return;
+    }
+    if (!r || (!this.ilkRapor && !zorla)) return;
+    this.ilkRapor = null;
+    const ad = k => KAYNAKLAR[k].ad.toLowerCase();
+    const yapilan = Object.entries(r.yapilan).filter(([k]) => k !== 'ok').map(([k, v]) => `+${v} ${ad(k)}`);
+    const okYapilan = (r.yapilan.ok || 0) - r.toplanan;
+    const satir = [
+      `Üretim: ${yapilan.join(', ') || 'yok'}`,
+      `Oklar: ${r.atilan} atıldı, ${r.toplanan} toplandı` + (okYapilan > 0 ? `, yaycı ${okYapilan} yaptı` : ''),
+      r.onarim > 0 ? `Duvarcılar suru ${r.onarim} can onardı.` : '',
+      `Halk ${r.yenen} yiyecek yedi.` + (r.gelen ? ` ${r.gelen} sığınmacı geldi.` : ''),
+      r.moral !== undefined ? `Moral ${r.moral >= 0 ? '+' : ''}${r.moral} (şimdi ${Math.round(this.E.moral)}).` : '',
+      ...r.notlar,
+    ].filter(Boolean);
+    this.panelKur(`${this.oyun.dalga}. günün raporu`, p => {
+      p.yazi(p.ust, satir.join('\n\n'), 26, '#efe6d2', { lineSpacing: 4 });
+      p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+    });
+    this.secili = 'rapor';
+  }
+
+  // ---------------- Köylüler ----------------
+  // Her binada en çok 4 işçi, boştakiler meydanda, askerler kapıda
+  koyluleriDiz() {
+    const E = this.E;
+    const istek = {};
+    for (const k of Object.keys(BINALAR)) if (k !== 'ev') istek[k] = Math.min(4, E.bina[k].isci);
+    istek.bosta = Math.min(6, Math.max(0, E.bosta));
+    istek.asker = E.asker;
+    for (const [g, n] of Object.entries(istek)) {
+      const l = this.koyluler[g] || (this.koyluler[g] = []);
+      while (l.length < n) l.push(this.koyluYap(g, l.length));
+      while (l.length > n) l.pop().sprite.destroy();
+    }
+  }
+
+  koyluYap(grup, i) {
+    const O = this.O;
+    // Askerler nöbetçi kılığında, ötekiler üç köylü tipinden biri
+    // PixelLab köylüsü varsa (deneme) hepsi o, yoksa eski üç tip
+    const K = this.M.koylu;
+    const tur = grup === 'asker' ? (K.nobetcipl_a ? 'nobetcipl' : 'nobetci')
+      : K.koylupl_a ? this.plKoyluler()[(grup.length + i) % this.plKoyluler().length] : ['koylu1', 'koylu2', 'koylu3'][(grup.length + i) % 3];
+    const disari = DIS_BINALAR.includes(grup);
+    // Dışarıdakiler işinin başında doğar, içeridekiler evin önünde
+    const bas = disari ? this.binaMeta(grup).is : this.M.binalar['ev' + this.E.bina.ev.seviye].is;
+    const m = this.M.koylu[tur + '_a'];
+    const sp = this.add.sprite(0, 0, tur + '_a', 0).setOrigin(0.5, m.footY / m.fh).setScale(m.piksel || O);
+    const k = { sprite: sp, tur, grup, disari, x: (bas[0] + (Math.random() - 0.5) * 16) * O, y: (bas[1] + Math.random() * 6) * O,
+      bekle: Math.random() * 2, hedef: null, isBasi: true, hiz: 45 + Math.random() * 25 };
+    // İlk açılışta herkes evin önünde yığılmasın: işinin başında (askerler kapıda) başlar
+    if (this.ilkDizilis) [k.x, k.y] = this.yerBul(k);
+    sp.play(tur + '_a_idle');
+    sp.setPosition(k.x, k.y).setDepth(this.derinlik(k.y, disari));
+    return k;
+  }
+
+  // PixelLab köylü çeşitleri (kale.json'da hangileri varsa)
+  plKoyluler() { return ['koylupl', 'koylupl2', 'koylupl3', 'koylupl4'].filter(t => this.M.koylu[t + '_a']); }
+
+  // Grubun gideceği yer (ekran pikseli): binanın iş noktası, meydan ya da kapı
+  yerBul(k) {
+    const O = this.O, N = this.M.alanlar.noktalar;
+    const sapma = (n) => (Math.random() - 0.5) * n;
+    if (k.grup === 'asker') return [(N.kapi[0] - 20 + sapma(24)) * O, (N.kapi[1] - 12 + sapma(14)) * O];
+    if (k.grup === 'bosta' || !k.isBasi) return [(N.meydan[0] + sapma(50)) * O, (N.meydan[1] + sapma(26)) * O];
+    const is = this.binaMeta(k.grup).is;
+    return [(is[0] + sapma(20)) * O, (is[1] + sapma(10)) * O];
+  }
+
+  update(t, ms) {
+    const dt = Math.min(ms / 1000, 0.05);
+    for (const l of Object.values(this.koyluler)) for (const k of l) this.koyluGuncelle(k, dt);
+  }
+
+  koyluGuncelle(k, dt) {
+    const sp = k.sprite;
+    if (k.hedef) {
+      const dx = k.hedef[0] - k.x, dy = k.hedef[1] - k.y, d = Math.hypot(dx, dy);
+      if (d < 4) {
+        k.hedef = null;
+        k.bekle = 2 + Math.random() * 5;
+        // İşçi binasında çalışır, ötekiler bekler
+        const calis = !['bosta', 'asker'].includes(k.grup) && k.isBasi;
+        sp.play(k.tur + '_a' + (calis ? '_work' : '_idle'), true);
+      } else {
+        const v = k.hiz * this.O / 3 * dt;
+        k.x += dx / d * v;
+        k.y += dy / d * v;
+        // Aşağı giderken önden (_a), yukarı giderken arkadan (_y) görünür; sola giderken aynalanır
+        sp.play(k.tur + (dy >= 0 ? '_a' : '_y') + '_walk', true);
+        sp.setFlipX(dx < 0);
+      }
+    } else {
+      k.bekle -= dt;
+      if (k.bekle <= 0) {
+        // İşçi çoğunlukla işinin başında; içeridekiler arada bir meydana uğrar.
+        // Dışarıdakiler (maden, taş ocağı) hep işinin başındadır.
+        k.isBasi = k.disari || (!['bosta', 'asker'].includes(k.grup) && (Math.random() < 0.75 || !k.isBasi));
+        k.hedef = this.yerBul(k);
+      }
+    }
+    sp.setPosition(Math.round(k.x), Math.round(k.y)).setDepth(this.derinlik(k.y, k.disari));
+  }
+
+  // ---------------- Çıkış ----------------
+  dukkanaGit() {
+    this.panelKapat();
+    this.scene.sleep();
+    this.oyun.dukkanAc();
+  }
+
+  savasaCik() {
+    if (this.cikiyor) return;
+    this.panelKapat();
+    const cik = () => { this.cikiyor = false; this.scene.sleep(); this.oyun.iceridenCik(); };
+    this.cikiyor = true;
+    // Akşam olur (binalar gece görünür), sonra savaş başlar
+    if (typeof Varyant !== 'undefined') Varyant.aksam(this, cik); else cik();
+  }
+}
