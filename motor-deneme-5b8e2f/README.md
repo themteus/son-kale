@@ -28,6 +28,24 @@ gelene dek (kurtuluş dalgası) dayanmalısın. Her 10. gece höyüklerden bir A
 - Bütün metinler `js/hikaye.js` → `HIKAYE` içinde; sayfa eklemek için listeye bir satır ekle.
   Hikâyenin tamamı okunaklı hâliyle: `HIKAYE.md`.
 
+## Savaş hissi, Ak Devler ve gece olayları
+- **Vuruş hissi:** isabette düşman beyaz parlar, gövde vuruşunda hasar sayısı uçar; kafadan ya da ağır
+  düşmanı öldürünce oyun bir anlığına donar. Dalganın son düşmanı ve Ak Dev ağır çekimde düşer.
+- **Kombo:** art arda hızlı öldürmeler (1,6 sn içinde) kombo sayar; 3'lüden sonra her öldürme ek altın verir.
+- **Üç Ak Dev** (10/20/30. gece, sonra sırayla döner): *Taş Yürekli* (gövde oku az işler, kükreyince sürü
+  hızlanır), *Ölü Çağıran* (yürürken yerden zombi kaldırır), *Sisli* (canı azalınca sise bürünür, kafa vuruşu
+  sisi dağıtır; son nefeste öfkelenir). Ayarlar: `AK_DEVLER`.
+- **Gece olayları** (Ak Dev gecesi dışında %35): Kan Ayı, Sisli Gece, Sağanak, Dolunay, Kurt Gecesi.
+  Gözcüler bir gün önceden yazar. Ayarlar: `GECE_OLAYLARI`.
+
+## Görevler ve Şan
+- **Görevler** (`js/gorevler.js`): ilk günlerde sol üstte ödüllü küçük görevler oyunu öğretir
+  (yaycıya işçi, sura asker, kafa vuruşu, pazar, kışla, sefer, ilk Ak Dev). İlgili binanın etiketi yanıp söner.
+  Hepsi bitince her gün bir "günün görevi" çıkar (isabet, kafa, kombo, sur canı); ödülü Şan.
+- **Şan** (`js/san.js`): oyun bitince dayanılan geceye göre Şan kazanılır, başarımlar da Şan verir.
+  Başlangıç menüsünde **Şan Salonu**: başlangıç oku/altını/halkı, ok hasarı, sur canı kalıcı artar.
+- **Ayarlar:** savaşta sağ üstte ×1/×2 hız düğmesi (F tuşu); duraklat penceresinde ekran sarsıntısı aç/kapa.
+
 ## Yardımcı kurallar
 - **Gözcüler:** iç kalede ve dükkânda yarınki dalga yazar (kaç düşman, kaç dev, patron var mı).
 - **Kafa serisi:** art arda 3 kafa vuruşu → sıradaki tam gerili ok "keskin" olur (×2 hasar,
@@ -44,6 +62,8 @@ gelene dek (kurtuluş dalgası) dayanmalısın. Her 10. gece höyüklerden bir A
 - `js/dusman.js`   : düşman türleri ve davranışları
 - `js/okcu.js`     : oyuncunun yayı (bas = ger, bırak = at) ve okçu askerler
 - `js/arayuz.js`   : savaş ekranının üst bilgisi, düğmeler, pencereler
+- `js/gorevler.js` : öğretici görevler ve günün görevi
+- `js/san.js`      : Şan (oyunlar arası ilerleme), Şan Salonu ödülleri, başarımlar
 - `js/hikaye.js`   : hikâye metinleri (açılış, kronik, Ak Dev geceleri, sonlar) ve hikâye penceresi
 - `js/ekonomi.js`  : kaynaklar, nüfus, binalar, gün sonu hesabı, pazar, otomatik dağıt
 - `js/kale.js`     : iç kale sahnesi (binalar, köylüler, paneller)
