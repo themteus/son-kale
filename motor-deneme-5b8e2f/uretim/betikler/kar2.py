@@ -90,11 +90,16 @@ def karla(ad, im):
     yesil = (g >= r * 0.98) & (g > b * 1.1)
     # trees: dark-green cores of a fair size, grown into whole crowns (lit needles included)
     # crowns: dark green needles + the near-black outline around them close the shape, then fill it
-    koyu = ((yesil & (lum <= 62)) | (lum <= 40)) & ~yapi & ~cati
+    # needles are textured (smooth dark green = grass in shadow), and a crown is mostly green
+    koyu = ((yesil & (lum <= 62) & (sd >= 7)) | (lum <= 40)) & ~yapi & ~cati
     lab, n = ndimage.label(koyu)
     if n:
         boy = np.bincount(lab.ravel()); boy[0] = 0
-        koyu &= (boy >= 25)[lab]
+        yes = np.bincount(lab.ravel(), weights=(yesil & (lum <= 62)).ravel(), minlength=n + 1)
+        # crowns have lit needle highlights around their dark core, grass in shadow does not
+        parlak = ndimage.binary_dilation(yesil & (lum > 78), iterations=1)
+        vur = np.bincount(lab.ravel(), weights=(parlak & (lab > 0)).ravel(), minlength=n + 1)
+        koyu &= ((boy >= 25) & (yes >= 0.5 * np.maximum(boy, 1)) & ((vur >= 0.08 * boy) | (boy < 400) | (boy >= 3000)))[lab]
     agac = ndimage.binary_fill_holes(ndimage.binary_closing(koyu, np.ones((5, 5))))
     agac &= ~ndimage.binary_opening(cimen0 := ((g > r * 1.02) & (g > b * 1.12) & (lum > 55) & (lum < 125)), np.ones((9, 9)))
     agac = ndimage.binary_dilation(agac, iterations=1) & ~yapi & ~cati
@@ -125,17 +130,27 @@ def karla(ad, im):
     kir = (r > g * 1.15) & (g > b * 1.0) & (lum > 28) & (lum < 175) & alfa & ~yapi & ~cati & ~agac
     for _ in range(3):
         zemin |= ndimage.binary_dilation(zemin, iterations=2) & kir
+    # small leftovers inside the snow that are not trees / walls / roofs (green specks, crumbs) -> snow
+    lab, n = ndimage.label(alfa & ~zemin)
+    if n:
+        boy = np.bincount(lab.ravel()); boy[0] = 0
+        cekirdek = np.zeros(n + 1, bool)
+        np.maximum.at(cekirdek, lab.ravel(), (koyu | yapi | cati).ravel())
+        zemin |= (((boy < 150) & ~cekirdek) | (boy < 60))[lab] & (lab > 0) & ~yapi & ~cati
+    # smoother snow edge: no 1 px teeth
+    zemin = ndimage.binary_opening(ndimage.binary_closing(zemin, np.ones((3, 3))), np.ones((2, 2))) | (zemin & ~ndimage.binary_dilation(~zemin, iterations=1) )
+    zemin &= alfa & ~yapi & ~cati
     nesne = alfa & ~zemin
 
     ton = kar_tonlari()           # 5 tones light -> dark (blue grey)
     out = f.copy()
     # ground texture: old brightness (bumps, tracks) + small clustered noise, 4 tones
     rng = np.random.default_rng(3)
-    gur = ndimage.gaussian_filter(rng.standard_normal((H, W)), 1.1)
+    gur = ndimage.gaussian_filter(rng.standard_normal((H, W)), 2.4)   # larger, calmer clusters
     gur /= gur.std() + 1e-6
-    yerel = ndimage.gaussian_filter(lum, 1.0)
-    yerel = (yerel - ndimage.gaussian_filter(lum, 12)) / 25.0
-    t = 1.0 - 0.9 * yerel - 0.6 * gur                      # ~0 light .. ~3 dark
+    yerel = ndimage.gaussian_filter(lum, 2.0)
+    yerel = (yerel - ndimage.gaussian_filter(lum, 14)) / 25.0
+    t = 0.9 - 0.7 * yerel - 0.5 * gur                      # ~0 light .. ~3 dark
     # shadow: an object up-left of the pixel (light from the top left)
     golge = np.zeros((H, W), bool)
     for k in range(1, 9):
@@ -145,31 +160,53 @@ def karla(ad, im):
     yakin = ndimage.binary_dilation(nesne, iterations=2) & zemin
     t = np.where(golge, t + 2.2, t)
     t = np.where(yakin & ~golge, t - 0.8, t)               # light-facing drift at object feet
+    # soft edge: one tone step on the 1-2 px rim against objects
+    kenar1 = zemin & ndimage.binary_dilation(nesne, iterations=1)
+    kenar2 = zemin & ndimage.binary_dilation(nesne, iterations=2) & ~kenar1
+    t = np.where(kenar1, np.maximum(t, 2), t)
+    t = np.where(kenar2, np.maximum(t, 1), t)
     idx = np.clip(np.round(t), 0, 4).astype(int)
     out[zemin] = ton[idx][zemin]
-    ZEMIN[:] = [zemin]
 
     # caps on objects
     acik = zemin | ~alfa                                   # open space above a cap
     # structures: top faces = stone pixels whose pixel above is not stone (old art mask, so the new
     # mortar does not count); 2-3 px deep
     ust = yapi & ~kaydir(yapi, 1, 0)
+    # 3-4 px deep caps with a rounded lower edge (depth 3, 4 every other stone)
+    derin = 3 + ((np.arange(W)[None, :] // 5) % 2)
     kap_y = ust.copy()
-    for d in (1, 2):
-        kap_y |= kaydir(ust, d, 0) & yapi
+    sira = np.zeros((H, W), int)
+    for d in (1, 2, 3):
+        yeni = kaydir(ust, d, 0) & yapi & ((d < derin) | (d < 3))
+        sira = np.where(yeni & ~kap_y, d, sira)
+        kap_y |= yeni
     kap_y &= alfa
-    out[kap_y] = ton[np.where(kaydir(kap_y, 1, 0) & kap_y, 1, 0)][kap_y]
+    out[kap_y] = ton[np.clip(sira, 0, 2)][kap_y]          # light on top, shaded towards the bottom
     alt = kaydir(kap_y, 1, 0) & ~kap_y & yapi
     out[alt] = np.array([88, 96, 122], np.float32)
-    # roofs: 2 px on the top edge
-    ust_c = cati & ~kaydir(cati, 1, 0)
-    kap_c = (ust_c | (kaydir(ust_c, 1, 0) & cati)) & alfa
-    out[kap_c] = ton[0]
+    # snow piled at the wall feet: 2 px up onto the wall where snow lies below it
+    dip = yapi & (kaydir(zemin, -1, 0) | kaydir(zemin, -2, 0)) & ~kap_y
+    out[dip] = ton[1]
+    # roofs: snow on the upper ~40 % of every roof column, broken lower edge
+    kap_c = np.zeros((H, W), bool)
+    for x in np.nonzero(cati.any(0))[0]:
+        ys = np.nonzero(cati[:, x])[0]
+        n_ = max(2, int(len(ys) * (0.36 + 0.08 * ((x // 3) % 2))))
+        kap_c[ys[:n_], x] = True
+    kap_c &= alfa
+    out[kap_c] = ton[np.clip((lum[kap_c] < 70).astype(int) + (lum[kap_c] < 45).astype(int), 0, 2)]
     # trees: 1-2 px on branch tops facing open sky / snow
     agac_n = agac & nesne
     ust_a = agac_n & kaydir(acik, 1, 0)
     kap_a = ust_a | (kaydir(ust_a, 1, 0) & agac_n & (lum > 45))
     out[kap_a] = ton[np.where(ust_a, 0, 1)][kap_a]
+    # rocks, carts, crates...: 2 px on top edges facing open snow / sky
+    diger = nesne & ~agac & ~yapi & ~cati & ~kap_a
+    ust_d = diger & kaydir(acik, 1, 0)
+    kap_d = ust_d | (kaydir(ust_d, 1, 0) & diger)
+    out[kap_d] = ton[np.where(ust_d, 0, 1)][kap_d]
+    kap_a = kap_a | kap_d
     # cool what is left: moss on stone, summer greens, trunks; then a light winter cast on objects
     kalan = nesne & ~kap_y & ~kap_c & ~kap_a & ~alt
     yosun = kalan & yesil & ~agac
@@ -178,6 +215,7 @@ def karla(ad, im):
     agac_k = kalan & agac
     out[agac_k] = out[agac_k] * np.array([0.9, 0.95, 1.06])
     out[kalan] = out[kalan] * 0.92 + np.array([168, 182, 210], np.float32) * 0.08
+    ZEMIN[:] = [zemin, kap_y | kap_c | kap_a | dip | alt]
     return np.clip(out, 0, 255)
 
 
@@ -192,9 +230,11 @@ def kis(ad):
     if n:
         boy = np.bincount(lab.ravel()); boy[0] = 0
         kir &= (boy < 1500)[lab]
+    z, kapak = ZEMIN
+    kir &= ~kapak                         # red cloth comes back, but not over snow caps
     q[kir] = a[kir, :3]
-    z = ZEMIN[0]
     q[z] = k[z].astype(np.uint8)          # snow tones bypass the palette (it would merge them)
+    q[kapak] = k[kapak].astype(np.uint8)
     out = Image.fromarray(np.dstack([q, a[..., 3]]).astype(np.uint8), "RGBA") if ad == "on" else Image.fromarray(q.astype(np.uint8))
     p = f"{HD}/{ad}_karli.png"
     out.save(p)

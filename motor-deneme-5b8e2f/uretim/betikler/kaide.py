@@ -100,6 +100,8 @@ def kaide_sil(ad):
         for x in np.nonzero(ustd.any(0))[0]:
             y0 = np.nonzero(ustd[:, x])[0].max()
             karo[y0 + 1:y0 + kal + 3, x] |= dolu[y0 + 1:y0 + kal + 3, x] & ~koru[y0 + 1:y0 + kal + 3, x]
+        for x0, y0, x1, y1 in KORU_KUTU.get(ad, []):
+            karo[y0:y1, x0:x1] = False
         a[karo] = 0
         KESIK[ad] = S
     else:
@@ -115,7 +117,9 @@ def kaide_sil(ad):
         kenar_y = np.where(xx <= cx, yl + (xx - xl) / 2, yr + (xr - xx) / 2) + 0.5
         yy = np.arange(H)[:, None]
         yan = dolu & (yy > kenar_y[None, :] + 1)
-        a[yan] = 0
+        # grass rim along the front edges of the bed (olive / green), now the lowest band
+        rim = dolu & (yy > kenar_y[None, :] - 4) & (g > r * 0.95) & (g > b * 1.15)
+        a[yan | rim] = 0
         KENAR[ad] = (xl, yl, xr, yr, cx)
     # drop crumbs left behind: <10 px anywhere, <30 px inside the cut slab region (not chickens: white)
     dolu = a[..., 3] > 0
@@ -153,7 +157,8 @@ def kaide_sil(ad):
 KENAR = {}
 NESNE = {}   # object without shadow (for the winter / night versions)
 KESIK = {}
-ON_NESNE = {"odun", "kumes"}   # something stands in front of the slab (stump, chickens)
+ON_NESNE = {"odun", "kumes"}
+KORU_KUTU = {"odun": [(28, 37, 46, 52)]}   # the chopping stump in front of the log pile (x0, y0, x1, y1)   # something stands in front of the slab (stump, chickens)
 
 
 def golge_ciz(a, guc=78):

@@ -164,7 +164,7 @@ def desen(H, W, poli, kind, par, isik, ramp, tohum=1):
     sol_k = (ui < 1) & ~derz & ~ust_k
     idx = np.where(ust_k, idx - 2, idx)
     idx = np.where(sol_k, idx - 1, idx)
-    idx = np.where(derz, idx + 4, idx)
+    idx = np.where(derz, idx + 5, idx)          # joints one step darker (review)
     if dx is not None:
         idx = np.where(np.abs(dx) > 0.96, len(ramp) + 2, idx)
     idx = np.clip(idx, 0, len(ramp) - 1)
@@ -201,6 +201,8 @@ def uygula(ad, hd_img, yuzler=None):
             eski = o[ta if ta.any() else m, :3].astype(np.float32).mean(0)
             eski = eski * 0.5 + GENEL[ad] * 0.5
             renk = np.clip(renk + (eski - renk[m].mean(0)), 0, 255)
+            mm = renk[m].mean(0)
+            renk[m] = np.clip((renk[m] - mm) * 1.12 + mm, 0, 255)   # a little more contrast
             if i >= KALE_YUZ.get(ad, 99):
                 lo = o[m, :3].astype(np.float32) @ [0.299, 0.587, 0.114]
                 ln = renk[m] @ [0.299, 0.587, 0.114]
@@ -260,6 +262,8 @@ def arka_son(im):
     mo = ndimage.uniform_filter(lum_o, 7)
     sd = np.sqrt(np.maximum(ndimage.uniform_filter(lum_o ** 2, 7) - mo ** 2, 0))
     duz_cimen = (g > r * 1.02) & (g > b * 1.15) & (lum_o > 55) & (sd < 14)
+    # bottom-middle grass: the redraw left a dark blurred patch -> old art (whole box)
+    a[830:1062, 720:1002] = o[830:1062, 720:1002]
     for x0, y0, x1, y1 in ((330, 700, 560, 830), (130, 620, 480, 760)):     # screen coords
         kut = np.zeros((H, W), bool); kut[y0:y1, x0:x1] = True
         al = kut & ~ndimage.binary_opening(duz_cimen, np.ones((3, 3)))
