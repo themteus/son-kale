@@ -17,6 +17,17 @@ Bir yerel sunucu gerekir (dosyayı çift tıklamak yetmez, tarayıcı görseller
 4. Sur ilk yıkıldığında ambarda 40 odun varsa halk bir kez barikat kurar (surun %25'i).
    İkinci kez yıkılırsa ya da halk 5 kişinin altına inerse oyun biter.
 
+## Hikâye
+Ilgın Beyliği'nde saray hekimi Ağan, kuzeydeki Üç Höyük'ü açıp "Solgun Sis"i salar; ölüler kalkar.
+Halk son sığınak Karataş Hisarı'na ("Son Kale") kaçar. Sen kulede kalan son okçusun; Kuzey ordusu
+gelene dek (kurtuluş dalgası) dayanmalısın. Her 10. gece höyüklerden bir Ak Dev uyanır.
+- Yeni oyunda 3 sayfalık açılış, sonra bazı sabahlar iç kalede kâtibin **kroniği** açılır
+  (yeni düşman gelmeden önce hikâyesi anlatılır). Okunanlar kayda yazılır, bir daha çıkmaz.
+- "Rapor ve kronik" kulesine tıkla → **Kronik**: okunan bütün sayfalar yeniden okunur.
+- Kurtuluşta 3 sayfalık son, kale düşerse kısa acı son yazılır.
+- Bütün metinler `js/hikaye.js` → `HIKAYE` içinde; sayfa eklemek için listeye bir satır ekle.
+  Hikâyenin tamamı okunaklı hâliyle: `HIKAYE.md`.
+
 ## Yardımcı kurallar
 - **Gözcüler:** iç kalede ve dükkânda yarınki dalga yazar (kaç düşman, kaç dev, patron var mı).
 - **Kafa serisi:** art arda 3 kafa vuruşu → sıradaki tam gerili ok "keskin" olur (×2 hasar,
@@ -33,6 +44,7 @@ Bir yerel sunucu gerekir (dosyayı çift tıklamak yetmez, tarayıcı görseller
 - `js/dusman.js`   : düşman türleri ve davranışları
 - `js/okcu.js`     : oyuncunun yayı (bas = ger, bırak = at) ve okçu askerler
 - `js/arayuz.js`   : savaş ekranının üst bilgisi, düğmeler, pencereler
+- `js/hikaye.js`   : hikâye metinleri (açılış, kronik, Ak Dev geceleri, sonlar) ve hikâye penceresi
 - `js/ekonomi.js`  : kaynaklar, nüfus, binalar, gün sonu hesabı, pazar, otomatik dağıt
 - `js/kale.js`     : iç kale sahnesi (binalar, köylüler, paneller)
 - `js/savas.js`    : oyunun akışı, oklar, isabet

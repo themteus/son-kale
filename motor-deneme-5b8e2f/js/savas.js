@@ -124,6 +124,7 @@ class SavasSahnesi extends Phaser.Scene {
     this.yagmurBekleme = 0;
     this.kurtuldu = false;
     this.gorulen = {};
+    this.hikaye = { okunan: [] }; // okunan kronik sayfaları (hikaye.js)
     this.ekonomi = new Ekonomi();
 
     this.manzara = new Manzara(this);
@@ -156,6 +157,7 @@ class SavasSahnesi extends Phaser.Scene {
     // Klavye: Esc duraklat, M ses, 1-2-3 ok türü, Q yağmur; dükkânda 1-9 satın al, Boşluk devam
     this.input.keyboard.on('keydown', e => {
       if (e.repeat) return; // basılı tutulan tuş tekrar tekrar çalışmasın
+      if (Hikaye.acik) return; // hikâye penceresi açıkken tuşlar onundur
       const k = e.key.toLowerCase();
       if (k === 'escape' || k === 'p') this.duraklat();
       else if (k === 'm') this.sesAcKapa();
@@ -207,11 +209,16 @@ class SavasSahnesi extends Phaser.Scene {
     Kayit.yaz('zorluk', ad);
   }
 
+  // Yeni oyun: önce açılış hikâyesi, sonra iç kale
   oyunuBaslat() {
+    if (Hikaye.acik) return;
     this.arayuz.paneliKapat();
     if (!this.muzik.isPlaying) this.muzik.play();
-    this.durum = 'kale';
-    this.iceGir();
+    this.durum = 'giris';
+    Hikaye.goster(this, HIKAYE.giris, () => {
+      this.durum = 'kale';
+      this.iceGir();
+    }, { sonYazi: 'Kaleye gir ▶' });
   }
 
   // ---------------- Kayıt ----------------
@@ -221,7 +228,7 @@ class SavasSahnesi extends Phaser.Scene {
     const veri = {
       surum: 1, zorluk: this.zorlukAdi, dalga: this.dalga, altin: this.altin, seviye: this.seviye, stok: this.stok,
       surCan: Math.round(this.surCan), kurtuldu: this.kurtuldu, oldurulen: this.oldurulen, kafaVurusu: this.kafaVurusu,
-      gorulen: this.gorulen, keskinHazir: this.keskinHazir, sonraki: this.kesif(),
+      gorulen: this.gorulen, hikaye: this.hikaye, keskinHazir: this.keskinHazir, sonraki: this.kesif(),
       ekonomi: { kaynak: E.kaynak, nufus: E.nufus, bina: E.bina, asker: E.asker, surSeviye: E.surSeviye, pazar: E.pazar, rapor: E.rapor, acilOnarildi: E.acilOnarildi,
         yapi: E.yapi, moral: E.moral, sefer: E.sefer, solenYapildi: E.solenYapildi },
     };
@@ -233,10 +240,11 @@ class SavasSahnesi extends Phaser.Scene {
   kayitSil() { Kayit.yaz('kayit', 'null'); }
   // Kayıtlı oyunu yükleyip iç kaleden devam et
   devamEt() {
+    if (Hikaye.acik) return;
     const v = this.kayitOku();
     if (!v) return this.oyunuBaslat();
     this.zorlukSec(v.zorluk);
-    for (const k of ['dalga', 'altin', 'seviye', 'stok', 'kurtuldu', 'oldurulen', 'kafaVurusu', 'gorulen', 'keskinHazir', 'sonraki']) if (v[k] !== undefined) this[k] = v[k];
+    for (const k of ['dalga', 'altin', 'seviye', 'stok', 'kurtuldu', 'oldurulen', 'kafaVurusu', 'gorulen', 'hikaye', 'keskinHazir', 'sonraki']) if (v[k] !== undefined) this[k] = v[k];
     Object.assign(this.ekonomi, v.ekonomi);
     this.surEnFazla = 0;
     this.surCanAyarla();
@@ -297,7 +305,7 @@ class SavasSahnesi extends Phaser.Scene {
     this.kale.ortamTonu(r.sis);
     this.askerleriDiz();
     this.barikatKuruldu = false;
-    if (patron) this.arayuz.duyur(`${n}. Dalga`, 'Yerin sarsılıyor... Ak Dev geliyor!');
+    if (patron) this.arayuz.duyur(`${n}. Dalga`, HIKAYE.patronYazi(n));
     else this.arayuz.duyur(`${n}. Dalga`, this.ruzgar === 0 ? 'Rüzgâr yok' : '');
   }
 
