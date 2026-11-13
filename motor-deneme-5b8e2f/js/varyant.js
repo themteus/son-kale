@@ -108,7 +108,7 @@ const Varyant = {
   uygula(sahne, sp, temel) {
     const yeni = this.anahtar(sahne, temel, this.hal(sahne));
     const eski = sp.texture && sp.texture.key;
-    if (eski === yeni) return;
+    if (eski === yeni) { this.tonla(sahne, sp, yeni); return; } // doku aynı kalsa da ton (kış gündüz → kış gecesi) güncellenmeli
     if (!eski || eski === '__MISSING' || !sp.visible || !sahne.sys.isActive()) { sp.setTexture(yeni); this.tonla(sahne, sp, yeni); return; }
     const hayalet = sahne.add.image(sp.x, sp.y, eski).setOrigin(sp.originX, sp.originY)
       .setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth + 0.001);
