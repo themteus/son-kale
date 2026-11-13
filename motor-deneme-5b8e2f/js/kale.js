@@ -11,7 +11,7 @@
 // =============================================================
 
 // Tıklanabilir yerlerin adları (yerleri kale.json → alanlar)
-const KALE_ALANLARI = { sur: 'Sur ve Kapı', pazar: 'Pazar', rapor: 'Günün raporu' };
+const KALE_ALANLARI = { sur: 'Sur ve Kapı', pazar: 'Pazar', rapor: 'Rapor ve kronik' };
 // Sur dışındaki binalar: ön surun önünde çizilir, işçileri içeri girmez
 const DIS_BINALAR = ['maden', 'tasocagi'];
 
@@ -48,18 +48,23 @@ class KaleSahnesi extends Phaser.Scene {
     this.arayuzKur();
     this.yenile();
     // Sahne olayları yeniden başlayınca silinmez: kapanırken çıkar (yoksa her yeni oyunda bir kat daha çalışır)
-    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); };
+    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.sabah(); };
     this.events.on('wake', uyan);
     this.events.once('shutdown', () => this.events.off('wake', uyan));
     // Klavye: Boşluk savaşa çık, Esc pencereyi kapat, M ses
     this.input.keyboard.on('keydown', e => {
       const k = e.key.toLowerCase();
-      if (e.repeat) return;
+      if (e.repeat || Hikaye.acik) return; // hikâye penceresi açıkken tuşlar onundur
       if (k === ' ') this.savasaCik();
       else if (k === 'escape') this.panelKapat();
       else if (k === 'm') this.oyun.sesAcKapa();
     });
-    this.raporGoster();
+    this.sabah();
+  }
+
+  // Sabah: önce bugünün kronik sayfası (varsa, hikaye.js), sonra günün raporu
+  sabah() {
+    Hikaye.sabah(this, this.oyun, () => this.raporGoster());
   }
 
   // ---------------- Binalar ----------------
@@ -137,6 +142,13 @@ class KaleSahnesi extends Phaser.Scene {
     this.moralYazi = this.add.text(30, AYAR.boy - 28, '', stil('govde', T ? 28 : 24, { fontStyle: 'bold' })).setOrigin(0, 0.5).setDepth(D + 1);
     this.uyari = this.add.text(AYAR.en / 2, AYAR.boy - 166, '', stil('govde', 26, { color: '#ffb080', stroke: '#120e0c', strokeThickness: 6 }))
       .setOrigin(0.5).setDepth(D + 1);
+    // Görev kutusu: sol üstte, kaynak şeridinin altında (gorevler.js)
+    this.gorevYazi = this.add.text(24, 82, '', stil('govde', T ? 28 : 25, { fontStyle: 'bold', color: '#ffe08a', backgroundColor: '#1a1410dd', padding: { x: 12, y: 6 } }))
+      .setDepth(D + 1);
+    this.gorevAlt = this.add.text(36, 0, '', stil('govde', T ? 24 : 22, { color: '#c8bca4', stroke: '#120e0c', strokeThickness: 5, wordWrap: { width: 640 } }))
+      .setDepth(D + 1);
+    this.bildirim = this.add.text(AYAR.en / 2, 200, '', stil('baslik', 46, { color: '#ffe08a', stroke: '#120e0c', strokeThickness: 8, align: 'center' }))
+      .setOrigin(0.5).setDepth(D + 5).setAlpha(0);
     // Gözcü raporu (yarınki dalga) alt şeridin hemen üstünde, solda
     this.kesifYazi = this.add.text(30, AYAR.boy - 118, '', stil('govde', 24, { fontStyle: 'bold', stroke: '#120e0c', strokeThickness: 6 }))
       .setOrigin(0, 0.5).setDepth(D + 1);
@@ -195,10 +207,32 @@ class KaleSahnesi extends Phaser.Scene {
     if (E.moral < 35) u.push('Moral düşük: şapele rahip ver ya da şölen yap.');
     if (E.sefer > 0 && E.sefer < SEFER.enAz) u.push(`Sefere en az ${SEFER.enAz} kişi gider.`);
     this.uyari.setText(u.join('   '));
+    this.gorevGoster();
     this.ilkDizilis = !this.koyluler || !Object.values(this.koyluler).some(l => l.length);
     this.koyluleriDiz();
     this.ilkDizilis = false;
     if (this.panelYenile) this.panelYenile();
+  }
+
+  // Görev kutusu ve hedef binanın etiketi yanıp söner
+  gorevGoster() {
+    const o = this.oyun;
+    Gorevler.kontrol(o, m => this.bildir(m));
+    const g = Gorevler.simdiki(o);
+    this.gorevYazi.setText(g ? `${g.ad}  ·  Ödül: ${g.odul}` : '').setVisible(!!g);
+    this.gorevAlt.setText(g ? g.aciklama : '').setY(this.gorevYazi.y + this.gorevYazi.height + 4);
+    const hedef = g && g.hedef && this.etiket[g.hedef] ? this.etiket[g.hedef] : null;
+    if (hedef !== this.gorevHedef) {
+      if (this.gorevHedef) { this.tweens.killTweensOf(this.gorevHedef); this.gorevHedef.setScale(1); }
+      this.gorevHedef = hedef;
+      if (hedef) this.tweens.add({ targets: hedef, scale: 1.18, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+  }
+  bildir(metin) {
+    const b = this.bildirim;
+    this.tweens.killTweensOf(b);
+    b.setText(metin).setAlpha(0).setScale(0.9);
+    this.tweens.add({ targets: b, alpha: 1, scale: 1, duration: 260, hold: 2200, yoyo: true });
   }
 
   // ---------------- Seçim paneli (sağda) ----------------
@@ -362,8 +396,9 @@ class KaleSahnesi extends Phaser.Scene {
     if (!r && zorla) {
       // İlk gün: henüz rapor yok, tıklama boşa gitmesin
       this.panelKur('Günün raporu', p => {
-        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.', 26);
-        p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.\n\nKâtibin kroniğini buradan okuyabilirsin.', 26);
+        p.dugme(-135, 360, 240, 66, 'Kronik', () => { this.panelKapat(); Hikaye.kronikAc(this, this.oyun); }, 28);
+        p.dugme(135, 360, 240, 66, 'Tamam', () => this.panelKapat(), 28);
       });
       return;
     }
@@ -382,7 +417,8 @@ class KaleSahnesi extends Phaser.Scene {
     ].filter(Boolean);
     this.panelKur(`${this.oyun.dalga}. günün raporu`, p => {
       p.yazi(p.ust, satir.join('\n\n'), 26, '#efe6d2', { lineSpacing: 4 });
-      p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+      p.dugme(-135, 360, 240, 66, 'Kronik', () => { this.panelKapat(); Hikaye.kronikAc(this, this.oyun); }, 28);
+      p.dugme(135, 360, 240, 66, 'Tamam', () => this.panelKapat(), 28);
     });
     this.secili = 'rapor';
   }

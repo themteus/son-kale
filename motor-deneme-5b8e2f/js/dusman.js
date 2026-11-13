@@ -47,6 +47,107 @@ class Dusman {
     if (T.ucan) this.sprite.setOrigin(0.5, 0.5);
     this.sprite.play(T.gorsel + '_walk');
     this.sprite.anims.setProgress(Math.random());
+    this.hizCarpani = 1; this.hizSure = 0; // Ak Dev kükremesiyle hızlanma
+    if (T.patron) {
+      this.A = akDev(dalga);
+      if (this.A.renk) this.sprite.setTint(this.A.renk);
+      this.kukremeSayaci = this.A.kukreme ? this.A.kukreme.aralik * 0.5 : 0;
+      this.cagirSayaci = this.A.cagir ? 2 : 0;
+      this.cagrilan = 0;
+      this.zirh = 0; this.zirhSira = 0; this.ofkeli = false;
+    }
+  }
+
+  // Azgın (seçkin) düşman: iri, dayanıklı, mor (ayarlar.js → AZGIN)
+  azginYap() {
+    this.azgin = true;
+    this.canEnFazla = Math.round(this.canEnFazla * AZGIN.can);
+    this.can = this.canEnFazla;
+    this.hiz *= AZGIN.hiz;
+    this.boy *= AZGIN.boy; this.en *= AZGIN.boy;
+    this.sprite.setScale(this.sprite.scaleX * AZGIN.boy);
+    this.asilRenk();
+  }
+
+  // Ak Devin rengi (yanma/parlama bitince buna döner)
+  asilRenk() {
+    if (this.yanma > 0) return this.sprite.setTint(0xffb080).setTintMode(Phaser.TintModes.MULTIPLY);
+    if (this.zirh > 0) return this.sprite.setTint(0x9ab0e8).setTintMode(Phaser.TintModes.MULTIPLY);
+    if (this.ofkeli) return this.sprite.setTint(0xffa090).setTintMode(Phaser.TintModes.MULTIPLY);
+    if (this.A && this.A.renk) return this.sprite.setTint(this.A.renk).setTintMode(Phaser.TintModes.MULTIPLY);
+    if (this.azgin) return this.sprite.setTint(AZGIN.renk).setTintMode(Phaser.TintModes.MULTIPLY);
+    return this.sprite.clearTint();
+  }
+
+  // Ok hasarı çarpanı (savas.isabet çağırır): Ak Dev gövdesi ve sis zırhı
+  hasarCarpani(kafa, oyun) {
+    if (!this.A) return 1;
+    if (this.zirh > 0) {
+      if (kafa) {
+        this.zirh = 0;
+        this.sprite.setAlpha(1);
+        this.asilRenk();
+        oyun.efekt.yazi(this.x, this.ust - 90, 'Sis dağıldı!', '#b4d0ff', 34);
+        oyun.sesCal('confirm', 0.4);
+        return 1;
+      }
+      return this.A.zirh.oran;
+    }
+    return kafa ? 1 : this.A.govde;
+  }
+
+  // Ak Devin özel saldırıları (her kare)
+  patronGuncelle(dt, oyun) {
+    const A = this.A;
+    if (A.kukreme && (this.kukremeSayaci -= dt) <= 0) {
+      const K = A.kukreme;
+      this.kukremeSayaci = K.aralik;
+      for (const d of oyun.dusmanlar) {
+        if (d === this || !d.canli || d.T.ucan || Math.abs(d.x - this.x) > K.alan) continue;
+        d.hizCarpani = K.hiz; d.hizSure = K.sure;
+        oyun.efekt.toz(d.x, d.y, 2);
+      }
+      oyun.efekt.yazi(this.x, this.ust - 60, 'KÜKREME!', '#ff9a7a', 40);
+      oyun.sesCal('boss', 0.35);
+      oyun.sars(300, 0.004);
+    }
+    if (A.cagir && this.cagrilan < A.cagir.enCok && this.x < AYAR.en - 80 && (this.cagirSayaci -= dt) <= 0) {
+      this.cagirSayaci = A.cagir.aralik;
+      for (let i = 0; i < A.cagir.sayi && this.cagrilan < A.cagir.enCok; i++) {
+        const z = new Dusman(oyun, A.cagir.tur, oyun.dalga, oyun.zorluk);
+        z.x = kis(this.x - 60 - Math.random() * 140, AYAR.kale.onX + 120, AYAR.en - 40);
+        z.sprite.setPosition(z.x, z.y);
+        z.cagrildi = true;
+        oyun.dusmanlar.push(z);
+        oyun.efekt.toz(z.x, z.y, 8);
+        oyun.efekt.duman(z.x, z.y, false);
+        this.cagrilan++;
+      }
+      oyun.efekt.yazi(this.x, this.ust - 60, 'Ölüler kalkıyor!', '#c4dcae', 34);
+      oyun.sesCal('hurt', 0.4);
+    }
+    const oran = this.can / this.canEnFazla;
+    if (A.zirh) {
+      if (this.zirh > 0) {
+        this.zirh -= dt;
+        if (Math.random() < dt * 10) oyun.efekt.toz(this.x + (Math.random() - 0.5) * this.en * 2, this.y - this.boy * Math.random(), 1);
+        if (this.zirh <= 0) { this.sprite.setAlpha(1); this.asilRenk(); }
+      } else if (this.zirhSira < A.zirh.esik.length && oran < A.zirh.esik[this.zirhSira]) {
+        this.zirhSira++;
+        this.zirh = A.zirh.sure;
+        this.sprite.setAlpha(0.75);
+        this.asilRenk();
+        oyun.efekt.yazi(this.x, this.ust - 60, 'Sise büründü!', '#b4d0ff', 36);
+        oyun.sesCal('impact', 0.3);
+      }
+    }
+    if (A.ofke && !this.ofkeli && oran < A.ofke.esik) {
+      this.ofkeli = true;
+      this.hiz *= A.ofke.hiz;
+      this.asilRenk();
+      oyun.arayuz.duyur('Ak Dev öfkelendi!', 'Hızlandı: sura varmadan bitir!');
+      oyun.sars(400, 0.008);
+    }
   }
 
   // Vuruş kutusu (oklar için). Tırmanırken kutu dik durur.
@@ -75,13 +176,15 @@ class Dusman {
       this.can -= this.yanmaHasari * dt;
       if (Math.random() < dt * 12) oyun.efekt.ates(this.x + (Math.random() - 0.5) * this.en, this.y - this.boy * Math.random());
       if (oyun.efekt.alev && Math.random() < dt * 12) oyun.efekt.alev(this.x + (Math.random() - 0.5) * this.en * 0.7, this.y - this.boy * (0.15 + 0.55 * Math.random()));
-      if (this.yanma <= 0) this.sprite.clearTint();
+      if (this.yanma <= 0) this.asilRenk();
       if (this.can <= 0) { oyun.dusmanOldu(this, false); return; }
     }
     if (this.T.ucan) return this.uc(dt, oyun);
+    if (this.A) this.patronGuncelle(dt, oyun);
+    if (this.hizSure > 0 && (this.hizSure -= dt) <= 0) this.hizCarpani = 1;
 
     if (this.durum === 'yuru') {
-      this.x -= this.hiz * dt;
+      this.x -= this.hiz * this.hizCarpani * dt;
       if (this.x <= this.durX) {
         this.x = this.durX;
         this.vurusSayaci = this.T.vurus * 0.5;
@@ -137,7 +240,7 @@ class Dusman {
     const alan = this.T.patlar;
     oyun.efekt.patlama(this.x, this.y - this.boy * 0.5);
     oyun.sesCal('big_kill', 0.6);
-    oyun.cameras.main.shake(260, 0.008);
+    oyun.sars(260, 0.008);
     if (suraVardi) oyun.kaleyeVur(this.T.hasar, AYAR.kale.onX, this.y - this.boy * 0.5, true);
     else {
       // Ölünce yakındaki düşmanlara hasar: o dalgadaki zombi canının 0.8 katı
@@ -193,15 +296,16 @@ class Dusman {
   tutustur(hasar, sure) {
     this.yanma = sure;
     this.yanmaHasari = hasar;
-    this.sprite.setTint(0xffb080);
+    this.sprite.setTint(0xffb080).setTintMode(Phaser.TintModes.MULTIPLY);
   }
 
   // Ok isabet etti: hasar ver. Ölünce true döner (ölümü oyun işler).
   vur(hasar) {
     if (!this.canli) return false;
     this.can -= hasar;
-    this.sprite.setTint(0xff9a8a);
-    this.s.time.delayedCall(80, () => { if (this.sprite.active) this.yanma > 0 ? this.sprite.setTint(0xffb080) : this.sprite.clearTint(); });
+    // Kısa beyaz parlama (isabet hissi), sonra eski rengine döner
+    this.sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+    this.s.time.delayedCall(60, () => { if (this.sprite.active) this.asilRenk(); });
     return this.can <= 0;
   }
 

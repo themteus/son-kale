@@ -17,6 +17,39 @@ Bir yerel sunucu gerekir (dosyayı çift tıklamak yetmez, tarayıcı görseller
 4. Sur ilk yıkıldığında ambarda 40 odun varsa halk bir kez barikat kurar (surun %25'i).
    İkinci kez yıkılırsa ya da halk 5 kişinin altına inerse oyun biter.
 
+## Hikâye
+Ilgın Beyliği'nde saray hekimi Ağan, kuzeydeki Üç Höyük'ü açıp "Solgun Sis"i salar; ölüler kalkar.
+Halk son sığınak Karataş Hisarı'na ("Son Kale") kaçar. Sen kulede kalan son okçusun; Kuzey ordusu
+gelene dek (kurtuluş dalgası) dayanmalısın. Her 10. gece höyüklerden bir Ak Dev uyanır.
+- Yeni oyunda 3 sayfalık açılış, sonra bazı sabahlar iç kalede kâtibin **kroniği** açılır
+  (yeni düşman gelmeden önce hikâyesi anlatılır). Okunanlar kayda yazılır, bir daha çıkmaz.
+- "Rapor ve kronik" kulesine tıkla → **Kronik**: okunan bütün sayfalar yeniden okunur.
+- Kurtuluşta 3 sayfalık son, kale düşerse kısa acı son yazılır.
+- Bütün metinler `js/hikaye.js` → `HIKAYE` içinde; sayfa eklemek için listeye bir satır ekle.
+  Hikâyenin tamamı okunaklı hâliyle: `HIKAYE.md`.
+
+## Savaş hissi, Ak Devler ve gece olayları
+- **Vuruş hissi:** isabette düşman beyaz parlar, gövde vuruşunda hasar sayısı uçar; kafadan ya da ağır
+  düşmanı öldürünce oyun bir anlığına donar. Dalganın son düşmanı ve Ak Dev ağır çekimde düşer.
+- **Kombo:** art arda hızlı öldürmeler (1,6 sn içinde) kombo sayar; 3'lüden sonra her öldürme ek altın verir.
+- **Üç Ak Dev** (10/20/30. gece, sonra sırayla döner): *Taş Yürekli* (gövde oku az işler, kükreyince sürü
+  hızlanır), *Ölü Çağıran* (yürürken yerden zombi kaldırır), *Sisli* (canı azalınca sise bürünür, kafa vuruşu
+  sisi dağıtır; son nefeste öfkelenir). Ayarlar: `AK_DEVLER`.
+- **Gece olayları** (Ak Dev gecesi dışında %35): Kan Ayı, Sisli Gece, Sağanak, Dolunay, Kurt Gecesi.
+  Gözcüler bir gün önceden yazar. Ayarlar: `GECE_OLAYLARI`.
+
+## Görevler ve Şan
+- **Görevler** (`js/gorevler.js`): ilk günlerde sol üstte ödüllü küçük görevler oyunu öğretir
+  (yaycıya işçi, sura asker, kafa vuruşu, pazar, kışla, sefer, ilk Ak Dev). İlgili binanın etiketi yanıp söner.
+  Hepsi bitince her gün bir "günün görevi" çıkar (isabet, kafa, kombo, sur canı); ödülü Şan.
+- **Şan** (`js/san.js`): oyun bitince dayanılan geceye göre Şan kazanılır, başarımlar da Şan verir.
+  Başlangıç menüsünde **Şan Salonu**: başlangıç oku/altını/halkı, ok hasarı, sur canı kalıcı artar.
+- **Araştırma** (`js/arastirma.js`): Silah ustası → Araştırma. Altınla 7 kalıcı geliştirme (3'er seviye):
+  üretim, ok toplama, sur zırhı, kafa çarpanı, ganimet, dayanıklılık ve yeni yetenek **Kızgın Yağ** (E tuşu:
+  surun dibindekileri yakar). Geç oyunda biriken altın buraya ve şapeldeki **kitabeye bağış**a (+1 Şan) gider.
+- **Azgın düşmanlar:** 8. geceden sonra ara sıra mor, iri bir ölü çıkar: iki kat dayanıklı, üç kat altın (`AZGIN`).
+- **Ayarlar:** savaşta sağ üstte ×1/×2 hız düğmesi (F tuşu); duraklat penceresinde ekran sarsıntısı aç/kapa.
+
 ## Yardımcı kurallar
 - **Gözcüler:** iç kalede ve dükkânda yarınki dalga yazar (kaç düşman, kaç dev, patron var mı).
 - **Kafa serisi:** art arda 3 kafa vuruşu → sıradaki tam gerili ok "keskin" olur (×2 hasar,
@@ -33,6 +66,10 @@ Bir yerel sunucu gerekir (dosyayı çift tıklamak yetmez, tarayıcı görseller
 - `js/dusman.js`   : düşman türleri ve davranışları
 - `js/okcu.js`     : oyuncunun yayı (bas = ger, bırak = at) ve okçu askerler
 - `js/arayuz.js`   : savaş ekranının üst bilgisi, düğmeler, pencereler
+- `js/gorevler.js` : öğretici görevler ve günün görevi
+- `js/arastirma.js`: araştırma ağacı ve Kızgın Yağ
+- `js/san.js`      : Şan (oyunlar arası ilerleme), Şan Salonu ödülleri, başarımlar
+- `js/hikaye.js`   : hikâye metinleri (açılış, kronik, Ak Dev geceleri, sonlar) ve hikâye penceresi
 - `js/ekonomi.js`  : kaynaklar, nüfus, binalar, gün sonu hesabı, pazar, otomatik dağıt
 - `js/kale.js`     : iç kale sahnesi (binalar, köylüler, paneller)
 - `js/savas.js`    : oyunun akışı, oklar, isabet

@@ -14,8 +14,12 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;700&family=Grenze+Gotisch:wght@600;800&display=swap">
   <style>
     html, body { margin: 0; height: 100%; background: #0d0b10; overflow: hidden; touch-action: none; }
-    #oyun { position: fixed; inset: 0; }
+    #oyun { position: fixed; inset: 0; z-index: 1; }
+    /* Geniş/uzun ekranda oyunun yanında kalan boşluk: oyunun kendisi bulanık ve koyu yansır (kenar.js) */
+    #kenar { position: fixed; inset: -6%; width: 112%; height: 112%; z-index: 0; object-fit: cover;
+      filter: blur(22px) brightness(0.42) saturate(0.85); pointer-events: none; }
     canvas { display: block; }
+    #oyun canvas { box-shadow: 0 0 48px 12px rgba(0, 0, 0, 0.55); }
     /* Telefon dik tutulunca ipucu */
     .cevir { display: none; position: fixed; left: 0; right: 0; bottom: 12px; text-align: center;
       font: 16px "Alegreya Sans", sans-serif; color: #c9a24a; pointer-events: none; }
@@ -23,6 +27,7 @@
   </style>
 </head>
 <body>
+  <canvas id="kenar" width="96" height="54" aria-hidden="true"></canvas>
   <div id="oyun"></div>
   <p class="cevir">Telefonu yan çevirirsen oyun bütün ekranı kaplar.</p>
   <!-- Phaser 4.2.1 (MIT) -->
@@ -36,10 +41,15 @@
   <script src="js/dusman.js"></script>
   <script src="js/okcu.js"></script>
   <script src="js/arayuz.js"></script>
+  <script src="js/hikaye.js"></script>
+  <script src="js/arastirma.js"></script>
+  <script src="js/san.js"></script>
+  <script src="js/gorevler.js"></script>
   <script src="js/ekonomi.js"></script>
   <script src="js/yapilar.js"></script>
   <script src="js/kale.js"></script>
   <script src="js/savas.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/kenar.js"></script>
 </body>
 </html>
