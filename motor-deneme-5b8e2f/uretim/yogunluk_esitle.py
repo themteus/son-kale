@@ -5,6 +5,7 @@
 #    (silah ucu, göz, kenar ışığı) en sık 3 renkten komşu blokların ortalamasına göre
 #    en çok ayrışanı seçilir: vurgu ve ince ayrıntı korunur.
 #  - Kontur: siluet kenarındaki açık bloklar karenin en koyu rengine çekilir.
+# Yarasa küçük olduğu için işlenmez (4 px blokta kanat ve göz kayboluyordu).
 # Şerit boyutu, kare yerleri, footY/centerX değişmez.
 import sys
 import numpy as np
@@ -46,7 +47,9 @@ def kare_isle(fr, B):
         pad = np.pad(op, 1)
         kenar = op & ~(pad[:-2, 1:-1] & pad[2:, 1:-1] & pad[1:-1, :-2] & pad[1:-1, 2:])
         for gy, gx in zip(*np.where(kenar & (L > 210))):
-            out[gy*B:(gy+1)*B, gx*B:(gx+1)*B, :3] = koyu
+            # yalnız orijinalde de kontur (koyu piksel) olan kenarlar: açık bacak/kaburga kararmasın
+            if min(lum(c) for c in bloklar[(gy, gx)][:, :3]) < 60:
+                out[gy*B:(gy+1)*B, gx*B:(gx+1)*B, :3] = koyu
     out[:fh, :fw, 3] = np.where(out[:fh, :fw, 3] > 0, 255, 0)
     return out[:fh, :fw]
 
