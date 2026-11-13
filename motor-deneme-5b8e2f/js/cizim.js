@@ -32,12 +32,17 @@ function gokRengi(dalga) {
   };
 }
 
+// Ay/güneş solda: kale ve birimler sol üstten aydınlık çizildi, ışık kaynağı da o yanda dursun
+const AY_X = 600;
+// Kale görseli sıcak tonlu; gökyüzünün sis rengiyle bu oranda karıştırılır (manzarayla aynı ışıkta dursun)
+const KALE_ORTAM_ORANI = 0.3;
+
 class Manzara {
   constructor(sahne) {
     this.s = sahne;
     const { en, boy, zemin } = AYAR;
     this.gok = sahne.add.graphics().setDepth(0);
-    this.ay = sahne.add.image(1500, 180, 'ay').setDepth(1).setTint(0xfff4d8);
+    this.ay = sahne.add.image(AY_X, 180, 'ay').setDepth(1).setTint(0xfff4d8);
     this.daglar = sahne.add.graphics().setDepth(2);
     this.uzakOrman = [];
     this.yakinOrman = [];
@@ -103,7 +108,7 @@ class Manzara {
     this.gok.fillGradientStyle(r.ust, r.ust, r.alt, r.alt, 1);
     this.gok.fillRect(0, 0, en, zemin + 20);
     // Ay ancak gece görünür, gündüz güneş gibi alçakta durur
-    this.ay.setPosition(1500, karis(520, 170, r.gece)).setAlpha(0.35 + 0.6 * r.gece)
+    this.ay.setPosition(AY_X, karis(520, 170, r.gece)).setAlpha(0.35 + 0.6 * r.gece)
       .setTint(r.gece > 0.5 ? 0xe8ecff : 0xfff0c0).setScale(karis(1.3, 0.8, r.gece));
     // Dağlar: iki sıra, sise karışmış
     this.daglar.clear();
@@ -188,6 +193,13 @@ class Kale {
     this.mazgallar = this.mazgallar.map(d => s.add.image(P.x, P.y, 'kale_pl').setOrigin(0).setScale(P.piksel).setDepth(d.depth)
       .setCrop((d.x - P.x) / P.piksel - 1, (d.y - P.y) / P.piksel - 1, d.width / P.piksel + 2, d.height / P.piksel + 1));
     this.parcalar = [govde, ...this.mazgallar];
+  }
+
+  // Gökyüzü/sis rengine göre kaleyi hafif tonla (cizim.js Manzara.boya sonrası savas.js çağırır)
+  ortamTonu(sis) {
+    const ton = renkKaris(0xffffff, sis, KALE_ORTAM_ORANI);
+    this.ortam = ton;
+    for (const p of this.parcalar) if (p.setTint) { p.setTint(ton); p.asilRenk = ton; }
   }
 
   golgeCiz() {

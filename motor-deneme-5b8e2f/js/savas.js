@@ -243,7 +243,9 @@ class SavasSahnesi extends Phaser.Scene {
     this.surCan = Math.min(v.surCan, this.surEnFazla);
     this.surIz = this.surCan;
     this.kale.guncelle(this.surCan / this.surEnFazla);
-    this.karanlik.setAlpha(this.manzara.boya(this.dalga + 1).karanlik);
+    const gok = this.manzara.boya(this.dalga + 1);
+    this.karanlik.setAlpha(gok.karanlik);
+    this.kale.ortamTonu(gok.sis);
     this.arayuz.paneliKapat();
     if (!this.muzik.isPlaying) this.muzik.play();
     this.iceGir();
@@ -292,6 +294,7 @@ class SavasSahnesi extends Phaser.Scene {
     // Gökyüzü dalgaya göre kararır
     const r = this.manzara.boya(n);
     this.karanlik.setAlpha(r.karanlik);
+    this.kale.ortamTonu(r.sis);
     this.askerleriDiz();
     this.barikatKuruldu = false;
     if (patron) this.arayuz.duyur(`${n}. Dalga`, 'Yerin sarsılıyor... Ak Dev geliyor!');

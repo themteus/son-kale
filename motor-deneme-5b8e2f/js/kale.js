@@ -88,7 +88,7 @@ class KaleSahnesi extends Phaser.Scene {
       .setPosition(m.x * O, m.y * O).setDepth(this.derinlik(m.dipY * O, m.disari));
     const B = BINALAR[k], b = this.E.bina[k];
     const yazi = k === 'ev' ? `${B.ad}  ${this.E.nufus}/${this.E.barinak}` : `${B.ad}  ${b.isci}/${this.E.yerSayisi(k)}`;
-    this.etiket[k].setText(yazi).setPosition(m.merkez[0] * O, Math.max(96, m.y * O + 30));
+    this.etiket[k].setText(yazi).setPosition(m.merkez[0] * O, Math.max(96, m.y * O + 6));
   }
   // Çizim sırası: ekranda aşağıda olan önde. Sur dışı her zaman ön surun önünde.
   derinlik(y, disari) { return (disari ? 30 : 10) + y / 2000; }
