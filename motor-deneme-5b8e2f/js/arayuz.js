@@ -207,7 +207,7 @@ class Arayuz {
     this.panelAc(1000, 700, (kap) => {
       const s = this.s;
       kap.add(s.add.text(0, -250, 'SON KALE', stil('baslik', 120)).setOrigin(0.5));
-      kap.add(s.add.text(0, -165, 'Gündüz iç kaleyi yönet, gece surda savaş', stil('govde', 30, { color: '#c9a24a' })).setOrigin(0.5));
+      kap.add(s.add.text(0, -165, 'Sis vadiyi yuttu. Ayakta kalan son kale bu.', stil('govde', 30, { color: '#c9a24a' })).setOrigin(0.5));
       const dokun = s.sys.game.device.input.touch;
       const anlatim = dokun
         ? 'Vurmak istediğin yere bas: yay gerilir. Bırak: ok uçar.\nKafaya isabet iki kat vurur, art arda 3 kafa keskin ok verir.\nHer ok ambardan gider: iç kalede ok üretmeyi unutma.'
@@ -284,7 +284,12 @@ class Arayuz {
     });
   }
 
+  // Kurtuluş: önce son hikâye sayfaları, sonra sonuç penceresi
   zafer(oyun) {
+    Hikaye.goster(this.s, HIKAYE.zafer(oyun), () => this.zaferPaneli(oyun), { sonYazi: 'Sonuç ▶' });
+  }
+
+  zaferPaneli(oyun) {
     this.panelAc(1000, 560, (kap) => {
       const s = this.s;
       kap.add(s.add.text(0, -190, 'Kale kurtuldu!', stil('baslik', 96, { color: '#ffe08a' })).setOrigin(0.5));
@@ -296,12 +301,14 @@ class Arayuz {
   }
 
   oyunSonu(oyun) {
-    this.panelAc(900, 520, (kap) => {
+    this.panelAc(1100, 680, (kap) => {
       const s = this.s;
-      kap.add(s.add.text(0, -170, oyun.neden || 'Kale düştü', stil('baslik', 96, { color: '#e07060' })).setOrigin(0.5));
-      kap.add(s.add.text(0, -50, `${oyun.dalga}. dalgaya kadar dayandın\n${oyun.oldurulen} düşman öldü · ${oyun.kafaVurusu} kafa vuruşu`,
+      kap.add(s.add.text(0, -240, oyun.neden || 'Kale düştü', stil('baslik', 96, { color: '#e07060' })).setOrigin(0.5));
+      kap.add(s.add.text(0, -125, `${oyun.dalga}. dalgaya kadar dayandın\n${oyun.oldurulen} düşman öldü · ${oyun.kafaVurusu} kafa vuruşu`,
         stil('govde', 34, { align: 'center', lineSpacing: 10 })).setOrigin(0.5));
-      this.panelDugme(kap, 0, 140, 360, 90, 'Yeniden Dene', () => s.scene.restart(), 40);
+      // Hikâyenin acı sonu
+      kap.add(s.add.text(0, 45, HIKAYE.yenilgi(oyun), stil('govde', 28, { color: '#b8ac94', fontStyle: 'italic', align: 'center', lineSpacing: 8, wordWrap: { width: 920 } })).setOrigin(0.5));
+      this.panelDugme(kap, 0, 220, 360, 90, 'Yeniden Dene', () => s.scene.restart(), 40);
     });
   }
 

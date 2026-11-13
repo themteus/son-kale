@@ -11,7 +11,7 @@
 // =============================================================
 
 // Tıklanabilir yerlerin adları (yerleri kale.json → alanlar)
-const KALE_ALANLARI = { sur: 'Sur ve Kapı', pazar: 'Pazar', rapor: 'Günün raporu' };
+const KALE_ALANLARI = { sur: 'Sur ve Kapı', pazar: 'Pazar', rapor: 'Rapor ve kronik' };
 // Sur dışındaki binalar: ön surun önünde çizilir, işçileri içeri girmez
 const DIS_BINALAR = ['maden', 'tasocagi'];
 
@@ -48,18 +48,23 @@ class KaleSahnesi extends Phaser.Scene {
     this.arayuzKur();
     this.yenile();
     // Sahne olayları yeniden başlayınca silinmez: kapanırken çıkar (yoksa her yeni oyunda bir kat daha çalışır)
-    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.raporGoster(); };
+    const uyan = (s, veri) => { this.ilkRapor = veri && veri.rapor; this.yenile(); this.sabah(); };
     this.events.on('wake', uyan);
     this.events.once('shutdown', () => this.events.off('wake', uyan));
     // Klavye: Boşluk savaşa çık, Esc pencereyi kapat, M ses
     this.input.keyboard.on('keydown', e => {
       const k = e.key.toLowerCase();
-      if (e.repeat) return;
+      if (e.repeat || Hikaye.acik) return; // hikâye penceresi açıkken tuşlar onundur
       if (k === ' ') this.savasaCik();
       else if (k === 'escape') this.panelKapat();
       else if (k === 'm') this.oyun.sesAcKapa();
     });
-    this.raporGoster();
+    this.sabah();
+  }
+
+  // Sabah: önce bugünün kronik sayfası (varsa, hikaye.js), sonra günün raporu
+  sabah() {
+    Hikaye.sabah(this, this.oyun, () => this.raporGoster());
   }
 
   // ---------------- Binalar ----------------
@@ -362,8 +367,9 @@ class KaleSahnesi extends Phaser.Scene {
     if (!r && zorla) {
       // İlk gün: henüz rapor yok, tıklama boşa gitmesin
       this.panelKur('Günün raporu', p => {
-        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.', 26);
-        p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+        p.yazi(p.ust, 'Henüz rapor yok. İlk savaştan sonra burada üretim, ok ve halk raporu çıkar.\n\nKâtibin kroniğini buradan okuyabilirsin.', 26);
+        p.dugme(-135, 360, 240, 66, 'Kronik', () => { this.panelKapat(); Hikaye.kronikAc(this, this.oyun); }, 28);
+        p.dugme(135, 360, 240, 66, 'Tamam', () => this.panelKapat(), 28);
       });
       return;
     }
@@ -382,7 +388,8 @@ class KaleSahnesi extends Phaser.Scene {
     ].filter(Boolean);
     this.panelKur(`${this.oyun.dalga}. günün raporu`, p => {
       p.yazi(p.ust, satir.join('\n\n'), 26, '#efe6d2', { lineSpacing: 4 });
-      p.dugme(0, 360, 260, 66, 'Tamam', () => this.panelKapat(), 28);
+      p.dugme(-135, 360, 240, 66, 'Kronik', () => { this.panelKapat(); Hikaye.kronikAc(this, this.oyun); }, 28);
+      p.dugme(135, 360, 240, 66, 'Tamam', () => this.panelKapat(), 28);
     });
     this.secili = 'rapor';
   }
