@@ -103,6 +103,10 @@ def karla(ad, im):
     agac = ndimage.binary_fill_holes(ndimage.binary_closing(koyu, np.ones((5, 5))))
     agac &= ~ndimage.binary_opening(cimen0 := ((g > r * 1.02) & (g > b * 1.12) & (lum > 55) & (lum < 125)), np.ones((9, 9)))
     agac = ndimage.binary_dilation(agac, iterations=1) & ~yapi & ~cati
+    lab, n = ndimage.label(agac)
+    if n:   # small green crumbs are not trees (they would stay green in the snow)
+        boy = np.bincount(lab.ravel()); boy[0] = 0
+        agac &= (boy >= 300)[lab]
     cimen = (g > r * 1.02) & (g > b * 1.12) & (lum > 55)
     toprak = (r > g * 1.25) & (g > r * 0.52) & (g > b * 1.05) & (lum > 42) & (lum < 175)
     zemin = (cimen & (sd < 30)) | (toprak & (sd < 18)) | (yesil & (lum <= 62) & (sd < 9))

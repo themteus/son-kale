@@ -32,7 +32,7 @@ def gurultu(H, W, tohum=5, s=1.3):
     return g / (g.std() + 1e-6)
 
 
-def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False):
+def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False, kume=1.3):
     a = a.copy()
     H, W = a.shape[:2]
     dolu = a[..., 3] > 200
@@ -46,7 +46,7 @@ def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False):
         ust_bos |= np.roll(ust_bos, 1, axis=0) & kontur      # just under the outer outline
     kap = yuzey & ust_bos                                   # first surface pixel under air / outline
     kap2 = np.zeros_like(kap); kap2[1:] = kap[:-1]
-    g = gurultu(H, W, tohum)
+    g = gurultu(H, W, tohum, kume)
     kap |= kap2 & yuzey & (g > -0.2)                        # 2nd row on most of the cap: broken edge
     # upper part of each column: about half covered, ragged
     ust_bant = np.zeros_like(dolu)
@@ -134,13 +134,16 @@ def sus():
         if ad == "tezgah":
             kar = kar_sprite(a, bant=0, sadece_ust=True)          # awning stripes stay visible
         else:
-            kar = kar_sprite(a, kapsam=0.3, bant=0.16 if ad.startswith("agac") else 0.2)   # sparse, like ic2
+            if ad == "agac1":                                       # big oak: a bit more on the crown
+                kar = kar_sprite(a, kapsam=0.45, bant=0.26, kume=2.2)
+            else:
+                kar = kar_sprite(a, kapsam=0.3, bant=0.16 if ad.startswith("agac") else 0.2)   # sparse, like ic2
         K.golge_ciz(kar).save(f"{OUT}/{ad}_karli.png")
         K.golge_ciz(gece_sprite(a), 70).save(f"{OUT}/{ad}_gece.png")
         print(ad)
 
 
-def zemin_karla(a, toprak_da=False):
+def zemin_karla(a, toprak_da=False, plaka=False):
     """Ground tiles in the lower diamond of a building sprite -> snow (grass, olive, dirt, fields)."""
     a = a.copy()
     H, W = a.shape[:2]
@@ -180,6 +183,25 @@ def zemin_karla(a, toprak_da=False):
     t = np.clip((185 - lum) / 45, 0, 3) + 0.4 * gurultu(H, W, 7, 1.2)
     idx = np.clip(np.round(t), 0, 3).astype(int)
     a[zemin, :3] = np.clip(KREM[idx] * 0.9 + f * 0.1, 0, 255)[zemin].astype(np.uint8)
+    if plaka:
+        # the ground plate's front faces (lowest ~6 px of every column under a snowed top): shaded snow,
+        # so the plate melts into the snowy ground instead of standing like a block
+        alt_y = np.array([np.nonzero(dolu[:, x])[0].max() if dolu[:, x].any() else -1 for x in range(W)])
+        yan = np.zeros((H, W), bool)
+        for x in range(W):
+            if alt_y[x] < 0:
+                continue
+            y0 = max(0, alt_y[x] - 6)
+            if zemin[max(0, y0 - 6):y0 + 1, x].any():
+                yan[y0:alt_y[x] + 1, x] = True
+        yan &= dolu & ~zemin
+        a[yan, :3] = np.where((np.arange(H)[:, None] >= alt_y[None, :])[yan][:, None],
+                              np.array([150, 160, 182]), KREM[3]).astype(np.uint8)
+        zemin |= yan
+    # leftover summer green (moss in a window, tufts): cooled grey-blue
+    yes = (a[..., 3] > 200) & (g > r * 1.05) & (g > b * 1.2) & ~zemin
+    gri = f[yes] @ [0.299, 0.587, 0.114]
+    a[yes, :3] = np.clip(np.stack([gri * 0.95, gri * 0.99, gri * 1.08], -1), 0, 255).astype(np.uint8)
     return a, zemin
 
 
@@ -192,13 +214,17 @@ def bina_varyant():
         if not os.path.exists(y):
             Image.open(p).save(y)
         a = np.asarray(Image.open(y).convert("RGBA"))
+        yazdan = ad in ("maden3_karli.png", "tasocagi3_karli.png")
+        if yazdan:   # the old SDXL winter version changed the shape: snow the summer sprite itself
+            a = kar_sprite(np.asarray(Image.open(f"{KALE}/{ad.replace('_karli', '')}").convert("RGBA")),
+                           kapsam=0.6, bant=0.35, tohum=17, kume=3.0)
         # variants where the old snow pass did not take (maden1, tasocagi1/2...): thin snow on top
         m = a[..., 3] > 200
         f = a[m][:, :3].astype(int)
         beyaz = ((f.min(1) > 195) & (f.max(1) - f.min(1) < 30)).mean()
-        if beyaz < 0.03:
-            a = kar_sprite(a, kapsam=0.5, bant=0.3, tohum=13)
-        k, z = zemin_karla(a, toprak_da=ad.startswith(("maden", "tasocagi")))
+        if beyaz < 0.03 and not yazdan:
+            a = kar_sprite(a, kapsam=0.5, bant=0.3, tohum=13, kume=2.5)
+        k, z = zemin_karla(a, toprak_da=ad.startswith(("maden", "tasocagi")), plaka=ad.startswith(("maden", "tasocagi")))
         Image.fromarray(k, "RGBA").save(p)
         if beyaz < 0.03:
             print("  +kar", ad, round(beyaz, 3))
@@ -214,12 +240,46 @@ def yikik_karli():
     for p in sorted(glob.glob(f"{V}/*_yikik.png")):
         ad = os.path.basename(p)[:-len("_yikik.png")]
         a = np.asarray(Image.open(p).convert("RGBA"))
-        k = kar_sprite(a, kapsam=0.55, bant=0.32, tohum=11)
-        k, _ = zemin_karla(k, toprak_da=ad.startswith(("maden", "tasocagi")))
+        k = kar_sprite(a, kapsam=0.6, bant=0.3, tohum=11, sadece_ust=True, kume=3.0)
+        k, _ = zemin_karla(k, toprak_da=ad.startswith(("maden", "tasocagi")), plaka=ad.startswith(("maden", "tasocagi")))
+        # outer outline: cold dark instead of near-black, so it does not read as a halo on the snow
+        m = k[..., 3] > 0
+        e = m & ~ndimage.binary_erosion(m)
+        k = k.copy(); k[e, :3] = (54, 56, 70)
         Image.fromarray(k, "RGBA").save(f"{V}/{ad}_yikik_karli.png")
         J["dosyalar"].setdefault(ad, {})["yikik_karli"] = {"dosya": f"{ad}_yikik_karli.png", "kalite": "iyi"}
         print(ad)
     json.dump(J, open(f"{V}/varyantlar.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+
+def sakin_cati(ad):
+    """ic2 barn / barracks winter roofs: the old snow is a noisy checker; smooth it into 3 cream tones."""
+    p = f"{KALE}/sus/ic2/{ad}_karli.png"
+    y = f"D:/AI/araclar/orijinal/{ad}_karli_eski.png"
+    if not os.path.exists(y):
+        Image.open(p).save(y)
+    a = np.asarray(Image.open(y).convert("RGBA")).copy()
+    f = a[..., :3].astype(np.float32)
+    lum = f @ [0.299, 0.587, 0.114]
+    mx, mn = f.max(-1), f.min(-1)
+    r, g, b = f[..., 0], f[..., 1], f[..., 2]
+    kar = (a[..., 3] > 200) & (lum > 165) & ((mx - mn) < 40)
+    # roof = snow speckles + the tiles / thatch they sit on (the upper part of the sprite)
+    sat = (mx - mn) / np.maximum(mx, 1)
+    sicak = (r > g * 1.1) & (sat > 0.18)                     # tiles / thatch, not the grey-beige stone
+    cati = ndimage.binary_closing(kar | sicak, np.ones((3, 3))) & (a[..., 3] > 200) & (lum > 60) & (kar | sicak | ndimage.binary_dilation(sicak, iterations=1))
+    lab, n = ndimage.label(cati)
+    if n:                                                  # the roof is the big connected piece
+        boy = np.bincount(lab.ravel()); boy[0] = 0
+        cati = lab == boy.argmax()
+    cati[int(a.shape[0] * 0.55):] = False
+    # blur inside the roof and bring it back to a few colours: no 1 px checker
+    w = ndimage.gaussian_filter(cati.astype(np.float32), 1.0)
+    yum = np.stack([ndimage.gaussian_filter(np.where(cati, f[..., c], 0), 1.0) for c in range(3)], -1) / np.maximum(w, 1e-3)[..., None]
+    px = yum[cati]
+    q = Image.fromarray(px.reshape(1, -1, 3).clip(0, 255).astype(np.uint8)).quantize(5, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB")
+    a[cati, :3] = np.asarray(q).reshape(-1, 3)
+    Image.fromarray(a, "RGBA").save(p)
 
 
 def sapel():
@@ -247,6 +307,9 @@ def sapel():
 if __name__ == "__main__":
     if sys.argv[1] == "sapel":
         sapel()
+    elif sys.argv[1] == "cati":
+        for ad in ("ahir", "kisla"):
+            sakin_cati(ad)
     elif sys.argv[1] == "sus":
         sus()
     elif sys.argv[1] == "yikik":
