@@ -85,6 +85,8 @@ const Varyant = {
     if (!hal) return temel;
     const kv = h => 'kv_' + temel.slice(2) + '_' + h;   // k_demirci3 → kv_demirci3_karli
     if (hal === 'gece' && this.kisMi(sahne) && sahne.textures.exists(kv('karli'))) return kv('karli');
+    // kış + sur hasarı: yıkık binanın karlı sürümü
+    if (hal === 'yikik' && this.kisMi(sahne) && sahne.textures.exists(kv('yikik_karli'))) return kv('yikik_karli');
     return sahne.textures.exists(kv(hal)) ? kv(hal) : temel;
   },
   // Doku gece görseliyse hafif ton; gündüz/kar görseli gece gösteriliyorsa koyu gece tonu

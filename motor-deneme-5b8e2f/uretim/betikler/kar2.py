@@ -42,9 +42,9 @@ def kar_tonlari(n=5):
     lum = px @ [0.299, 0.587, 0.114]
     # the variants' snow is nearly one colour: start from their lightest tone and step towards a cold
     # blue grey, so the ground has 3-4 readable tones and a shadow tone
-    acik = np.median(px[lum >= np.quantile(lum, 0.8)], 0)
-    adim = np.array([[0, 0, 0], [16, 13, 7], [34, 28, 15], [56, 46, 24], [80, 66, 34]], np.float32)
-    return np.clip(acik - adim[:n], 0, 255)
+    # same family as the cream snow on the roofs, cooler only in the shadow steps
+    return np.array([[236, 236, 230], [224, 226, 226], [208, 214, 222], [188, 198, 214], [166, 178, 202]],
+                    np.float32)[:n]
 
 
 ZEMIN = []
@@ -136,7 +136,16 @@ def karla(ad, im):
         boy = np.bincount(lab.ravel()); boy[0] = 0
         cekirdek = np.zeros(n + 1, bool)
         np.maximum.at(cekirdek, lab.ravel(), (koyu | yapi | cati).ravel())
-        zemin |= (((boy < 150) & ~cekirdek) | (boy < 60))[lab] & (lab > 0) & ~yapi & ~cati
+        zemin |= (((boy < 250) & ~cekirdek) | (boy < 120))[lab] & (lab > 0) & ~yapi & ~cati
+    if ad == "arka":
+        # dark smooth shadow rings around props baked into the background (barrels, hay, stalls)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import arka_hd as AH
+        for kutu_ in AH.KORU["arka"].values():
+            (x0, y0, x1, y1) = kutu_[0] if len(kutu_) == 3 else kutu_
+            kk = np.zeros((H, W), bool); kk[int(y0 * 1.5):int(y1 * 1.5), int(x0 * 1.5):int(x1 * 1.5)] = True
+            halka = kk & (lum < 70) & (sd < 14) & ~yapi & ~cati & ndimage.binary_dilation(zemin, iterations=5)
+            zemin |= halka
     # smoother snow edge: no 1 px teeth
     zemin = ndimage.binary_opening(ndimage.binary_closing(zemin, np.ones((3, 3))), np.ones((2, 2))) | (zemin & ~ndimage.binary_dilation(~zemin, iterations=1) )
     zemin &= alfa & ~yapi & ~cati
@@ -146,25 +155,29 @@ def karla(ad, im):
     out = f.copy()
     # ground texture: old brightness (bumps, tracks) + small clustered noise, 4 tones
     rng = np.random.default_rng(3)
-    gur = ndimage.gaussian_filter(rng.standard_normal((H, W)), 2.4)   # larger, calmer clusters
+    gur = ndimage.gaussian_filter(rng.standard_normal((H, W)), 4.0)   # large, calm clusters
     gur /= gur.std() + 1e-6
-    yerel = ndimage.gaussian_filter(lum, 2.0)
-    yerel = (yerel - ndimage.gaussian_filter(lum, 14)) / 25.0
-    t = 0.9 - 0.7 * yerel - 0.5 * gur                      # ~0 light .. ~3 dark
+    yerel = ndimage.gaussian_filter(lum, 3.0)
+    yerel = (yerel - ndimage.gaussian_filter(lum, 16)) / 25.0
+    t = 0.7 - 0.45 * yerel - 0.4 * gur                     # mostly the two light tones
     # shadow: an object up-left of the pixel (light from the top left)
-    golge = np.zeros((H, W), bool)
-    for k in range(1, 9):
-        golge |= kaydir(nesne, k // 2, k)
-        golge |= kaydir(nesne, k, k // 2)
-    golge &= zemin
+    # soft, sparse shadows: only objects of some size cast one, blurred and thresholded
+    lab_n, nn = ndimage.label(nesne)
+    buyuk = nesne.copy()
+    if nn:
+        bb = np.bincount(lab_n.ravel()); bb[0] = 0
+        buyuk = (bb >= 200)[lab_n] & nesne
+    gol = np.zeros((H, W), np.float32)
+    for k in range(2, 11, 2):
+        gol = np.maximum(gol, kaydir(buyuk, k // 2, k).astype(np.float32))
+    golge = (ndimage.gaussian_filter(gol, 2.5) > 0.45) & zemin
     yakin = ndimage.binary_dilation(nesne, iterations=2) & zemin
-    t = np.where(golge, t + 2.2, t)
+    t = np.where(golge, t + 1.7, t)
     t = np.where(yakin & ~golge, t - 0.8, t)               # light-facing drift at object feet
     # soft edge: one tone step on the 1-2 px rim against objects
     kenar1 = zemin & ndimage.binary_dilation(nesne, iterations=1)
     kenar2 = zemin & ndimage.binary_dilation(nesne, iterations=2) & ~kenar1
-    t = np.where(kenar1, np.maximum(t, 2), t)
-    t = np.where(kenar2, np.maximum(t, 1), t)
+    t = np.where(kenar1 & ~golge, np.maximum(t, 1), t)    # one light step only, no dark crumb rim
     idx = np.clip(np.round(t), 0, 4).astype(int)
     out[zemin] = ton[idx][zemin]
 
