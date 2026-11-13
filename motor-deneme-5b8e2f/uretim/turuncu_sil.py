@@ -5,6 +5,9 @@ import sys, colorsys
 import numpy as np
 from PIL import Image
 kok, cikis = sys.argv[1], sys.argv[2]
+# --gevsek: sönük turuncu hâleyi de yakala (s>0.28, v>0.22)
+GEVSEK = '--gevsek' in sys.argv
+if GEVSEK: sys.argv.remove('--gevsek')
 def hsv(c): return colorsys.rgb_to_hsv(*(v/255 for v in c[:3]))
 def turuncu(c, s0=0.4, v0=0.4):
     h,s,v=hsv(c); return 0.05<h<0.18 and s>s0 and v>v0
@@ -17,7 +20,7 @@ for ad in sys.argv[3:]:
     mask=np.zeros((H,W),bool)
     for y in range(H):
         for x in range(W):
-            if g[y,x,3]>100 and b[y,x,3]>100 and turuncu(g[y,x]) and sicak(b[y,x]): mask[y,x]=True
+            if g[y,x,3]>100 and b[y,x,3]>100 and (turuncu(g[y,x],0.28,0.22) if GEVSEK else turuncu(g[y,x])) and sicak(b[y,x]): mask[y,x]=True
     # gece = A*gündüz + c (kanal başına), turuncu olmayan opak piksellerden
     ok=(g[...,3]>200)&(b[...,3]>200)&~mask
     out=g.copy()
