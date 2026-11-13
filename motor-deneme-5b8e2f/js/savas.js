@@ -128,6 +128,7 @@ class SavasSahnesi extends Phaser.Scene {
     this.okTuru = 'normal';
     this.stok = { ates: 0, delici: 0 };
     this.yagmurBekleme = 0;
+    this.yagBekleme = 0;
     this.kurtuldu = false;
     this.donma = 0;          // Vuruş donması (hit-stop) kalan sn
     this.agirCekim = 0;      // Ağır çekim kalan sn
@@ -181,6 +182,7 @@ class SavasSahnesi extends Phaser.Scene {
         if (this.satinAl(YUKSELTMELER[+e.key - 1]) && this.arayuz.dukkanYenile) this.arayuz.dukkanYenile();
       } else if (this.durum === 'savas' && ['1', '2', '3'].includes(e.key)) this.okSec(['normal', 'ates', 'delici'][+e.key - 1]);
       else if (this.durum === 'savas' && k === 'q') this.yagmurYagdir();
+      else if (this.durum === 'savas' && k === 'e') this.yagDok();
       else if (k === ' ' && this.durum === 'dukkan') this.dalgaBaslat();
       else if (k === ' ' && this.durum === 'menu') this.devamEt();
     });
@@ -258,7 +260,7 @@ class SavasSahnesi extends Phaser.Scene {
       gorev: this.gorev, olayAtlatilan: this.olayAtlatilan, barikatSayisi: this.barikatSayisi, enIyiKombo: this.enIyiKombo,
       sanKazanilan: this.sanKazanilan, sanDalga: this.sanDalga, sonAtis: this.sonAtis, bagisSayisi: this.bagisSayisi || 0,
       ekonomi: { kaynak: E.kaynak, nufus: E.nufus, bina: E.bina, asker: E.asker, surSeviye: E.surSeviye, pazar: E.pazar, rapor: E.rapor, acilOnarildi: E.acilOnarildi,
-        yapi: E.yapi, moral: E.moral, sefer: E.sefer, solenYapildi: E.solenYapildi },
+        yapi: E.yapi, moral: E.moral, sefer: E.sefer, solenYapildi: E.solenYapildi, arastirma: E.arastirma, ticaretSayisi: E.ticaretSayisi || 0 },
     };
     Kayit.yaz('kayit', JSON.stringify(veri));
   }
@@ -555,6 +557,35 @@ class SavasSahnesi extends Phaser.Scene {
     this.sesCal('confirm', 0.5);
   }
 
+  // Kızgın Yağ (araştırma): surun dibindeki düşmanları yakar ve tutuşturur
+  yagDok() {
+    const sv = Ar.sv(this, 'yag');
+    if (!sv || this.yagBekleme > 0 || this.durum !== 'savas') return;
+    this.yagBekleme = YAG.bekleme;
+    const x0 = AYAR.kale.onX, x1 = x0 + YAG.alan[sv - 1];
+    const hasar = DUSMAN_TURLERI.zombi.can * dalgaCanCarpani(this.dalga) * this.zorluk.can * YAG.hasar[sv - 1];
+    // Yağ surdan aşağı akar, yerde alev alır
+    for (let i = 0; i < 14; i++) {
+      this.time.delayedCall(i * 30, () => {
+        const x = x0 + Math.random() * (x1 - x0);
+        this.efekt.ates(x0 + 10 + Math.random() * 30, AYAR.kale.surUst + Math.random() * (AYAR.zemin - AYAR.kale.surUst), 3);
+        this.efekt.ates(x, AYAR.zemin - Math.random() * 60, 6);
+        this.efekt.alev(x, AYAR.zemin);
+        if (i % 4 === 0) this.efekt.duman(x, AYAR.zemin - 30, true);
+      });
+    }
+    let vurulan = 0;
+    for (const d of this.dusmanlar.slice()) {
+      if (!d.canli || d.T.ucan || d.x < x0 - 40 || d.x > x1) continue;
+      vurulan++;
+      d.tutustur(hasar * YAG.yanma / YAG.yanmaSure, YAG.yanmaSure);
+      if (d.vur(hasar * d.hasarCarpani(false, this))) this.dusmanOldu(d, false);
+    }
+    this.efekt.yazi(x0 + 160, AYAR.zemin - 200, vurulan ? `Kızgın yağ! ${vurulan} düşman` : 'Kızgın yağ boşa aktı', '#ff9a4a', 34);
+    this.sesCal('big_kill', 0.5);
+    this.sars(200, 0.004);
+  }
+
   // ---------------- Oklar ----------------
   // Ambarda ok kalmadı uyarısı (sık tekrar etmesin)
   okBitti() {
@@ -669,7 +700,7 @@ class SavasSahnesi extends Phaser.Scene {
     if (o.oyuncudan && !o.yan && !o.vurulan.length && this.atis) this.atis.isabet++;
     o.vurulan.push(z);
     const kafa = z.kafaMi(y);
-    let hasar = o.hasar * (kafa ? AYAR.ok.kafaCarpani * ((this.olay && this.olay.kafa) || 1) : 1);
+    let hasar = o.hasar * (kafa ? (AYAR.ok.kafaCarpani + Ar.kafa(this)) * ((this.olay && this.olay.kafa) || 1) : 1);
     if (!kafa && z.T.kemik) hasar *= z.T.kemik;                 // İskelet: oklar kemikten kayar
     const kalkanda = !kafa && z.T.kalkan && o.tur !== 'delici' && !o.keskin;  // Delici ve keskin ok kalkanı deler
     if (kalkanda) hasar *= 1 - z.T.kalkan;
@@ -717,7 +748,7 @@ class SavasSahnesi extends Phaser.Scene {
   dusmanOldu(z, oktan, kafadan = false) {
     if (!z.canli) return;
     const H = AYAR.his;
-    let altin = Math.round(z.T.altin * (1 + AYAR.dalga.altinArtisi * (this.dalga - 1)) * this.zorluk.altin * ((this.olay && this.olay.altin) || 1));
+    let altin = Math.round(z.T.altin * (1 + AYAR.dalga.altinArtisi * (this.dalga - 1)) * this.zorluk.altin * ((this.olay && this.olay.altin) || 1) * Ar.altin(this) * (z.azgin ? AZGIN.altin : 1));
     // Kombo: art arda hızlı öldürmeler ek altın verir
     this.kombo = this.komboSure > 0 ? this.kombo + 1 : 1;
     this.komboSure = H.komboSure;
@@ -751,6 +782,7 @@ class SavasSahnesi extends Phaser.Scene {
   // Düşman sura (ya da yarasa kuleye) vurdu
   kaleyeVur(hasar, x, y, agir) {
     if (this.durum !== 'savas') return;
+    hasar = Math.max(1, Math.round(hasar * Ar.surHasari(this)));
     this.surCan = Math.max(0, this.surCan - hasar);
     this.kale.parla();
     this.kale.guncelle(this.surCan / this.surEnFazla);
@@ -818,14 +850,20 @@ class SavasSahnesi extends Phaser.Scene {
 
   savasGuncelle(dt) {
     if (this.yagmurBekleme > 0) this.yagmurBekleme -= dt;
+    if (this.yagBekleme > 0) this.yagBekleme -= dt;
     if (this.okBittiUyari > 0) this.okBittiUyari -= dt;
     // Yeni düşman çıkar
     if (this.kuyruk.length) {
       this.cikisSayaci -= dt;
       if (this.cikisSayaci <= 0) {
         const tur = this.kuyruk.shift();
+        const T0 = DUSMAN_TURLERI[tur];
         const yeni = new Dusman(this, tur, this.dalga, this.zorluk);
         if (this.olay && this.olay.hiz) yeni.hiz *= this.olay.hiz;
+        if (!T0.patron && !T0.ucan && Math.random() < azginOlasiligi(this.dalga)) {
+          yeni.azginYap();
+          if (!this.gorulen.azgin) { this.gorulen.azgin = true; this.arayuz.duyur('Azgın düşman!', 'Mor parlayan ölüler iki kat dayanıklı ama üç kat altın düşürür.'); }
+        }
         this.dusmanlar.push(yeni);
         const T = DUSMAN_TURLERI[tur];
         if (T.ipucu && !this.gorulen[tur]) {

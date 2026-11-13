@@ -28,6 +28,8 @@ const GOREVLER = [
     tamam: (o, E) => E.yapi.kisla.seviye >= 1 },
   { ad: 'Ahırdan sefere adam gönder', aciklama: 'Boştaki halk ertesi gün ganimetle döner. Biraz risklidir.', hedef: 'ahir', odul: { altin: 60 },
     tamam: (o, E) => E.sefer > 0 || (E.rapor && E.rapor.sefer) },
+  { ad: 'Bir araştırma yap', aciklama: 'Silah ustası → Araştırma: altınla kalıcı geliştirmeler.', odul: { altin: 100 },
+    tamam: (o, E) => Object.values(E.arastirma || {}).some(v => v > 0) },
   { ad: 'İlk Ak Devi yık', aciklama: '10. gece birinci höyük açılır. Kafasına vur!', odul: { altin: 150 },
     tamam: (o) => o.dalga >= PATRON_ARASI },
 ];

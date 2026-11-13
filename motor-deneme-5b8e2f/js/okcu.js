@@ -78,7 +78,7 @@ class Okcu {
 
     if (!this.geriyor) {
       this.germe = Math.max(0, this.germe - dt * 6);
-      oyun.dayaniklilik = Math.min(D.enFazla, oyun.dayaniklilik + D.dolma * dt);
+      oyun.dayaniklilik = Math.min(D.enFazla, oyun.dayaniklilik + D.dolma * Ar.dolma(oyun) * dt);
       if (this.bekleme <= 0 && (g.basili || g.dokundu)) {
         g.dokundu = false;
         this.geriyor = true;

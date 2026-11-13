@@ -25,6 +25,7 @@ class Ekonomi {
     this.moral = MORAL.baslangic;
     this.solenYapildi = false;
     this.sefer = 0;         // Seferdeki kişi (gün sonunda döner)
+    this.arastirma = {};    // Araştırma seviyeleri (arastirma.js)
   }
 
   // ---------- Kişiler ----------
@@ -120,7 +121,7 @@ class Ekonomi {
   }
 
   // Seviyeye göre işçi verimi
-  verim(k) { return (1 + (this.bina[k].seviye - 1) * EKONOMI.seviyeBonus) * this.moralCarpani; }
+  verim(k) { return (1 + (this.bina[k].seviye - 1) * EKONOMI.seviyeBonus) * this.moralCarpani * Ar.uretim(this); }
   // Moral 50'de 1; 0'da 0.85, 100'de 1.15
   get moralCarpani() { return 1 + (this.moral - 50) / 100 * MORAL.etki; }
   get ucKalite() { return BINALAR.demirci.kalite[this.bina.demirci.seviye - 1]; }
@@ -228,7 +229,7 @@ class Ekonomi {
     }
     // 6) Savaş alanından ok toplama
     const saplanan = Math.min(this.saplanan, this.atilan);
-    const toplanan = Math.floor((this.atilan - saplanan) * EKONOMI.iskaToplama + saplanan * EKONOMI.isabetToplama);
+    const toplanan = Math.floor((this.atilan - saplanan) * Ar.iskaToplama(this) + saplanan * Ar.isabetToplama(this));
     kazan('ok', toplanan);
 
     // 7) Sefer ve moral (yapilar.js)

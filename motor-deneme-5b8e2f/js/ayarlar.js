@@ -170,6 +170,10 @@ function dusmanSec(n) {
   return 'zombi';
 }
 
+// Azgın (seçkin) düşman: 8. dalgadan sonra ara sıra çıkar. Mor parlar, iri ve dayanıklıdır, çok altın düşürür.
+const AZGIN = { ilkDalga: 8, artis: 0.012, enCok: 0.1, can: 2.2, boy: 1.18, hiz: 1.08, altin: 3, renk: 0xd8a8ff };
+function azginOlasiligi(n) { return n < AZGIN.ilkDalga ? 0 : Math.min(AZGIN.enCok, AZGIN.artis * (n - AZGIN.ilkDalga + 1)); }
+
 // Her 10. dalga patron dalgası
 const PATRON_ARASI = 10;
 

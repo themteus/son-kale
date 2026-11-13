@@ -44,6 +44,10 @@ gelene dek (kurtuluş dalgası) dayanmalısın. Her 10. gece höyüklerden bir A
   Hepsi bitince her gün bir "günün görevi" çıkar (isabet, kafa, kombo, sur canı); ödülü Şan.
 - **Şan** (`js/san.js`): oyun bitince dayanılan geceye göre Şan kazanılır, başarımlar da Şan verir.
   Başlangıç menüsünde **Şan Salonu**: başlangıç oku/altını/halkı, ok hasarı, sur canı kalıcı artar.
+- **Araştırma** (`js/arastirma.js`): Silah ustası → Araştırma. Altınla 7 kalıcı geliştirme (3'er seviye):
+  üretim, ok toplama, sur zırhı, kafa çarpanı, ganimet, dayanıklılık ve yeni yetenek **Kızgın Yağ** (E tuşu:
+  surun dibindekileri yakar). Geç oyunda biriken altın buraya ve şapeldeki **kitabeye bağış**a (+1 Şan) gider.
+- **Azgın düşmanlar:** 8. geceden sonra ara sıra mor, iri bir ölü çıkar: iki kat dayanıklı, üç kat altın (`AZGIN`).
 - **Ayarlar:** savaşta sağ üstte ×1/×2 hız düğmesi (F tuşu); duraklat penceresinde ekran sarsıntısı aç/kapa.
 
 ## Yardımcı kurallar
@@ -63,6 +67,7 @@ gelene dek (kurtuluş dalgası) dayanmalısın. Her 10. gece höyüklerden bir A
 - `js/okcu.js`     : oyuncunun yayı (bas = ger, bırak = at) ve okçu askerler
 - `js/arayuz.js`   : savaş ekranının üst bilgisi, düğmeler, pencereler
 - `js/gorevler.js` : öğretici görevler ve günün görevi
+- `js/arastirma.js`: araştırma ağacı ve Kızgın Yağ
 - `js/san.js`      : Şan (oyunlar arası ilerleme), Şan Salonu ödülleri, başarımlar
 - `js/hikaye.js`   : hikâye metinleri (açılış, kronik, Ak Dev geceleri, sonlar) ve hikâye penceresi
 - `js/ekonomi.js`  : kaynaklar, nüfus, binalar, gün sonu hesabı, pazar, otomatik dağıt

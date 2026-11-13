@@ -58,12 +58,24 @@ class Dusman {
     }
   }
 
+  // Azgın (seçkin) düşman: iri, dayanıklı, mor (ayarlar.js → AZGIN)
+  azginYap() {
+    this.azgin = true;
+    this.canEnFazla = Math.round(this.canEnFazla * AZGIN.can);
+    this.can = this.canEnFazla;
+    this.hiz *= AZGIN.hiz;
+    this.boy *= AZGIN.boy; this.en *= AZGIN.boy;
+    this.sprite.setScale(this.sprite.scaleX * AZGIN.boy);
+    this.asilRenk();
+  }
+
   // Ak Devin rengi (yanma/parlama bitince buna döner)
   asilRenk() {
     if (this.yanma > 0) return this.sprite.setTint(0xffb080).setTintMode(Phaser.TintModes.MULTIPLY);
     if (this.zirh > 0) return this.sprite.setTint(0x9ab0e8).setTintMode(Phaser.TintModes.MULTIPLY);
     if (this.ofkeli) return this.sprite.setTint(0xffa090).setTintMode(Phaser.TintModes.MULTIPLY);
     if (this.A && this.A.renk) return this.sprite.setTint(this.A.renk).setTintMode(Phaser.TintModes.MULTIPLY);
+    if (this.azgin) return this.sprite.setTint(AZGIN.renk).setTintMode(Phaser.TintModes.MULTIPLY);
     return this.sprite.clearTint();
   }
 
