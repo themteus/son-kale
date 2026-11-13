@@ -93,6 +93,8 @@ class Okcu {
     const enCok = oyun.dayaniklilik <= 0 ? 0.6 : 1;
     if (this.germe < enCok) {
       this.germe = Math.min(enCok, this.germe + dt / (B.germeSuresi * hizlanma * (this.yorgun ? 1.6 : 1)));
+      // Tam gerildi: ok ucunda kısa parıltı (bırakma anı belli olsun)
+      if (this.germe >= 1 && oyun.efekt) { oyun.efekt.kivilcim(this.tutamak.x + Math.cos(this.aci) * 30, this.tutamak.y + Math.sin(this.aci) * 30, false); oyun.sesCal('ui', 0.18); }
       oyun.dayaniklilik = Math.max(0, oyun.dayaniklilik - D.germe * dt);
     } else {
       this.tutma += dt;

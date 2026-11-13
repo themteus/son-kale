@@ -83,6 +83,20 @@ const AYAR = {
   // Keskin ok: hasar ×2 ve önündeki düşmanların içinden geçer. Iska seriyi bozar.
   keskin: { seri: 3, hasar: 2, delip: 3 },
 
+  // Vuruş hissi: kısa donma (hit-stop), kombo, ağır çekim
+  his: {
+    donmaKafa: 0.05,    // Kafadan öldürünce oyun bu kadar sn neredeyse durur
+    donmaAgir: 0.09,    // Dev/kalkanlı dev/Ak Dev ölünce
+    donmaHizi: 0.08,    // Donarken zaman bu hızla akar
+    komboSure: 1.6,     // İki öldürme arası bu kadar sn içindeyse kombo sürer
+    komboEnAz: 3,       // Bu kombodan sonra her öldürme +altın verir
+    komboAltin: 1,      // Kombo başına ek altın (kombo − komboEnAz + 1) × bu
+    komboTavan: 10,     // Bir öldürmede komboyla en çok bu kadar ek altın
+    agirCekimSure: 0.9, // Dalganın son düşmanı / Ak Dev ölünce ağır çekim (sn)
+    agirCekimHizi: 0.3,
+    hasarSayisi: true,  // Oyuncunun oklarında hasar sayısı uçar
+  },
+
   dalga: {
     temel: 4,          // 1. dalgadaki zombi ~ temel + artis
     artis: 2.6,        // Her dalgada eklenen zombi
@@ -158,6 +172,49 @@ function dusmanSec(n) {
 
 // Her 10. dalga patron dalgası
 const PATRON_ARASI = 10;
+
+// Üç Ak Dev: 10, 20 ve 30. gecede sırayla gelir (sonsuz kuşatmada yeniden döner).
+// Aynı görsel, farklı renk ve saldırı tarzı.
+//  govde  : gövdeye gelen okun hasar oranı (kafa normal vurur)
+//  kukreme: aralıkla kükrer, yakındaki düşmanlar bir süre hızlanır
+//  cagir  : aralıkla yanında yerden ölü kaldırır
+//  zirh   : canı bu eşiklerin altına inince sise bürünür (gövde hasarı × oran); kafa vuruşu sisi dağıtır
+//  ofke   : canı bu oranın altına inince hızlanır
+const AK_DEVLER = [
+  { ad: 'Taş Yürekli Ak Dev', renk: null, govde: 0.6,
+    kukreme: { aralik: 9, sure: 3.5, hiz: 1.6, alan: 760 },
+    ipucu: 'Gövdesi taş gibi: oklar az işler. Kafasına nişan al! Kükreyince sürü hızlanır.' },
+  { ad: 'Ölü Çağıran Ak Dev', renk: 0xc4dcae, govde: 1,
+    cagir: { aralik: 6.5, sayi: 2, tur: 'zombi', enCok: 14 },
+    ipucu: 'Yürüdükçe yerden ölü kaldırır. Sur dibine varmadan düşür!' },
+  { ad: 'Sisli Ak Dev', renk: 0xb4c4f0, govde: 1,
+    zirh: { esik: [0.75, 0.5, 0.25], sure: 5, oran: 0.15 },
+    ofke: { esik: 0.3, hiz: 1.8 },
+    ipucu: 'Canı azaldıkça sise bürünür: kafa vuruşu sisi dağıtır. Son nefeste öfkelenir.' },
+];
+// n. dalganın Ak Devi
+function akDev(n) { return AK_DEVLER[(Math.max(1, Math.round(n / PATRON_ARASI)) - 1) % AK_DEVLER.length]; }
+
+// -------------------------------------------------------------
+//  GECE OLAYLARI: bazı gecelerin kendine özgü kuralı olur.
+//  Gözcüler bir gün önceden haber verir (iç kalede yazar).
+//   enAz: bu dalgadan önce çıkmaz · hiz/altin: düşman hızı ve altın çarpanı
+//   kafa: kafa vuruşu çarpanı · atesYok: ateşli ok yakmaz · ruzgar: o gecenin rüzgârı
+//   ekle: dalgaya eklenen düşmanlar · sis: sağ yarı sisle örtülür
+// -------------------------------------------------------------
+const GECE_OLAYLARI = {
+  kanayi:  { ad: 'Kan Ayı',    enAz: 4, hiz: 1.2, altin: 1.5, renk: 0x7a1010, renkOran: 0.18, ay: 0xff6a50, ayOlcek: 1.1,
+             aciklama: 'Ölüler azgın ve hızlı. Ama her biri bir buçuk kat altın düşürür.' },
+  sis:     { ad: 'Sisli Gece', enAz: 3, sis: true,
+             aciklama: 'Solgun Sis vadiye çöktü: sürü sisin içinden çıkıp gelir.' },
+  saganak: { ad: 'Sağanak',    enAz: 3, hiz: 0.85, atesYok: true, ruzgar: 0,
+             aciklama: 'Yağmur çamura çevirdi: düşmanlar yavaş, rüzgâr yok. Ateşli oklar tutuşmaz.' },
+  dolunay: { ad: 'Dolunay',    enAz: 5, kafa: 1.5, renk: 0xc8d8ff, renkOran: 0.08, ay: 0xffffff, ayOlcek: 1.3,
+             aciklama: 'Gece aydınlık: kafa vuruşları bir buçuk kat daha sert.' },
+  kurt:    { ad: 'Kurt Gecesi', enAz: 6, ekle: { kurt: 6 },
+             aciklama: 'Ormandan bir kurt sürüsü indi. Önlerine nişan al.' },
+};
+const OLAY_OLASILIK = 0.35; // Ak Dev gecesi dışında bir gecenin olaylı olma olasılığı
 
 // -------------------------------------------------------------
 //  ZORLUK (başlangıçta seçilir)

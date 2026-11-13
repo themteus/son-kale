@@ -25,6 +25,9 @@ class Arayuz {
     this.ipucu = sahne.add.text(AYAR.en / 2, 400, '', stil('govde', 30, { stroke: '#120e0c', strokeThickness: 6, align: 'center' }))
       .setOrigin(0.5).setDepth(d + 2).setAlpha(0);
     this.odak = sahne.add.graphics().setDepth(45);
+    // Kombo sayacı: sağda, art arda öldürünce büyüyüp söner
+    this.komboYazi = sahne.add.text(AYAR.en - 250, 200, '', stil('baslik', 54, { color: '#ffd76a', stroke: '#120e0c', strokeThickness: 8 }))
+      .setOrigin(0.5).setDepth(d + 1).setAlpha(0);
     this.canlar = sahne.add.graphics().setDepth(44);
     // Sağ üst düğmeler
     this.sesDugme = this.dugme(AYAR.en - 150, 50, 90, 64, '♪', () => sahne.sesAcKapa(), 52, 30);
@@ -126,8 +129,10 @@ class Arayuz {
     if (p) {
       const w = 760, x = AYAR.en / 2 - w / 2, y = 128;
       g.fillStyle(0x120e0c, 0.9).fillRoundedRect(x - 6, y - 6, w + 12, 30, 8);
-      g.fillStyle(0x7a1a40, 1).fillRect(x, y, w * kis(p.can / p.canEnFazla, 0, 1), 18);
-      this.kalanYazi.setText('Ak Dev');
+      g.fillStyle(p.zirh > 0 ? 0x5a70b0 : p.ofkeli ? 0xb02a2a : 0x7a1a40, 1).fillRect(x, y, w * kis(p.can / p.canEnFazla, 0, 1), 18);
+      // Sis zırhı eşikleri: çubukta ince çizgiler
+      if (p.A && p.A.zirh) for (const e of p.A.zirh.esik) g.fillStyle(0xb4c4f0, 0.8).fillRect(x + w * e - 1, y, 3, 18);
+      this.kalanYazi.setText(p.A ? p.A.ad + (p.zirh > 0 ? ' · sis zırhı' : '') : 'Ak Dev');
     }
     // Düşman can çubukları
     const c = this.canlar;
@@ -149,6 +154,15 @@ class Arayuz {
       o.lineStyle(3, sakin ? 0xffeca8 : 0xf3e7c4, sakin ? 0.85 : 0.4).strokeCircle(oyun.girdi.x, oyun.girdi.y, yar);
       o.fillStyle(0xf3e7c4, 0.6).fillCircle(oyun.girdi.x, oyun.girdi.y, 3);
     }
+  }
+
+  komboGoster(n) {
+    const t = this.komboYazi;
+    this.s.tweens.killTweensOf(t);
+    const renk = n >= 10 ? '#ff9a5a' : n >= 6 ? '#ffe08a' : '#ffd76a';
+    t.setText(`${n}× KOMBO`).setColor(renk).setAlpha(1).setScale(1.35 + Math.min(0.5, n * 0.03));
+    this.s.tweens.add({ targets: t, scale: 1, duration: 160, ease: 'Back.easeOut' });
+    this.s.tweens.add({ targets: t, alpha: 0, delay: AYAR.his.komboSure * 1000, duration: 400 });
   }
 
   // Sur %25'in altındayken kenarlarda kırmızı nabız (sur azaldıkça hızlanır)
