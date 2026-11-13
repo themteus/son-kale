@@ -77,11 +77,23 @@ const Varyant = {
     return this.sezon(o).varyant || null;
   },
 
-  // Binanın gösterilecek dokusu (varyant yoksa normal doku)
+  kisMi(sahne) { return this.sezon(sahne.oyun).varyant === 'karli'; },
+
+  // Binanın gösterilecek dokusu (varyant yoksa normal doku).
+  // Kış gecesi: karsız _gece yerine karlı doku (üstüne gece tonu, bkz. tonla)
   anahtar(sahne, temel, hal) {
     if (!hal) return temel;
-    const k = 'kv_' + temel.slice(2) + '_' + hal;   // k_demirci3 → kv_demirci3_karli
-    return sahne.textures.exists(k) ? k : temel;
+    const kv = h => 'kv_' + temel.slice(2) + '_' + h;   // k_demirci3 → kv_demirci3_karli
+    if (hal === 'gece' && this.kisMi(sahne) && sahne.textures.exists(kv('karli'))) return kv('karli');
+    // kış + sur hasarı: yıkık binanın karlı sürümü
+    if (hal === 'yikik' && this.kisMi(sahne) && sahne.textures.exists(kv('yikik_karli'))) return kv('yikik_karli');
+    return sahne.textures.exists(kv(hal)) ? kv(hal) : temel;
+  },
+  // Doku gece görseliyse hafif ton; gündüz/kar görseli gece gösteriliyorsa koyu gece tonu
+  tonla(sahne, sp, doku) {
+    if (doku.endsWith('_gece')) sp.setTint(VARYANT_AYAR.geceDokuTon);
+    else if (this.hal(sahne) === 'gece' && doku.endsWith('_karli')) sp.setTint(VARYANT_AYAR.ton.gece);
+    else sp.clearTint();
   },
 
   // Köylü ve nöbetçiler gece hafif kararır (kale.js koyluYap da çağırır)
@@ -96,12 +108,12 @@ const Varyant = {
   uygula(sahne, sp, temel) {
     const yeni = this.anahtar(sahne, temel, this.hal(sahne));
     const eski = sp.texture && sp.texture.key;
-    if (eski === yeni) return;
-    if (!eski || eski === '__MISSING' || !sp.visible || !sahne.sys.isActive()) { sp.setTexture(yeni); this.geceTonu(sp, yeni); return; }
+    if (eski === yeni) { this.tonla(sahne, sp, yeni); return; } // doku aynı kalsa da ton (kış gündüz → kış gecesi) güncellenmeli
+    if (!eski || eski === '__MISSING' || !sp.visible || !sahne.sys.isActive()) { sp.setTexture(yeni); this.tonla(sahne, sp, yeni); return; }
     const hayalet = sahne.add.image(sp.x, sp.y, eski).setOrigin(sp.originX, sp.originY)
       .setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth + 0.001);
     sp.setTexture(yeni);
-    this.geceTonu(sp, yeni);
+    this.tonla(sahne, sp, yeni);
     sahne.tweens.add({ targets: hayalet, alpha: 0, duration: VARYANT_AYAR.gecisMs, onComplete: () => hayalet.destroy() });
   },
 
@@ -113,14 +125,23 @@ const Varyant = {
     for (const c of sahne.children.list) {
       const k = c.texture && c.texture.key;
       if (k && /^(koylu|nobetci)/.test(k)) { this.koyluTonu(sahne, c); continue; }
-      if (!k || !(k === 'k_arka' || k === 'k_on' || k.startsWith('ks_'))) continue;
-      if (k.startsWith('ks_')) {
-        c.temelDoku = c.temelDoku || k;
-        const ozel = (h === 'karli' || h === 'gece') ? c.temelDoku + '_' + h : null;
-        if (ozel && sahne.textures.exists(ozel)) { if (k !== ozel) c.setTexture(ozel); this.geceTonu(c, ozel); continue; }
-        if (k !== c.temelDoku) c.setTexture(c.temelDoku);
+      if (!k || !(/^k_(arka|on)(_|$)/.test(k) || k.startsWith('ks_'))) continue;
+      // k_arka_karli / k_on_karli / ks_<ad>_karli|_gece varsa onu göster.
+      // Kış her hâlde karlı kalır: gece = karlı doku + gece tonu, yıkık (sur hasarı) = karlı doku.
+      c.temelDoku = c.temelDoku || k;
+      const var_ = h2 => sahne.textures.exists(c.temelDoku + '_' + h2) ? c.temelDoku + '_' + h2 : null;
+      const kis = this.kisMi(sahne) ? var_('karli') : null;
+      let doku = c.temelDoku, tint = null;
+      if (h === 'gece') {
+        if (kis) { doku = kis; tint = VARYANT_AYAR.ton.gece; }
+        else if (var_('gece')) { doku = var_('gece'); tint = VARYANT_AYAR.geceDokuTon; }
+        else tint = VARYANT_AYAR.ton.gece;
+      } else if (h === 'karli' || h === 'yikik') {
+        if (kis) doku = kis;
+        else if (h === 'karli') tint = VARYANT_AYAR.ton.karli;
       }
-      if (ton === null) c.clearTint(); else c.setTint(ton);
+      if (k !== doku) c.setTexture(doku);
+      if (tint === null) c.clearTint(); else c.setTint(tint);
     }
   },
 

@@ -1,0 +1,178 @@
+{
+ "bolgeler": {
+  "askeri": "batı suru: kışla + talim alanı",
+  "ciftlik": "arka sur: ahır, atlar, kümes, saman arabası, çiftlik",
+  "pazar": "orta meydan: kuyu, tezgâhlar, araba, fıçı/sandık",
+  "cadde": "kapıdan pazara taş cadde: çeşme, mangal, köpek",
+  "dini": "kale burcunun yanında şapel"
+ },
+ "susler": [
+  {
+   "ad": "kisla",
+   "x": 330,
+   "y": 552,
+   "piksel": 0.75,
+   "oncelik": 1,
+   "bolge": "askeri"
+  },
+  {
+   "ad": "manken",
+   "x": 425,
+   "y": 592,
+   "oncelik": 1,
+   "bolge": "askeri"
+  },
+  {
+   "ad": "manken",
+   "x": 478,
+   "y": 612,
+   "ayna": true,
+   "oncelik": 2,
+   "bolge": "askeri"
+  },
+  {
+   "ad": "silahrafi",
+   "x": 392,
+   "y": 606,
+   "oncelik": 2,
+   "bolge": "askeri"
+  },
+  {
+   "ad": "bayrak",
+   "x": 268,
+   "y": 520,
+   "oncelik": 2,
+   "bolge": "askeri"
+  },
+  {
+   "ad": "mesale",
+   "x": 402,
+   "y": 556,
+   "oncelik": 3,
+   "bolge": "askeri"
+  },
+  {
+   "ad": "ahir",
+   "x": 612,
+   "y": 342,
+   "piksel": 0.8,
+   "oncelik": 1,
+   "bolge": "ciftlik"
+  },
+  {
+   "ad": "at_kahve",
+   "x": 585,
+   "y": 412,
+   "oncelik": 1,
+   "bolge": "ciftlik"
+  },
+  {
+   "ad": "at_beyaz",
+   "x": 648,
+   "y": 428,
+   "ayna": true,
+   "oncelik": 2,
+   "bolge": "ciftlik"
+  },
+  {
+   "ad": "tavuk",
+   "x": 992,
+   "y": 388,
+   "oncelik": 3,
+   "bolge": "ciftlik"
+  },
+  {
+   "ad": "domuz",
+   "x": 1215,
+   "y": 805,
+   "oncelik": 3,
+   "bolge": "ciftlik"
+  },
+  {
+   "ad": "kuyu",
+   "x": 806,
+   "y": 602,
+   "oncelik": 1,
+   "bolge": "pazar"
+  },
+  {
+   "ad": "tezgah2",
+   "x": 708,
+   "y": 652,
+   "oncelik": 1,
+   "bolge": "pazar"
+  },
+  {
+   "ad": "tezgah3",
+   "x": 640,
+   "y": 640,
+   "oncelik": 2,
+   "bolge": "pazar"
+  },
+  {
+   "ad": "fici2",
+   "x": 748,
+   "y": 568,
+   "oncelik": 2,
+   "bolge": "pazar"
+  },
+  {
+   "ad": "sandik",
+   "x": 668,
+   "y": 590,
+   "oncelik": 3,
+   "bolge": "pazar"
+  },
+  {
+   "ad": "araba",
+   "x": 1012,
+   "y": 612,
+   "oncelik": 2,
+   "bolge": "pazar"
+  },
+  {
+   "ad": "cesme",
+   "x": 1165,
+   "y": 716,
+   "oncelik": 1,
+   "bolge": "cadde"
+  },
+  {
+   "ad": "mesale",
+   "x": 1396,
+   "y": 692,
+   "oncelik": 2,
+   "bolge": "cadde"
+  },
+  {
+   "ad": "kopek",
+   "x": 1368,
+   "y": 714,
+   "ayna": true,
+   "oncelik": 3,
+   "bolge": "cadde"
+  },
+  {
+   "ad": "bayrak",
+   "x": 1420,
+   "y": 610,
+   "oncelik": 2,
+   "bolge": "cadde"
+  },
+  {
+   "ad": "sapel",
+   "x": 1300,
+   "y": 405,
+   "piksel": 0.8,
+   "oncelik": 1,
+   "bolge": "dini"
+  },
+  {
+   "ad": "saman",
+   "x": 742,
+   "y": 352,
+   "oncelik": 3,
+   "bolge": "ciftlik"
+  }
+ ]
+}

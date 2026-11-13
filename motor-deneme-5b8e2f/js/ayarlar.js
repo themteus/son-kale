@@ -25,14 +25,14 @@ const AYAR = {
   askerYerleri: [
     { x: 372, ayakY: 580 },
     { x: 290, ayakY: 380 },
-    { x: 62, ayakY: 580 },
-    { x: 130, ayakY: 380 },
-    { x: 18, ayakY: 580 },
+    { x: 80, ayakY: 580 },
+    { x: 122, ayakY: 380 },
+    { x: 30, ayakY: 580 },  // ekran kenarından taşmasın, yanındakiyle üst üste binmesin
     // Sur yükseldikçe açılan yerler (SUR.askerYeri)
-    { x: 336, ayakY: 580 },
-    { x: 252, ayakY: 380 },
-    { x: 40, ayakY: 580 },
-    { x: 160, ayakY: 380 },
+    { x: 326, ayakY: 580 },
+    { x: 247, ayakY: 380 },
+    { x: 55, ayakY: 580 },
+    { x: 163, ayakY: 380 },
   ],
 
   ok: {

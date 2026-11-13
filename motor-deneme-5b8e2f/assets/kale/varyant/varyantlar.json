@@ -13,6 +13,10 @@
    "yikik": {
     "dosya": "ciftlik1_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "ciftlik1_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "ciftlik2": {
@@ -26,6 +30,10 @@
    },
    "yikik": {
     "dosya": "ciftlik2_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "ciftlik2_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -43,6 +51,10 @@
     "dosya": "ciftlik3_yikik.png",
     "kalite": "orta",
     "not": "tanınıyor ama çok koyu/yanık"
+   },
+   "yikik_karli": {
+    "dosya": "ciftlik3_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "demirci1": {
@@ -58,6 +70,10 @@
    "yikik": {
     "dosya": "demirci1_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "demirci1_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "demirci2": {
@@ -71,6 +87,10 @@
    },
    "yikik": {
     "dosya": "demirci2_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "demirci2_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -86,6 +106,10 @@
    "yikik": {
     "dosya": "demirci3_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "demirci3_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "duvarci1": {
@@ -99,6 +123,10 @@
    },
    "yikik": {
     "dosya": "duvarci1_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "duvarci1_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -114,6 +142,10 @@
    "yikik": {
     "dosya": "duvarci2_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "duvarci2_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "duvarci3": {
@@ -127,6 +159,10 @@
    },
    "yikik": {
     "dosya": "duvarci3_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "duvarci3_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -142,6 +178,10 @@
    "yikik": {
     "dosya": "ev1_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "ev1_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "ev2": {
@@ -155,6 +195,10 @@
    },
    "yikik": {
     "dosya": "ev2_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "ev2_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -170,6 +214,10 @@
    "yikik": {
     "dosya": "ev3_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "ev3_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "maden1": {
@@ -183,6 +231,10 @@
    },
    "yikik": {
     "dosya": "maden1_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "maden1_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -198,6 +250,10 @@
    "yikik": {
     "dosya": "maden2_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "maden2_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "maden3": {
@@ -211,6 +267,10 @@
    },
    "yikik": {
     "dosya": "maden3_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "maden3_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -226,6 +286,10 @@
    "yikik": {
     "dosya": "oduncu1_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "oduncu1_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "oduncu2": {
@@ -239,6 +303,10 @@
    },
    "yikik": {
     "dosya": "oduncu2_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "oduncu2_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -254,6 +322,10 @@
    "yikik": {
     "dosya": "oduncu3_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "oduncu3_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "tasocagi1": {
@@ -267,6 +339,10 @@
    },
    "yikik": {
     "dosya": "tasocagi1_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "tasocagi1_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -282,6 +358,10 @@
    "yikik": {
     "dosya": "tasocagi2_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "tasocagi2_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "tasocagi3": {
@@ -295,6 +375,10 @@
    },
    "yikik": {
     "dosya": "tasocagi3_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "tasocagi3_yikik_karli.png",
     "kalite": "iyi"
    }
   },
@@ -310,6 +394,10 @@
    "yikik": {
     "dosya": "yayci1_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "yayci1_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "yayci2": {
@@ -324,6 +412,10 @@
    "yikik": {
     "dosya": "yayci2_yikik.png",
     "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "yayci2_yikik_karli.png",
+    "kalite": "iyi"
    }
   },
   "yayci3": {
@@ -337,6 +429,10 @@
    },
    "yikik": {
     "dosya": "yayci3_yikik.png",
+    "kalite": "iyi"
+   },
+   "yikik_karli": {
+    "dosya": "yayci3_yikik_karli.png",
     "kalite": "iyi"
    }
   }

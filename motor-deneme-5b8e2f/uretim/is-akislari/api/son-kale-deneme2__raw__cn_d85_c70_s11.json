@@ -1,0 +1,167 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sd_xl_base_1.0.safetensors"
+  }
+ },
+ "2": {
+  "class_type": "LoraLoader",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "clip": [
+    "1",
+    1
+   ],
+   "lora_name": "pixel-art-xl.safetensors",
+   "strength_model": 1.0,
+   "strength_clip": 1.0
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "sdxl_vae_fp16_fix.safetensors"
+  }
+ },
+ "4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    1
+   ],
+   "text": "pixel art, isometric 2:1 view, a medieval blacksmith workshop, stone walls, timber frame, red clay tile roof, chimney with smoke, anvil outside, warm sunlight from top left, single building, centered, plain flat light gray background, crisp pixels, clean outline, cozy medieval city builder style"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "2",
+    1
+   ],
+   "text": "blurry, photo, 3d render, realistic, text, watermark, multiple buildings, ground tiles, grass field, cropped, top-down, side view"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "ref_demirci3_1024.png"
+  },
+  "is_changed": [
+   "cd9f7455ad984256c4f41b1d18ad0c2973d7ede597ac9e3286b091b99ffa3762"
+  ]
+ },
+ "11": {
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "10",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "7": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "2",
+    0
+   ],
+   "positive": [
+    "14",
+    0
+   ],
+   "negative": [
+    "14",
+    1
+   ],
+   "latent_image": [
+    "11",
+    0
+   ],
+   "seed": 11,
+   "steps": 25,
+   "cfg": 6.0,
+   "sampler_name": "dpmpp_2m",
+   "scheduler": "karras",
+   "denoise": 0.85
+  }
+ },
+ "8": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "7",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "9": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "8",
+    0
+   ],
+   "filename_prefix": "son-kale-deneme2/raw/cn_d85_c70_s11"
+  }
+ },
+ "12": {
+  "class_type": "Canny",
+  "inputs": {
+   "image": [
+    "10",
+    0
+   ],
+   "low_threshold": 0.3,
+   "high_threshold": 0.6
+  }
+ },
+ "13": {
+  "class_type": "ControlNetLoader",
+  "inputs": {
+   "control_net_name": "xinsir_canny_sdxl.safetensors"
+  }
+ },
+ "14": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "13",
+    0
+   ],
+   "image": [
+    "12",
+    0
+   ],
+   "strength": 0.7,
+   "start_percent": 0.0,
+   "end_percent": 0.8,
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ }
+}
