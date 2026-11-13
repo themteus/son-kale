@@ -77,6 +77,9 @@ const Varyant = {
     return this.sezon(o).varyant || null;
   },
 
+  // Akşam (savaşa çıkış) ya da ?gece=1: yıkık hâlde de gece tonu verilir
+  geceAktif(sahne) { return !!(sahne.geceMi || this.test.gece); },
+
   kisMi(sahne) { return this.sezon(sahne.oyun).varyant === 'karli'; },
 
   // Binanın gösterilecek dokusu (varyant yoksa normal doku).
@@ -92,13 +95,13 @@ const Varyant = {
   // Doku gece görseliyse hafif ton; gündüz/kar görseli gece gösteriliyorsa koyu gece tonu
   tonla(sahne, sp, doku) {
     if (doku.endsWith('_gece')) sp.setTint(VARYANT_AYAR.geceDokuTon);
-    else if (this.hal(sahne) === 'gece' && doku.endsWith('_karli')) sp.setTint(VARYANT_AYAR.ton.gece);
+    else if (this.geceAktif(sahne) && (doku.endsWith('_karli') || doku.endsWith('_yikik') || this.hal(sahne) === 'yikik')) sp.setTint(VARYANT_AYAR.ton.gece);
     else sp.clearTint();
   },
 
   // Köylü ve nöbetçiler gece hafif kararır (kale.js koyluYap da çağırır)
   koyluTonu(sahne, sp) {
-    if (this.hal(sahne) === 'gece') sp.setTint(VARYANT_AYAR.koyluGeceTon); else sp.clearTint();
+    if (this.geceAktif(sahne)) sp.setTint(VARYANT_AYAR.koyluGeceTon); else sp.clearTint();
   },
   geceTonu(sp, doku) {
     if (doku.endsWith('_gece')) sp.setTint(VARYANT_AYAR.geceDokuTon); else sp.clearTint();
@@ -139,6 +142,7 @@ const Varyant = {
       } else if (h === 'karli' || h === 'yikik') {
         if (kis) doku = kis;
         else if (h === 'karli') tint = VARYANT_AYAR.ton.karli;
+        if (h === 'yikik' && this.geceAktif(sahne)) tint = VARYANT_AYAR.ton.gece; // yıkık + akşam
       }
       if (k !== doku) c.setTexture(doku);
       if (tint === null) c.clearTint(); else c.setTint(tint);
