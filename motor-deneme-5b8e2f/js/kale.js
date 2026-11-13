@@ -420,6 +420,7 @@ class KaleSahnesi extends Phaser.Scene {
     if (this.ilkDizilis) [k.x, k.y] = this.yerBul(k);
     sp.play(tur + '_a_idle');
     sp.setPosition(k.x, k.y).setDepth(this.derinlik(k.y, disari));
+    if (typeof Varyant !== 'undefined') Varyant.koyluTonu(this, sp);
     return k;
   }
 

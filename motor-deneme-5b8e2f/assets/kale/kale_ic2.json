@@ -9,145 +9,143 @@
  "susler": [
   {
    "ad": "kisla",
-   "x": 330,
-   "y": 568,
+   "x": 289,
+   "y": 508,
    "oncelik": 1
   },
   {
    "ad": "manken",
-   "x": 425,
-   "y": 596,
+   "x": 423,
+   "y": 516,
    "oncelik": 1
   },
   {
    "ad": "manken",
-   "x": 478,
-   "y": 616,
+   "x": 460,
+   "y": 524,
    "ayna": true,
    "oncelik": 2
   },
   {
    "ad": "silahrafi",
-   "x": 392,
-   "y": 611,
+   "x": 532,
+   "y": 527,
    "oncelik": 2
   },
   {
    "ad": "bayrak",
-   "x": 268,
-   "y": 525,
+   "x": 381,
+   "y": 556,
    "oncelik": 2
   },
   {
    "ad": "mesale",
-   "x": 402,
-   "y": 559,
+   "x": 500,
+   "y": 522,
    "oncelik": 3
   },
   {
    "ad": "ahir",
-   "x": 612,
-   "y": 359,
+   "x": 689,
+   "y": 428,
    "oncelik": 1
   },
   {
    "ad": "at_kahve",
-   "x": 585,
-   "y": 423,
-   "oncelik": 1,
-   "piksel": 0.7
+   "x": 560,
+   "y": 470,
+   "oncelik": 1
   },
   {
    "ad": "at_beyaz",
-   "x": 648,
-   "y": 439,
+   "x": 612,
+   "y": 442,
    "ayna": true,
-   "oncelik": 2,
-   "piksel": 0.7
+   "oncelik": 2
   },
   {
    "ad": "tavuk",
-   "x": 992,
-   "y": 392,
+   "x": 1028,
+   "y": 338,
    "oncelik": 3
   },
   {
    "ad": "domuz",
-   "x": 1180,
-   "y": 830,
+   "x": 1207,
+   "y": 765,
    "oncelik": 3
   },
   {
    "ad": "kuyu",
-   "x": 806,
-   "y": 607,
+   "x": 880,
+   "y": 590,
    "oncelik": 1
   },
   {
    "ad": "tezgah2",
-   "x": 708,
-   "y": 659,
+   "x": 1110,
+   "y": 440,
    "oncelik": 1
   },
   {
    "ad": "tezgah3",
-   "x": 640,
-   "y": 647,
+   "x": 1300,
+   "y": 470,
    "oncelik": 2
   },
   {
    "ad": "fici2",
-   "x": 748,
-   "y": 575,
+   "x": 733,
+   "y": 683,
    "oncelik": 2
   },
   {
    "ad": "sandik",
-   "x": 668,
-   "y": 594,
+   "x": 807,
+   "y": 626,
    "oncelik": 3
   },
   {
    "ad": "araba",
-   "x": 1012,
-   "y": 621,
+   "x": 1047,
+   "y": 631,
    "oncelik": 2
   },
   {
    "ad": "cesme",
-   "x": 1165,
-   "y": 722,
+   "x": 1260,
+   "y": 701,
    "oncelik": 1
   },
   {
    "ad": "mesale",
-   "x": 1396,
-   "y": 695,
+   "x": 1395,
+   "y": 560,
    "oncelik": 2
   },
   {
    "ad": "kopek",
-   "x": 1368,
-   "y": 719,
+   "x": 1255,
+   "y": 730,
    "ayna": true,
    "oncelik": 3
   },
   {
    "ad": "bayrak",
-   "x": 1420,
-   "y": 615,
+   "x": 1348,
+   "y": 689,
    "oncelik": 2
   },
   {
    "ad": "sapel",
-   "x": 1300,
-   "y": 423,
+   "x": 1176,
+   "y": 412,
    "oncelik": 1
   },
   {
    "ad": "saman",
-   "x": 742,
-   "y": 358,
+   "x": 816,
+   "y": 364,
    "oncelik": 3
   }
  ],

@@ -23,6 +23,9 @@ const VARYANT_AYAR = {
   geceBekleMs: 1100,         // savaşa çıkarken gece görünümü ne kadar kalır
   // zemin, ön surlar ve süslere verilen ton (binalarla uyumlu dursun)
   ton: { karli: 0xcfdbec, gece: 0x56648c },
+  // Gece görselleri (binalar, şapel...) zeminden açık ve mavi kalıyordu: zeminin tonuna çekilir
+  geceDokuTon: 0xdece8f,
+  koyluGeceTon: 0x9aa6c8,   // köylüler gece hafif kararır (fenersiz parlak kalmasın)
   klasor: 'assets/kale/varyant/',
 };
 
@@ -81,15 +84,24 @@ const Varyant = {
     return sahne.textures.exists(k) ? k : temel;
   },
 
+  // Köylü ve nöbetçiler gece hafif kararır (kale.js koyluYap da çağırır)
+  koyluTonu(sahne, sp) {
+    if (this.hal(sahne) === 'gece') sp.setTint(VARYANT_AYAR.koyluGeceTon); else sp.clearTint();
+  },
+  geceTonu(sp, doku) {
+    if (doku.endsWith('_gece')) sp.setTint(VARYANT_AYAR.geceDokuTon); else sp.clearTint();
+  },
+
   // Bina sprite'ına dokuyu uygular; değişiyorsa eskisi yavaşça kaybolur
   uygula(sahne, sp, temel) {
     const yeni = this.anahtar(sahne, temel, this.hal(sahne));
     const eski = sp.texture && sp.texture.key;
     if (eski === yeni) return;
-    if (!eski || eski === '__MISSING' || !sp.visible || !sahne.sys.isActive()) { sp.setTexture(yeni); return; }
+    if (!eski || eski === '__MISSING' || !sp.visible || !sahne.sys.isActive()) { sp.setTexture(yeni); this.geceTonu(sp, yeni); return; }
     const hayalet = sahne.add.image(sp.x, sp.y, eski).setOrigin(sp.originX, sp.originY)
       .setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth + 0.001);
     sp.setTexture(yeni);
+    this.geceTonu(sp, yeni);
     sahne.tweens.add({ targets: hayalet, alpha: 0, duration: VARYANT_AYAR.gecisMs, onComplete: () => hayalet.destroy() });
   },
 
@@ -100,11 +112,12 @@ const Varyant = {
     const ton = h === 'gece' ? VARYANT_AYAR.ton.gece : h === 'karli' ? VARYANT_AYAR.ton.karli : null;
     for (const c of sahne.children.list) {
       const k = c.texture && c.texture.key;
+      if (k && /^(koylu|nobetci)/.test(k)) { this.koyluTonu(sahne, c); continue; }
       if (!k || !(k === 'k_arka' || k === 'k_on' || k.startsWith('ks_'))) continue;
       if (k.startsWith('ks_')) {
         c.temelDoku = c.temelDoku || k;
         const ozel = (h === 'karli' || h === 'gece') ? c.temelDoku + '_' + h : null;
-        if (ozel && sahne.textures.exists(ozel)) { if (k !== ozel) c.setTexture(ozel); c.clearTint(); continue; }
+        if (ozel && sahne.textures.exists(ozel)) { if (k !== ozel) c.setTexture(ozel); this.geceTonu(c, ozel); continue; }
         if (k !== c.temelDoku) c.setTexture(c.temelDoku);
       }
       if (ton === null) c.clearTint(); else c.setTint(ton);
