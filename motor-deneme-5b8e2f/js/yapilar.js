@@ -102,7 +102,7 @@ const Yapilar = {
         .on('pointerdown', () => sahne.sec(k));
       // Ad binanın üstüne yazılır (kışla eskiden oduncunun altında kaldığı için alta yazılıyordu)
       const alta = false;
-      sahne.etiket[k] = sahne.add.text(sp.x - (alta ? 40 : 0), alta ? sp.y + 6 : sp.y - sp.displayHeight + 24, '',
+      sahne.etiket[k] = sahne.add.text(sp.x - (alta ? 40 : 0), alta ? sp.y + 6 : sp.y - sp.displayHeight + 2, '',
         stil('govde', DOKUNMATIK ? 28 : 22, { fontStyle: 'bold', backgroundColor: '#1a1410cc', padding: { x: 8, y: 3 } }))
         .setOrigin(0.5, alta ? 0 : 1).setDepth(90);
     }

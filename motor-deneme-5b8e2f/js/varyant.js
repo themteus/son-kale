@@ -115,6 +115,7 @@ const Varyant = {
     if (!eski || eski === '__MISSING' || !sp.visible || !sahne.sys.isActive()) { sp.setTexture(yeni); this.tonla(sahne, sp, yeni); return; }
     const hayalet = sahne.add.image(sp.x, sp.y, eski).setOrigin(sp.originX, sp.originY)
       .setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth + 0.001);
+    if (sp.isTinted) hayalet.setTint(sp.tintTopLeft); // geçişte eski görsel eski tonunu korur (gece parlamasın)
     sp.setTexture(yeni);
     this.tonla(sahne, sp, yeni);
     sahne.tweens.add({ targets: hayalet, alpha: 0, duration: VARYANT_AYAR.gecisMs, onComplete: () => hayalet.destroy() });
