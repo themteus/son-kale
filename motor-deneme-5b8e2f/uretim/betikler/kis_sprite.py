@@ -32,7 +32,7 @@ def gurultu(H, W, tohum=5, s=1.3):
     return g / (g.std() + 1e-6)
 
 
-def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False, kume=1.3):
+def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False, kume=1.3, karisim=0.15, yumusak=0.0, kap_kalin=2):
     a = a.copy()
     H, W = a.shape[:2]
     dolu = a[..., 3] > 200
@@ -45,9 +45,11 @@ def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False, kume=1.3):
         ust_bos = np.zeros_like(dolu); ust_bos[1:] = ~dolu[:-1]; ust_bos[0] = True
         ust_bos |= np.roll(ust_bos, 1, axis=0) & kontur      # just under the outer outline
     kap = yuzey & ust_bos                                   # first surface pixel under air / outline
-    kap2 = np.zeros_like(kap); kap2[1:] = kap[:-1]
     g = gurultu(H, W, tohum, kume)
-    kap |= kap2 & yuzey & (g > -0.2)                        # 2nd row on most of the cap: broken edge
+    kap0 = kap.copy()
+    for d in range(1, kap_kalin):                           # cap depth (2 = old behaviour)
+        kd = np.zeros_like(kap); kd[d:] = kap0[:-d]
+        kap |= kd & yuzey & ((g > -0.2) if d == 1 else (g > -0.6 + 0.3 * d))
     # upper part of each column: about half covered, ragged
     ust_bant = np.zeros_like(dolu)
     for x in np.nonzero(dolu.any(0))[0]:
@@ -59,10 +61,11 @@ def kar_sprite(a, kapsam=0.5, bant=0.3, tohum=5, sadece_ust=False, kume=1.3):
     alan = ust_bant & yuzey & (g > esik) & (lum > 60)
     kar = kap | alan
     # cream tones by the old brightness (lit parts lighter), stripes / shapes shimmer through
-    t = np.clip((200 - lum) / 70, 0, 3)
+    lum_t = ndimage.gaussian_filter(lum, yumusak) if yumusak > 0 else lum   # smoothed: big shade areas
+    t = np.clip((200 - lum_t) / 70, 0, 3)
     t = np.where(kap & ~alan, np.minimum(t, 1), t)
     idx = np.clip(np.round(t), 0, 3).astype(int)
-    c = KREM[idx] * 0.85 + f * 0.15
+    c = KREM[idx] * (1 - karisim) + f * karisim
     a[kar, :3] = np.clip(c[kar], 0, 255).astype(np.uint8)
     return a
 
@@ -252,6 +255,110 @@ def yikik_karli():
     json.dump(J, open(f"{V}/varyantlar.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 
+def soguk(a, maske, oran=0.6, mavi=(0.94, 0.99, 1.1)):
+    """Desaturate the masked pixels towards a cold grey."""
+    f = a[..., :3].astype(np.float32)
+    lum = f @ [0.299, 0.587, 0.114]
+    gri = np.stack([lum * mavi[0], lum * mavi[1], lum * mavi[2]], -1)
+    a[maske, :3] = np.clip(f[maske] * (1 - oran) + gri[maske] * oran, 0, 255).astype(np.uint8)
+    return a
+
+
+def taban_kar(a):
+    """Ground plate of a building sprite: pale green / beige ground in the lower band -> snow, the
+    old flat grey shadow ellipse softer and lighter."""
+    a = a.copy()
+    H, W = a.shape[:2]
+    dolu = a[..., 3] > 200
+    f = a[..., :3].astype(np.float32)
+    r, g, b = f[..., 0], f[..., 1], f[..., 2]
+    lum = f @ [0.299, 0.587, 0.114]
+    mx, mn = f.max(-1), f.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1)
+    alt_y = np.array([np.nonzero(dolu[:, x])[0].max() if dolu[:, x].any() else 0 for x in range(W)])
+    yy = np.arange(H)[:, None]
+    yuk = alt_y.max() - np.nonzero(dolu.any(1))[0].min()
+    bant = dolu & (yy >= alt_y[None, :] - 0.3 * yuk)
+    soluk = bant & (sat < 0.42) & (lum > 85) & (g >= b * 1.02) & ~((mn > 190) & (sat < 0.12))
+    soluk = ndimage.binary_opening(soluk, np.ones((2, 2)))
+    t = np.clip((200 - ndimage.gaussian_filter(lum, 1.0)) / 40, 0, 3) + 0.3 * gurultu(H, W, 41, 2.0)
+    idx = np.clip(np.round(t), 0, 3).astype(int)
+    a[soluk, :3] = np.clip(KREM[idx] * 0.92 + f * 0.08, 0, 255)[soluk].astype(np.uint8)
+    # shadow ellipse (semi-transparent): lighter, cold and with a blurred edge
+    gol = (a[..., 3] > 0) & (a[..., 3] < 200)
+    if gol.any():
+        al = a[..., 3].astype(np.float32)
+        yum = ndimage.gaussian_filter(np.where(gol, al, 0), 1.5)
+        yeni_al = np.where(gol | ((yum > 4) & (a[..., 3] == 0)), np.clip(yum * 0.75, 0, 199), al)
+        a[..., 3] = yeni_al.astype(np.uint8)
+        a[(a[..., 3] > 0) & (a[..., 3] < 200), :3] = (40, 44, 58)
+    return a
+
+
+def kozmetik():
+    """Cosmetic winter fixes for level-3 mine, quarry, farm and the ruined winter roofs.
+    Made from the summer sprites (same shape, footprint, size)."""
+    V = f"{KALE}/varyant"
+    ORJ = "D:/AI/araclar/orijinal/kozmetik"
+    for ad in ("maden3", "tasocagi3", "ciftlik3"):
+        for kind in ("karli", "yikik_karli"):
+            kaynak = f"{KALE}/{ad}.png" if kind == "karli" else f"{V}/{ad}_yikik.png"
+            a = np.asarray(Image.open(kaynak).convert("RGBA")).copy()
+            f = a[..., :3].astype(np.float32)
+            r, g, b = f[..., 0], f[..., 1], f[..., 2]
+            dolu = a[..., 3] > 200
+            if ad == "maden3":
+                # dome: clean cream snow in big joined patches, cold shadows, little brown showing
+                k = kar_sprite(a, kapsam=0.75, bant=0.45, tohum=51, kume=3.5, karisim=0.04, yumusak=1.5, kap_kalin=3)
+            elif ad == "tasocagi3":
+                # rock: continuous 3-4 px caps on every top surface, grey-green cooled
+                a = soguk(a, dolu & (g >= r * 0.95) & (g > b * 1.02), 0.65)
+                k = kar_sprite(a, kapsam=0.5, bant=0.3, tohum=52, kume=3.0, karisim=0.05, yumusak=1.0, kap_kalin=4)
+            else:
+                k = kar_sprite(a, kapsam=0.75, bant=0.34, tohum=53, kume=3.5, karisim=0.05, yumusak=1.2, kap_kalin=3)
+            k, _ = zemin_karla(k, toprak_da=ad != "ciftlik3", plaka=ad != "ciftlik3")
+            if ad == "ciftlik3":
+                # olive field and ground under snow (as white as ciftlik1), furrows faintly visible
+                f2 = k[..., :3].astype(np.float32)
+                r2, g2, b2 = f2[..., 0], f2[..., 1], f2[..., 2]
+                lum2 = f2 @ [0.299, 0.587, 0.114]
+                sat2 = (f2.max(-1) - f2.min(-1)) / np.maximum(f2.max(-1), 1)
+                H, W = lum2.shape
+                d2 = k[..., 3] > 200
+                alt_y = np.array([np.nonzero(d2[:, x])[0].max() if d2[:, x].any() else 0 for x in range(W)])
+                yy = np.arange(H)[:, None]
+                yuk = alt_y.max() - np.nonzero(d2.any(1))[0].min()
+                bant = d2 & (yy >= alt_y[None, :] - 0.42 * yuk)
+                bugday = (r2 > g2 * 1.02) & (g2 > b2 * 1.3) & (lum2 > 85)          # yellow wheat
+                tarla = bant & (((g2 > b2 * 1.12) & (sat2 > 0.18) & (lum2 > 50) & ~((r2 > g2 * 1.35) & (lum2 < 90))) | bugday)
+                mo = ndimage.uniform_filter(lum2, 5)
+                sd = np.sqrt(np.maximum(ndimage.uniform_filter(lum2 ** 2, 5) - mo ** 2, 0))
+                tarla &= sd < 45
+                tarla = ndimage.binary_opening(tarla, np.ones((2, 2)))
+                t = np.clip((170 - lum2) / 55, 0, 2)              # furrows stay a tone darker
+                idx = np.clip(np.round(t), 0, 2).astype(int)
+                k[tarla, :3] = np.clip(KREM[idx] * 0.94 + f2 * 0.06, 0, 255)[tarla].astype(np.uint8)
+            if ad != "ciftlik3":
+                k = taban_kar(k)
+            if kind == "yikik_karli":
+                m = k[..., 3] > 0
+                e = m & ~ndimage.binary_erosion(m)
+                k[e & (k[..., 3] > 200), :3] = (54, 56, 70)
+            Image.fromarray(k, "RGBA").save(f"{V}/{ad}_{kind}.png")
+            print(ad, kind)
+    # ruined winter roofs: orange-yellow ember / tile spots -> cold brown-grey
+    for ad in ("demirci3", "ev3", "ciftlik2"):
+        p = f"{V}/{ad}_yikik_karli.png"
+        a = np.asarray(Image.open(f"{ORJ}/{ad}_yikik_karli.png").convert("RGBA")).copy()
+        f = a[..., :3].astype(np.float32)
+        r, g, b = f[..., 0], f[..., 1], f[..., 2]
+        sat = (f.max(-1) - f.min(-1)) / np.maximum(f.max(-1), 1)
+        turuncu = (a[..., 3] > 200) & (r > g * 1.25) & (g > b * 1.05) & (sat > 0.45) & (r > 110)
+        a = soguk(a, turuncu, 0.75, mavi=(0.98, 0.95, 0.98))
+        Image.fromarray(a, "RGBA").save(p)
+        print(ad, "yikik_karli turuncu", int(turuncu.sum()))
+
+
 def sakin_cati(ad):
     """ic2 barn / barracks winter roofs: the old snow is a noisy checker; smooth it into 3 cream tones."""
     p = f"{KALE}/sus/ic2/{ad}_karli.png"
@@ -305,7 +412,9 @@ def sapel():
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "sapel":
+    if sys.argv[1] == "kozmetik":
+        kozmetik()
+    elif sys.argv[1] == "sapel":
         sapel()
     elif sys.argv[1] == "cati":
         for ad in ("ahir", "kisla"):
