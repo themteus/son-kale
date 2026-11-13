@@ -91,7 +91,7 @@ const AYAR = {
     komboSure: 1.6,     // İki öldürme arası bu kadar sn içindeyse kombo sürer
     komboEnAz: 3,       // Bu kombodan sonra her öldürme +altın verir
     komboAltin: 1,      // Kombo başına ek altın (kombo − komboEnAz + 1) × bu
-    komboTavan: 10,     // Bir öldürmede komboyla en çok bu kadar ek altın
+    komboTavan: 6,      // Bir öldürmede komboyla en çok bu kadar ek altın
     agirCekimSure: 0.9, // Dalganın son düşmanı / Ak Dev ölünce ağır çekim (sn)
     agirCekimHizi: 0.3,
     hasarSayisi: true,  // Oyuncunun oklarında hasar sayısı uçar
@@ -369,6 +369,7 @@ const MORAL = {
   rahip: 3,          // Rahip başına günde (şapel seviyesiyle artar)
   siginmaciAlt: 25,  // Moral bunun altındaysa sığınmacı gelmez
   solen: { yiyecek: 30, altin: 20, moral: 15 }, // Şölen: günde bir kez
+  bagis: { altin: 400, artis: 1.3, moral: 5 },   // Kitabeye bağış: +1 Şan (her seferinde %30 pahalı)
 };
 
 // Sefer (ahır): boştaki kişiler bir gün yağmaya gider

@@ -256,7 +256,7 @@ class SavasSahnesi extends Phaser.Scene {
       surCan: Math.round(this.surCan), kurtuldu: this.kurtuldu, oldurulen: this.oldurulen, kafaVurusu: this.kafaVurusu,
       gorulen: this.gorulen, hikaye: this.hikaye, keskinHazir: this.keskinHazir, sonraki: this.kesif(),
       gorev: this.gorev, olayAtlatilan: this.olayAtlatilan, barikatSayisi: this.barikatSayisi, enIyiKombo: this.enIyiKombo,
-      sanKazanilan: this.sanKazanilan, sanDalga: this.sanDalga, sonAtis: this.sonAtis,
+      sanKazanilan: this.sanKazanilan, sanDalga: this.sanDalga, sonAtis: this.sonAtis, bagisSayisi: this.bagisSayisi || 0,
       ekonomi: { kaynak: E.kaynak, nufus: E.nufus, bina: E.bina, asker: E.asker, surSeviye: E.surSeviye, pazar: E.pazar, rapor: E.rapor, acilOnarildi: E.acilOnarildi,
         yapi: E.yapi, moral: E.moral, sefer: E.sefer, solenYapildi: E.solenYapildi },
     };
@@ -273,7 +273,7 @@ class SavasSahnesi extends Phaser.Scene {
     if (!v) return this.oyunuBaslat();
     this.zorlukSec(v.zorluk);
     for (const k of ['dalga', 'altin', 'seviye', 'stok', 'kurtuldu', 'oldurulen', 'kafaVurusu', 'gorulen', 'hikaye', 'keskinHazir', 'sonraki',
-      'gorev', 'olayAtlatilan', 'barikatSayisi', 'enIyiKombo', 'sanKazanilan', 'sanDalga', 'sonAtis']) if (v[k] !== undefined) this[k] = v[k];
+      'gorev', 'olayAtlatilan', 'barikatSayisi', 'enIyiKombo', 'sanKazanilan', 'sanDalga', 'sonAtis', 'bagisSayisi']) if (v[k] !== undefined) this[k] = v[k];
     Object.assign(this.ekonomi, v.ekonomi);
     this.surEnFazla = 0;
     this.surCanAyarla();

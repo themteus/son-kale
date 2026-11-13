@@ -57,6 +57,19 @@ const Yapilar = {
     return true;
   },
 
+  // Kitabeye bağış: altın → Şan (oyunlar arası) + moral
+  bagisFiyati(o) { return Math.round(MORAL.bagis.altin * Math.pow(MORAL.bagis.artis, o.bagisSayisi || 0)); },
+  bagis(E, o) {
+    const f = this.bagisFiyati(o);
+    if (o.altin < f) return false;
+    o.altin -= f;
+    o.bagisSayisi = (o.bagisSayisi || 0) + 1;
+    E.moral = Math.min(100, E.moral + MORAL.bagis.moral);
+    San.ekle(1);
+    o.sanKazanilan = (o.sanKazanilan || 0) + 1;
+    return true;
+  },
+
   // ---------- Sefer ----------
   seferAcik(oyun) { return oyun.dalga + 1 >= SEFER.ilkGun; },
   seferRiski(E, oyun) {
@@ -139,7 +152,13 @@ const Yapilar = {
         sl.yazi.setText(E.solenYapildi ? 'Bugün şölen verildi' : `Şölen: +${S.moral} moral · ${S.yiyecek} yiyecek, ${S.altin} altın`)
           .setColor(olur ? '#ffd76a' : '#7a7060');
       });
-      p.yazi(p.ust + 420, 'Açlık, ölüm, barikat ve yıkık sur morali düşürür. Moral 25\'in altına inerse sığınmacı gelmez.', 22, '#a89c84');
+      // Bağış: geç oyunda boşta kalan altın kalıcı Şan'a döner (her bağış %30 pahalanır)
+      const bg = p.dugme(-40, p.ust + 450, 440, 64, '', () => this.bagis(E, o) && o.sesCal('level_up', 0.4), 24);
+      satirlar.push(() => {
+        const f = this.bagisFiyati(o);
+        bg.yazi.setText(`Kitabeye bağış: +1 Şan, +${MORAL.bagis.moral} moral · ${f} altın`).setColor(o.altin >= f ? '#ffd76a' : '#7a7060');
+      });
+      p.yazi(p.ust + 500, 'Açlık, ölüm, barikat ve yıkık sur morali düşürür. Moral 25\'in altına inerse sığınmacı gelmez.', 22, '#a89c84');
     } else if (k === 'kisla') {
       const t = p.yazi(p.ust + 150, '', 28, '#efe6d2', { fontStyle: 'bold' });
       satirlar.push(() => {
@@ -160,7 +179,7 @@ const Yapilar = {
         r.setColor(E.sefer > 0 && E.sefer < SEFER.enAz ? '#ff9a7a' : '#c8bca4');
       });
     }
-    satirlar.push(sahne.yukseltSatiri(p, p.ust + (k === 'sapel' ? 530 : 470), () => this.yukseltBedeli(E, k), t => this.yukselt(E, k, o, t) && o.sesCal('level_up', 0.4)));
+    satirlar.push(sahne.yukseltSatiri(p, p.ust + (k === 'sapel' ? 590 : 470), () => this.yukseltBedeli(E, k), t => this.yukselt(E, k, o, t) && o.sesCal('level_up', 0.4)));
     sahne.panelYenile = () => {
       const s = E.yapi[k].seviye;
       sv.setText(s ? `Seviye ${s}` : 'Kurulmadı');
