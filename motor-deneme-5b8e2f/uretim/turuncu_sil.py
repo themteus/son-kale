@@ -25,5 +25,8 @@ for ad in sys.argv[3:]:
         A=np.vstack([b[ok][:,k],np.ones(ok.sum())]).T
         m,c=np.linalg.lstsq(A,g[ok][:,k],rcond=None)[0]
         out[mask,k]=np.clip(b[mask,k]*m+c,0,255)
+    # kalan sıcak (pas gibi) tonu gece mavisine çek: doygunluğu azalt, hafif soğut
+    l=out[mask,:3].mean(axis=1,keepdims=True)
+    out[mask,:3]=np.clip(l+(out[mask,:3]-l)*0.35+np.array([-3,0,6]),0,255)
     Image.fromarray(out.astype(np.uint8)).save(f'{cikis}/{ad}_gece.png')
     print(ad, int(mask.sum()))
